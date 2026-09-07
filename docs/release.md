@@ -37,6 +37,12 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 `bootstrap.ps1` 下载固定 SDK zip、验证 SHA-512 后安装到 `.dotnet`。`build.ps1` 使用仓库的 `NuGet.config`，仅启用 nuget.org 和 BepInEx 官方 feed，并通过冻结的 pnpm lockfile 构建 Electron/Vue 前端。`test.ps1` 把 TRX 写入 `artifacts\TestResults`，并运行 TypeScript、ESLint 与 Vitest 验证。
 
+## 0.6.73 装甲车头工具标识
+
+本版应用用户选定的装甲车头徽章，替换统一桌面标题栏、确认弹窗、主窗口/更新窗口图标，以及 Launcher、Electron、Host、Updater 的 ICO。`assets/branding/manager-source.png` 保留选定原图；资源脚本只做尺寸与格式转换，生成 1024/256 像素 PNG 和九种分辨率 ICO，保留透明通道，不重新生成图案。标题栏移除旧圆形外框，完整展示六边形徽章，其他布局与交互保持不变。
+
+所有产品版本面同步为 `0.6.73`；Player/Editor 协议、发布目录 schema 2 和更新清单 schema 3 不变，增量基线为 `v0.6.72`。
+
 ## 0.6.72 Unity Editor 目录图标修复
 
 `0.6.72` 修复连接 Unity Editor Play Mode 后，战车、道具、遗物等目录卡片全部退化为占位图的问题。Editor Runtime 原本已经把 PNG 与 `iconFile`、`iconSha256` 正确写入 Editor artifact；Host 的图标内联逻辑却只从 Player 握手的 `ArtifactRoot` 取根目录，Editor 连接没有 Player `hello`，因此提前返回且没有生成 renderer 使用的 `iconDataUrl`。
@@ -286,25 +292,25 @@ Host 新增向后兼容的自动游玩白名单 RPC，并继续使用现有插�
 完整构建、发布并打包：
 
 ```powershell
-.\scripts\package.ps1 -Version 0.6.53
+.\scripts\package.ps1 -Version 0.6.73
 ```
 
 已经完成同版本 Release 构建时：
 
 ```powershell
-.\scripts\package.ps1 -Version 0.6.72 -SkipBuild
+.\scripts\package.ps1 -Version 0.6.73 -SkipBuild
 ```
 
 版本必须是 SemVer。脚本生成：
 
 ```text
 artifacts/release/
-Loopstructor-2-QA-Tool-0.6.72-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.72-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.73-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.73-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
-完整 Release ZIP `Loopstructor-2-QA-Tool-0.6.72-win-x64.zip` 用于手动下载、首次安装、跨格式升级和增量不可用时的回退。必须先完整解压，不能直接在资源管理器的 ZIP 预览中运行。压缩包内只有固定的 `Loopstructor-2-QA-Tool\` 顶层目录，目录名不包含版本号；进入该目录后才是程序根目录：
+完整 Release ZIP `Loopstructor-2-QA-Tool-0.6.73-win-x64.zip` 用于手动下载、首次安装、跨格式升级和增量不可用时的回退。必须先完整解压，不能直接在资源管理器的 ZIP 预览中运行。压缩包内只有固定的 `Loopstructor-2-QA-Tool\` 顶层目录，目录名不包含版本号；进入该目录后才是程序根目录：
 
 ```text
 Loopstructor-2-QA-Tool/
@@ -330,7 +336,7 @@ Loopstructor-2-QA-Tool/
 
 ## 更新清单
 
-GitHub Release 根资产 `autoplayer-update-manifest.json` 的协议版本为 3：
+GitHub Release 根资产 `autoplayer-update-manifest.json` 的协议版本为 3。以下为已发布 `v0.6.72` 的格式示例；`v0.6.73` 的大小与校验值以对应 Release 中自动生成的清单为准：
 
 ```json
 {

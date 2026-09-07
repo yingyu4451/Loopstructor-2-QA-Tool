@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import math
 from pathlib import Path
 
@@ -17,8 +18,6 @@ BRONZE_DARK = "#3A2517"
 BRONZE = "#70492B"
 BRASS = "#B27A3D"
 GOLD = "#F0B23D"
-GREEN = "#78D13E"
-BLUE = "#328CC5"
 RED = "#D74B31"
 INK = "#F1EBDD"
 
@@ -80,27 +79,6 @@ def draw_gear_badge(draw: ImageDraw.ImageDraw) -> None:
     draw.arc(ellipse_box(*center, 369), 24, 152, fill="#402616", width=scaled(9))
 
 
-def draw_manager_mark(draw: ImageDraw.ImageDraw) -> None:
-    center = (512, 512)
-    orbit_box = ellipse_box(*center, 200)
-    draw.arc(orbit_box, 205, 346, fill=BLUE, width=scaled(36))
-    draw.arc(orbit_box, 22, 165, fill=GREEN, width=scaled(36))
-
-    route = [(350, 580), (430, 420), (586, 374), (683, 522), (616, 654)]
-    rounded_line(draw, route, "#0A0806", 42)
-    rounded_line(draw, route, BLUE, 18)
-    for index, (x, y) in enumerate(route):
-        color = GREEN if index in (0, len(route) - 1) else BLUE
-        draw.ellipse(ellipse_box(x, y, 28), fill=color, outline=OUTLINE, width=scaled(10))
-
-    triangle = [(456, 372), (456, 652), (686, 512)]
-    triangle_scaled = [(scaled(x), scaled(y)) for x, y in triangle]
-    draw.polygon(triangle_scaled, fill=GREEN)
-    draw.line(triangle_scaled + [triangle_scaled[0]], fill=OUTLINE, width=scaled(28), joint="curve")
-    inner = [(492, 430), (492, 594), (628, 512)]
-    draw.polygon([(scaled(x), scaled(y)) for x, y in inner], fill="#D9F4C6")
-
-
 def draw_cheat_mark(draw: ImageDraw.ImageDraw) -> None:
     diamond = [(512, 290), (734, 512), (512, 734), (290, 512)]
     diamond_scaled = [(scaled(x), scaled(y)) for x, y in diamond]
@@ -130,12 +108,18 @@ def draw_cheat_mark(draw: ImageDraw.ImageDraw) -> None:
 
 
 def render(kind: str) -> Image.Image:
+    if kind == "manager":
+        source_path = Path(__file__).resolve().parent.parent / "assets" / "branding" / "manager-source.png"
+        with Image.open(source_path) as source:
+            # Preserve the selected artwork and alpha; only create the required output size.
+            if source.width != source.height:
+                raise ValueError("The selected Manager logo must be square.")
+            return source.convert("RGBA").resize((CANVAS, CANVAS), Image.Resampling.LANCZOS)
+
     image = Image.new("RGBA", (CANVAS * SUPERSAMPLE, CANVAS * SUPERSAMPLE), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
     draw_gear_badge(draw)
-    if kind == "manager":
-        draw_manager_mark(draw)
-    elif kind == "cheat":
+    if kind == "cheat":
         draw_cheat_mark(draw)
     else:
         raise ValueError(f"Unknown logo kind: {kind}")
@@ -154,10 +138,13 @@ def save_assets(output_directory: Path, kind: str) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Export the selected Manager artwork and legacy cheat mark.")
+    parser.add_argument("--kind", choices=("manager", "cheat", "all"), default="all")
+    args = parser.parse_args()
     repository_root = Path(__file__).resolve().parent.parent
     output_directory = repository_root / "assets" / "branding"
     output_directory.mkdir(parents=True, exist_ok=True)
-    for kind in ("manager", "cheat"):
+    for kind in (("manager", "cheat") if args.kind == "all" else (args.kind,)):
         save_assets(output_directory, kind)
 
 

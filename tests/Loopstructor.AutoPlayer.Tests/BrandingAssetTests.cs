@@ -9,6 +9,12 @@ public sealed class BrandingAssetTests
 {
     private static readonly int[] ExpectedIconSizes = { 16, 20, 24, 32, 40, 48, 64, 128, 256 };
 
+    [Fact]
+    public void SelectedManagerArtwork_PreservesOriginalResolutionAndTransparency()
+    {
+        AssertTransparentPng(Path.Combine(RepositoryRoot(), "assets", "branding", "manager-source.png"), 1254);
+    }
+
     [Theory]
     [InlineData("manager")]
     [InlineData("cheat")]

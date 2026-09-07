@@ -108,12 +108,12 @@
 .app-shell[data-skin="skyspine"] .brand-logo {
   width: 58px;
   height: 58px;
-  padding: 5px;
+  padding: 0;
   object-fit: contain;
-  border: 4px solid #22140c;
-  border-radius: 50%;
-  outline: 2px solid #a26930;
-  background: radial-gradient(circle, #372313 0 56%, #0a0806 57%);
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: none;
   filter: drop-shadow(0 4px 4px #000c);
 }
 

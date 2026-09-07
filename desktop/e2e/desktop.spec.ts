@@ -11,7 +11,7 @@ const releaseHostPath = resolve(repositoryRoot, 'src/Loopstructor.AutoPlayer.Hos
 const hostPath = existsSync(releaseHostPath)
   ? releaseHostPath
   : resolve(repositoryRoot, 'src/Loopstructor.AutoPlayer.Host/bin/Debug/net8.0-windows/Loopstructor.AutoPlayer.Host.exe')
-const screenshotRoot = resolve(repositoryRoot, 'artifacts/ui/v0.6.72-electron')
+const screenshotRoot = resolve(repositoryRoot, 'artifacts/ui/v0.6.73-electron')
 
 test('unified desktop is sandboxed and responsive across every route', async () => {
   const dataRoot = mkdtempSync(resolve(tmpdir(), 'loopstructor-electron-e2e-'))
@@ -44,6 +44,12 @@ test('unified desktop is sandboxed and responsive across every route', async () 
     expect(directSnapshot.error, rendererErrors.join('\n')).toBe('')
     expect(directSnapshot.value?.protocolVersion).toBe(1)
     await expect(page.locator('.titlebar-status')).not.toContainText('正在启动 Host', { timeout: 15_000 })
+    const brandLogo = page.locator('.brand-logo')
+    await expect.poll(() => brandLogo.evaluate((element: HTMLImageElement) =>
+      element.complete && element.naturalWidth === 256 && element.naturalHeight === 256)).toBe(true)
+    await expect(brandLogo).toHaveCSS('object-fit', 'contain')
+    await expect(brandLogo).toHaveCSS('border-radius', '0px')
+    await expect(brandLogo).toHaveCSS('border-top-width', '0px')
 
     const routes = ['游戏与插件', '存档', '自动游玩', '战车', '道具', '遗物', '战斗', '对象属性', '生成', '日志与状态', '界面与更新']
     await page.getByRole('button', { name: '战车', exact: true }).click()
@@ -416,6 +422,10 @@ test('skyspine interaction states preserve material, focus, and chrome spacing',
     await page.waitForTimeout(250)
 
     const activeNav = page.locator('.nav-item.active')
+    // Electron may inherit the previous window's pointer position over this item.
+    await page.locator('.brand-logo').hover()
+    await expect.poll(() => activeNav.evaluate(element => getComputedStyle(element).filter))
+      .not.toContain('brightness')
     const navBefore = await activeNav.evaluate(element => ({
       face: getComputedStyle(element, '::before').backgroundImage,
       filter: getComputedStyle(element).filter,
