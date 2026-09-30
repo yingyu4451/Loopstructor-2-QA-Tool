@@ -301,6 +301,13 @@ public static class Protocol
     public const string ExpectedAssemblySha256EnvironmentVariable = "LOOPSTRUCTOR_AUTOPLAYER_ASSEMBLY_SHA256";
     public const string CheatModeAllowedEnvironmentVariable = "LOOPSTRUCTOR_AUTOPLAYER_CHEAT_ALLOWED";
 
+    /// <summary>
+    /// 插件把游戏进程的报错写进游戏 artifact 根目录下的这个文件，Host 读取后并入运行日志。
+    /// 非 Development Build 不会在游戏内显示报错，这份文件是 QA 唯一能看到失败现场的入口；
+    /// 两端共用同一常量，避免路径写歪。
+    /// </summary>
+    public const string GameErrorLogFileName = "game-errors.log";
+
     public static bool IsValidRequestId(string? requestId) =>
         Guid.TryParseExact(requestId, "N", out _);
 

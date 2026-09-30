@@ -7,7 +7,7 @@ import type { DesktopApi, HostSnapshot, SaveBackupEntry } from '../src/types'
 function snapshot(autoplayActive = false): HostSnapshot {
   return {
     protocolVersion: 1,
-    version: '0.6.75',
+    version: '0.6.76',
     settings: {
       gameRoot: '', profileName: 'Default', continueExistingProfile: false, gameMode: 'normal',
       overrideGameSpeed: false, speedState: 0, maxRunMinutes: 60, skipStory: false,
@@ -197,8 +197,8 @@ describe('desktop application store', () => {
     const store = useAppStore()
     const current = snapshot()
     current.update = {
-      success: true, currentVersion: '0.6.75', latestVersion: '0.6.76', updateAvailable: true,
-      message: 'v0.6.76 可用',
+      success: true, currentVersion: '0.6.76', latestVersion: '0.6.77', updateAvailable: true,
+      message: 'v0.6.77 可用',
     }
     store.applySnapshot(current)
 
@@ -225,8 +225,8 @@ describe('desktop application store', () => {
     const store = useAppStore()
     const current = snapshot()
     current.update = {
-      success: true, currentVersion: '0.6.75', latestVersion: '0.6.76', updateAvailable: true,
-      message: 'v0.6.76 可用',
+      success: true, currentVersion: '0.6.76', latestVersion: '0.6.77', updateAvailable: true,
+      message: 'v0.6.77 可用',
     }
     store.applySnapshot(current)
 

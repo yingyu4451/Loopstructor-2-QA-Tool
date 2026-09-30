@@ -32,6 +32,7 @@ internal sealed class AutoPlayerRuntimeSession : IDisposable
     private string _lastStatusPayload = string.Empty;
     private float _nextStatusWriteAt;
     private bool _eventsAttached;
+    private GameErrorLog? _gameErrorLog;
     private bool _quitting;
     private bool _disposed;
     private DateTime _nextHostRecoveryAttemptUtc;
@@ -185,6 +186,9 @@ internal sealed class AutoPlayerRuntimeSession : IDisposable
         SceneManager.activeSceneChanged += OnActiveSceneChanged;
         Application.onBeforeRender += OnBeforeRender;
         Application.quitting += OnApplicationQuitting;
+        // 打包未勾选 Development Build 时游戏内不会出现任何报错；把失败现场落盘交给 QA 工具。
+        _gameErrorLog = new GameErrorLog(_activation.ArtifactRoot);
+        _gameErrorLog.Attach();
         _eventsAttached = true;
     }
 
@@ -195,6 +199,8 @@ internal sealed class AutoPlayerRuntimeSession : IDisposable
         SceneManager.activeSceneChanged -= OnActiveSceneChanged;
         Application.onBeforeRender -= OnBeforeRender;
         Application.quitting -= OnApplicationQuitting;
+        _gameErrorLog?.Dispose();
+        _gameErrorLog = null;
         _eventsAttached = false;
     }
 

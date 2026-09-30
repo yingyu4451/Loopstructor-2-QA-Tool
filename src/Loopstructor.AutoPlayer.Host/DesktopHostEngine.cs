@@ -28,6 +28,7 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
     private readonly InstalledControlSessionStore _installedSessions;
     private readonly PipeControlClient _pipeClient = new();
     private readonly LogTailReader _logTail = new();
+    private readonly LogTailReader _gameErrorTail = new();
     private readonly GameUpdateShutdownCoordinator _gameUpdateShutdown = new();
     private readonly List<HostLogEntry> _logs = new();
     private readonly DistributionLayout _distribution;
@@ -772,6 +773,11 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         }
 
         foreach (string line in _logTail.ReadAvailable(120)) AddLog("game", line, emit: false);
+        // 未勾选 Development Build 的游戏包不会在游戏内显示报错，插件单独落了这份失败现场。
+        foreach (string line in _gameErrorTail.ReadAvailable(120))
+        {
+            AddLog("error", line.StartsWith('[') ? "游戏包报错 " + line : "　" + line, emit: false);
+        }
 
         await PollPipeSessionAsync();
     }
@@ -969,7 +975,17 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         _nextAutomaticCheatEnableUtc = default;
         _lastAutomaticCheatEnableError = string.Empty;
         _logTail.Reset(session.LogPath, startAtEnd: !includeExistingLog);
+        _gameErrorTail.Reset(GameErrorLogPath(session), startAtEnd: !includeExistingLog);
     }
+
+    /// <summary>
+    /// 插件把游戏进程的报错写在 artifact 根目录下的 game-errors.log。
+    /// 未勾选 Development Build 的游戏不会在游戏内显示这些错误，也不会写进 Player.log。
+    /// </summary>
+    private static string GameErrorLogPath(ActivationSession session) =>
+        Path.Combine(
+            Path.GetDirectoryName(session.LogPath) ?? string.Empty,
+            Protocol.GameErrorLogFileName);
 
     private void BindProcess(int processId)
     {

@@ -37,6 +37,13 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 `bootstrap.ps1` 下载固定 SDK zip、验证 SHA-512 后安装到 `.dotnet`。`build.ps1` 使用仓库的 `NuGet.config`，仅启用 nuget.org 和 BepInEx 官方 feed，并通过冻结的 pnpm lockfile 构建 Electron/Vue 前端。`test.ps1` 把 TRX 写入 `artifacts\TestResults`，并运行 TypeScript、ESLint 与 Vitest 验证。
 
+## 0.6.76 游戏包报错日志
+
+`0.6.76` 补上非 Development Build 游戏包的报错记录。打包时未勾选 Development Build 的游戏不会在游戏内显示报错，游戏自带的调试日志系统也可能整体关闭，QA 在失败后拿不到任何现场。
+
+插件现在订阅 `Application.logMessageReceivedThreaded`，把 `Error`、`Exception`、`Assert` 交给 `GameErrorLogWriter` 落盘成游戏 artifact 根目录下的 `game-errors.log`；Host 在轮询时读取该文件，以 `ERROR` 级别并入运行日志并标注“游戏包报错”。同一类别与消息在 5 秒窗口内只计一次，下次落盘时注明合并了多少次；文件超过 8 MiB 轮转为 `game-errors.log.1`，避免逐帧异常把日志刷爆。回调来自任意线程，写入在锁内串行化，记录失败也不会影响游戏运行。编辑器不加载该插件，因此不需要对应实现。
+
+所有产品版本面同步为 `0.6.76`；Player pipe 协议 v3、作弊协议 v7、Editor Bridge 协议 v1、发布目录 schema 2 和更新清单 schema 3 不变，增量基线为 `v0.6.75`。
 ## 0.6.75 战车目录获取重写
 
 `0.6.75` 重写战车目录的取数来源。游戏改回一星/二星/三星版本后，`作弊面板配置.asset` 的 `vehicleTypes` 仍停留在 2026-09-02 的 48 辆名单，而 `战车信息配置.asset` 的 `razorDatas` 只保留 56 条；两者交集仅 9 辆（`Shell_ShadowRift`、`Link_IceRipple`、`Missile_SelfGuided` 各三档），其余 39 辆查不到 `RazorDescription`，于是 `GetVehicleDescription` 返回 null，战车既没有图标、名字也回退成枚举 ID。
@@ -306,25 +313,25 @@ Host 新增向后兼容的自动游玩白名单 RPC，并继续使用现有插�
 完整构建、发布并打包：
 
 ```powershell
-.\scripts\package.ps1 -Version 0.6.75
+.\scripts\package.ps1 -Version 0.6.76
 ```
 
 已经完成同版本 Release 构建时：
 
 ```powershell
-.\scripts\package.ps1 -Version 0.6.75 -SkipBuild
+.\scripts\package.ps1 -Version 0.6.76 -SkipBuild
 ```
 
 版本必须是 SemVer。脚本生成：
 
 ```text
 artifacts/release/
-Loopstructor-2-QA-Tool-0.6.75-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.75-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.76-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.76-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
-完整 Release ZIP `Loopstructor-2-QA-Tool-0.6.75-win-x64.zip` 用于手动下载、首次安装、跨格式升级和增量不可用时的回退。必须先完整解压，不能直接在资源管理器的 ZIP 预览中运行。压缩包内只有固定的 `Loopstructor-2-QA-Tool\` 顶层目录，目录名不包含版本号；进入该目录后才是程序根目录：
+完整 Release ZIP `Loopstructor-2-QA-Tool-0.6.76-win-x64.zip` 用于手动下载、首次安装、跨格式升级和增量不可用时的回退。必须先完整解压，不能直接在资源管理器的 ZIP 预览中运行。压缩包内只有固定的 `Loopstructor-2-QA-Tool\` 顶层目录，目录名不包含版本号；进入该目录后才是程序根目录：
 
 ```text
 Loopstructor-2-QA-Tool/
@@ -350,7 +357,7 @@ Loopstructor-2-QA-Tool/
 
 ## 更新清单
 
-GitHub Release 根资产 `autoplayer-update-manifest.json` 的协议版本为 3。以下为已发布 `v0.6.72` 的格式示例；`v0.6.75` 的大小与校验值以对应 Release 中自动生成的清单为准：
+GitHub Release 根资产 `autoplayer-update-manifest.json` 的协议版本为 3。以下为已发布 `v0.6.72` 的格式示例；`v0.6.76` 的大小与校验值以对应 Release 中自动生成的清单为准：
 
 ```json
 {
