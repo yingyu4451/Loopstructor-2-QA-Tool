@@ -7,7 +7,7 @@ import { useAppStore } from '../src/stores/app'
 describe('vehicle catalog presentation', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
-  it('shows only the two public shapes and renders the game catalog image', () => {
+  it('shows all three star shapes and renders the game catalog image', () => {
     const store = useAppStore()
     store.catalog = {
       vehicles: [
@@ -25,10 +25,10 @@ describe('vehicle catalog presentation', () => {
       },
     })
 
-    expect(wrapper.text()).toContain('初始形态')
-    expect(wrapper.text()).toContain('升级形态')
-    expect(wrapper.text()).not.toContain('内部过渡形态')
-    expect(wrapper.findAll('.level-buttons button')).toHaveLength(2)
+    expect(wrapper.text()).toContain('一星')
+    expect(wrapper.text()).toContain('二星')
+    expect(wrapper.text()).toContain('三星')
+    expect(wrapper.findAll('.level-buttons button')).toHaveLength(3)
     expect(wrapper.get('.vehicle-game-icon img').attributes('src')).toBe('data:image/png;base64,AA==')
     expect(wrapper.get('.vehicle-family').classes()).toContain('card')
     expect(wrapper.find('.vehicle-family > .card-body').exists()).toBe(true)

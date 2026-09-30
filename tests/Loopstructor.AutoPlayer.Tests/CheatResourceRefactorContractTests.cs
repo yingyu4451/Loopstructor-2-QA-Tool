@@ -10,7 +10,7 @@ public sealed class CheatResourceRefactorContractTests
     private const string DisplayPatchType = "Loopstructor.AutoPlayer.Plugin.VehicleEnchantmentDisplayPatch";
 
     [Fact]
-    public void CatalogV5_UsesGameCheatVehicleList_AndRuntimeCompleteFetterEnum()
+    public void CatalogV5_EnumeratesEveryVehicleTypeWithRuntimeComponent_AndRuntimeCompleteFetterEnum()
     {
         using AssemblyDefinition assembly = ReadPlugin();
         TypeDefinition bridge = RequireType(assembly, BridgeType);
@@ -26,7 +26,12 @@ public sealed class CheatResourceRefactorContractTests
         Assert.Contains(Calls(catalog), IsCall(BridgeType, "InvalidateRuntimeCatalogCache"));
         Assert.DoesNotContain(Calls(vehicleValues), IsCall(BridgeType, "AllEnumValues"));
         Assert.Contains(Calls(enchantmentValues), IsCall(BridgeType, "AllEnumValues"));
-        Assert.Contains(Calls(vehicleValues), IsCall(BridgeType, "GetRequiredCheatVehicleConfiguration"));
+        // 战车名单来自 VehicleType 枚举本身：游戏改回星级版本后，作弊面板的静态名单
+        // 与战车信息配置已经脱节（48 辆里只剩 9 辆还有描述），因此不再读取它。
+        Assert.Contains(
+            Calls(vehicleValues),
+            call => call.DeclaringType.FullName == "System.Enum" && call.Name == "GetValues");
+        Assert.DoesNotContain(Calls(vehicleValues), IsCall(BridgeType, "GetRequiredCheatVehicleConfiguration"));
         Assert.Contains(Calls(vehicleValues), IsCall(BridgeType, "FilterRuntimeVehicleValues"));
         Assert.Contains(Calls(enchantmentValues), IsCall(BridgeType, "FilterRuntimeEnchantmentValues"));
         Assert.DoesNotContain(bridge.Methods, method => method.Name == "RandomModeFixedPoolValues");
@@ -34,7 +39,7 @@ public sealed class CheatResourceRefactorContractTests
             bridge.Fields,
             field => field.Name.Contains("randomMode", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("GetAllMainRazorComponent", LoadedStrings(vehicleValues));
-        Assert.Contains("vehicleTypes", LoadedStrings(vehicleValues));
+        Assert.DoesNotContain("vehicleTypes", LoadedStrings(vehicleValues));
         Assert.Contains("fetterTypes", LoadedStrings(enchantmentValues));
         Assert.Contains("TryGetDetailData", LoadedStrings(enchantmentValues));
         Assert.DoesNotContain(bridge.Methods, method => method.Name == "ConfiguredCheatValues");
@@ -137,23 +142,24 @@ public sealed class CheatResourceRefactorContractTests
     }
 
     [Fact]
-    public void VehicleCatalogContract_UsesCheatManagerConfiguration_AndKeepsExistingObjectsVisible()
+    public void VehicleCatalogContract_DropsTheStaleCheatPanelRoster_AndKeepsExistingObjectsVisible()
     {
         using AssemblyDefinition assembly = ReadPlugin();
         TypeDefinition bridge = RequireType(assembly, BridgeType);
         MethodDefinition initialize = RequireMethod(bridge, "Initialize");
         MethodDefinition validate = RequireMethod(bridge, "ValidateRuntimeContract");
-        MethodDefinition configuration = RequireMethod(bridge, "GetRequiredCheatVehicleConfiguration");
         MethodDefinition buildState = RequireMethod(bridge, "BuildVehicleState");
         MethodDefinition buildCatalogItem = RequireMethod(bridge, "BuildVehicleCatalogItem");
 
-        Assert.Contains("MetroTD.CheatSystem.CheatManager", LoadedStrings(initialize));
-        Assert.Contains("MetroTD.CheatSystem.UI.CheatVehiclePanelCfg", LoadedStrings(initialize));
-        Assert.Contains("cheatVehiclePanelCfg", LoadedStrings(validate));
-        Assert.Contains("vehicleTypes", LoadedStrings(validate));
-        Assert.Contains(
-            Calls(configuration),
-            call => call.DeclaringType.FullName == "UnityEngine.Resources" && call.Name == "FindObjectsOfTypeAll");
+        // 作弊面板配置停留在旧名单（48 辆，2026-09-02），战车信息配置已经改回星级版本，
+        // 两者交集只剩 9 辆。工具改为直接从 VehicleType 枚举取名单，因此不再绑定也不再校验这份旧配置，
+        // 避免游戏调整它时把整个作弊运行时判为契约缺失。
+        Assert.DoesNotContain("MetroTD.CheatSystem.UI.CheatVehiclePanelCfg", LoadedStrings(initialize));
+        Assert.DoesNotContain("cheatVehiclePanelCfg", LoadedStrings(validate));
+        Assert.DoesNotContain("vehicleTypes", LoadedStrings(validate));
+        Assert.DoesNotContain(
+            bridge.Methods,
+            method => method.Name == "GetRequiredCheatVehicleConfiguration");
         Assert.Contains(Calls(buildState), IsCall(BridgeType, "BuildVehicleCatalogItem"));
         Assert.DoesNotContain(Calls(buildState), IsCall(BridgeType, "AllVehicleValues"));
         Assert.DoesNotContain(Calls(buildCatalogItem), IsCall(BridgeType, "AllVehicleValues"));
@@ -284,6 +290,29 @@ public sealed class CheatResourceRefactorContractTests
 
         MethodDefinition controllerTick = RequireMethod(controller, "Tick");
         Assert.Contains(Calls(controllerTick), IsCall(BridgeType, "SetFieldCatapultDeleteMode"));
+    }
+
+    [Fact]
+    public void VehicleRoster_DropsVehiclesWithoutDescriptionSoEveryListedEntryHasNameAndIcon()
+    {
+        using AssemblyDefinition assembly = ReadPlugin();
+        TypeDefinition bridge = RequireType(assembly, BridgeType);
+        MethodDefinition vehicleValues = RequireMethod(bridge, "AllVehicleValues");
+        MethodDefinition described = RequireMethod(bridge, "DescribedVehicleValues");
+
+        // Resources/SO/Vehicles 下有 275 个有组件的战车，但游戏只给其中 56 辆配了 RazorDescription；
+        // 其余战车在游戏里同样没有中文名和图标，列进 QA 目录只会得到一串枚举 ID。
+        Assert.Contains(Calls(vehicleValues), IsCall(BridgeType, "DescribedVehicleValues"));
+        Assert.Contains("vehicleInfoData", LoadedStrings(described));
+        Assert.Contains(
+            Calls(described),
+            call => call.DeclaringType.FullName == "System.Convert" && call.Name == "ToInt64");
+        // 直接读字典，不调用缺配置时会打印错误的 GetVehicleDescription。
+        Assert.DoesNotContain("GetVehicleDescription", LoadedStrings(described));
+        Assert.DoesNotContain(
+            Calls(described),
+            call => call.DeclaringType.FullName == "Loopstructor.AutoPlayer.Plugin.CheatRuntimeBridge" &&
+                    call.Name == "InvokeInfoManager");
     }
 
     private static AssemblyDefinition ReadPlugin()

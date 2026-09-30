@@ -44,7 +44,7 @@ public sealed class UnityEditorBridgePackageContractTests
             "com.loopstructor.qa-editor-bridge",
             "package.json"))).Value<string>("version")!;
 
-        Assert.Equal("0.6.74", version);
+        Assert.Equal("0.6.75", version);
         Assert.Equal(version, pluginVersion);
         Assert.Equal(version, desktopVersion);
         Assert.Equal(version, bridgeVersion);

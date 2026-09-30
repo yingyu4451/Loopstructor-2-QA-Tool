@@ -289,8 +289,6 @@ internal sealed class CheatRuntimeBridge
     private IReadOnlyList<object>? _availableEnchantmentValues;
     private IReadOnlyList<object> _unavailableEnchantmentValues = Array.Empty<object>();
 
-    private Type? _cheatManagerType;
-    private Type? _cheatVehiclePanelCfgType;
     private Type? _vehicleManagerType;
     private Type? _vehicleDataManagerType;
     private Type? _vehicleControllerType;
@@ -373,8 +371,6 @@ internal sealed class CheatRuntimeBridge
         _removeAllRelicsJob = RelicRemovalJob.Idle();
         _fieldCatapultDeleteMode = false;
         InvalidateRuntimeCatalogCache();
-        _cheatManagerType = Require("MetroTD.CheatSystem.CheatManager");
-        _cheatVehiclePanelCfgType = Require("MetroTD.CheatSystem.UI.CheatVehiclePanelCfg");
         _vehicleManagerType = Require("MetroTD.VehicleSystem.VehicleManager");
         _vehicleDataManagerType = Require("MetroTD.VehicleSystem.VehicleDataManager");
         _vehicleControllerType = Require("MetroTD.VehicleSystem.VehicleController");
@@ -3396,8 +3392,6 @@ internal sealed class CheatRuntimeBridge
 
     private void ValidateRuntimeContract()
     {
-        RequireMember(_cheatManagerType, "cheatVehiclePanelCfg");
-        RequireMember(_cheatVehiclePanelCfgType, "vehicleTypes");
         RequireSingletonAccessor(_vehicleManagerType);
         RequireMember(_vehicleManagerType, "MainVehicles");
         RequireMethodContract(_vehicleManagerType, "GetNewMainRazor", _vehicleType);
@@ -3759,18 +3753,12 @@ internal sealed class CheatRuntimeBridge
         {
             if (reportUnavailable && _unavailableVehicleValues.Count > 0)
             {
-                LogCatalogWarning("战车", "缺少可生成的 BasicVehicleComponent", _unavailableVehicleValues);
+                LogCatalogWarning("战车", "缺少可生成组件或战车描述", _unavailableVehicleValues);
             }
             return _availableVehicleValues;
         }
 
         Type vehicleType = _vehicleType!;
-        object configuration = GetRequiredCheatVehicleConfiguration();
-        if (GetMember(configuration, "vehicleTypes") is not IEnumerable configuredVehicleTypes)
-        {
-            throw new InvalidOperationException("当前游戏作弊面板的战车名单尚未初始化，请稍后点击“刷新目录”重试。");
-        }
-
         object manager = GetRequiredSingleton(_vehicleDataManagerType!, "VehicleDataManager");
         MethodInfo getAllComponents = FindMethod(manager.GetType(), "GetAllMainRazorComponent")
                                       ?? throw new MissingMethodException(
@@ -3782,15 +3770,39 @@ internal sealed class CheatRuntimeBridge
             throw new InvalidOperationException("当前游戏的可生成战车组件目录尚未初始化。");
         }
 
-        _availableVehicleValues = FilterRuntimeVehicleValues(
-            configuredVehicleTypes.Cast<object>(),
+        // 候选名单直接来自 VehicleType 枚举，不再读取游戏作弊面板那份停留在旧版本的静态配置。
+        IReadOnlyList<object> withComponents = FilterRuntimeVehicleValues(
+            Enum.GetValues(vehicleType).Cast<object>(),
             components,
             vehicleType,
-            out _unavailableVehicleValues);
+            out IReadOnlyList<object> withoutComponent);
+
+        // 再按“游戏是否配置了 RazorDescription”收敛：缺少描述的战车在游戏里同样没有中文名和图标，
+        // 只会让 QA 目录显示一串枚举 ID。读不到描述表时退回只按组件判定，不让整个目录失败。
+        HashSet<long>? described = DescribedVehicleValues(vehicleType);
+        if (described == null)
+        {
+            _availableVehicleValues = withComponents;
+            _unavailableVehicleValues = withoutComponent;
+        }
+        else
+        {
+            List<object> available = new();
+            List<object> withoutDescription = new();
+            foreach (object value in withComponents)
+            {
+                if (described.Contains(Convert.ToInt64(value, CultureInfo.InvariantCulture))) available.Add(value);
+                else withoutDescription.Add(value);
+            }
+
+            _availableVehicleValues = available;
+            _unavailableVehicleValues = withoutComponent.Concat(withoutDescription).ToArray();
+        }
+
         IndexVehicleCatalogOrder(_availableVehicleValues);
         if (reportUnavailable && _unavailableVehicleValues.Count > 0)
         {
-            LogCatalogWarning("战车", "缺少可生成的 BasicVehicleComponent", _unavailableVehicleValues);
+            LogCatalogWarning("战车", "缺少可生成组件或战车描述", _unavailableVehicleValues);
         }
 
         if (_availableVehicleValues.Count == 0)
@@ -3894,22 +3906,26 @@ internal sealed class CheatRuntimeBridge
         return availableValues;
     }
 
-    private object GetRequiredCheatVehicleConfiguration()
+    /// <summary>
+    /// 读取游戏已经配置了 RazorDescription 的战车集合。直接读 VehicleInfoVisitor 的字典，
+    /// 不逐个调用 GetVehicleDescription —— 那个接口在缺配置时会打印错误日志。
+    /// 读取失败或字典为空时返回 null，由调用方退回“只按组件判定”。
+    /// </summary>
+    private HashSet<long>? DescribedVehicleValues(Type enumType)
     {
-        foreach (UnityEngine.Object manager in Resources.FindObjectsOfTypeAll(_cheatManagerType!))
+        Type? visitorType = FindType("MetroTD.InfoSystem.VehicleInfoVisitor");
+        if (visitorType == null) return null;
+        object? visitor = TryGetSingleton(visitorType);
+        if (visitor == null || GetMember(visitor, "vehicleInfoData") is not IDictionary descriptions) return null;
+
+        HashSet<long> described = new();
+        foreach (object? key in descriptions.Keys)
         {
-            object? configuration = GetMember(manager, "cheatVehiclePanelCfg");
-            if (configuration is UnityEngine.Object unityConfiguration && unityConfiguration != null)
-            {
-                return configuration;
-            }
+            if (key == null || key.GetType() != enumType) continue;
+            described.Add(Convert.ToInt64(key, CultureInfo.InvariantCulture));
         }
 
-        UnityEngine.Object? directConfiguration = Resources.FindObjectsOfTypeAll(_cheatVehiclePanelCfgType!)
-            .FirstOrDefault(candidate => candidate != null);
-        return directConfiguration
-               ?? throw new InvalidOperationException(
-                   "当前游戏作弊面板战车配置尚未加载，请稍后点击“刷新目录”重试。");
+        return described.Count == 0 ? null : described;
     }
 
     private void IndexVehicleCatalogOrder(IEnumerable<object> values)

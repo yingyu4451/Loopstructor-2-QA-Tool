@@ -14,7 +14,7 @@ const selectedVehicle = ref<CatalogItem>()
 const count = ref(1)
 const enchantments = ref<Record<string, number>>({})
 
-const vehicles = computed(() => store.catalogItems('vehicles').filter((item) => item.level === 1 || item.level === 3))
+const vehicles = computed(() => store.catalogItems('vehicles'))
 const types = computed(() => {
   const found = new Map<string, { key: string; label: string; order: number }>()
   for (const item of vehicles.value) {
@@ -59,7 +59,7 @@ function vehicleImage(item: CatalogItem) {
   return item.iconBase64.startsWith('data:') ? item.iconBase64 : `data:image/png;base64,${item.iconBase64}`
 }
 function shapeLabel(level?: number) {
-  return level === 1 ? '初始形态' : level === 3 ? '升级形态' : '未知形态'
+  return level === 1 ? '一星' : level === 2 ? '二星' : level === 3 ? '三星' : '未知形态'
 }
 function adjustEnchantment(button: 'left' | 'right', item: CatalogItem) {
   const current = enchantments.value[item.id] ?? 0
@@ -102,6 +102,7 @@ async function grantVehicle() {
                 :key="item.id"
                 class="btn btn-sm"
                 :class="{ active: selectedVehicle?.id === item.id }"
+                :aria-pressed="selectedVehicle?.id === item.id"
                 @click="selectedVehicle = item"
               >{{ shapeLabel(item.level) }}</button>
             </div>
