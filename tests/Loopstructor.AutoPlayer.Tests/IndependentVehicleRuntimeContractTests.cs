@@ -170,6 +170,28 @@ public sealed class IndependentVehicleRuntimeContractTests
         Assert.Contains("rewardApplied", LoadedStrings(state));
     }
 
+    [Fact]
+    public void GameSideContracts_BindOverloadsByParameterTypeAndDegradeProbeFailuresInsteadOfAborting()
+    {
+        using AssemblyDefinition assembly = ReadPlugin();
+        MethodDefinition contract = RequireMethod(RequireType(assembly, VehicleFallbackType), "TryGetContract");
+        MethodDefinition initialize = RequireMethod(RequireType(assembly, BridgeType), "Initialize");
+
+        // 单名称查询会在游戏新增重载时抛 AmbiguousMatchException，直接终止整个运行时。
+        Assert.DoesNotContain(
+            Calls(contract),
+            call => call.DeclaringType.FullName == "System.Type" && call.Name == "GetMethod");
+        Assert.Contains(
+            Calls(contract),
+            call => call.DeclaringType.FullName == "Loopstructor.AutoPlayer.Plugin.ReflectionContractBinder" &&
+                    call.Name == "ResolveMethod");
+        // 任一可选能力探测失败都必须降级为“缺失”，而不是让启动路径抛出。
+        Assert.Contains(
+            Calls(initialize),
+            call => call.DeclaringType.FullName == "Loopstructor.AutoPlayer.Plugin.ReflectionContractBinder" &&
+                    call.Name == "TryProbeCapability");
+    }
+
     private static IEnumerable<MethodReference> Calls(MethodDefinition method) =>
         method.Body.Instructions
             .Where(instruction => instruction.OpCode.Code is Code.Call or Code.Callvirt or Code.Newobj)

@@ -157,13 +157,19 @@ internal sealed class RuntimeBridge
         InitializeMapAnimationContract();
         InitializeSettlementRestartContract();
         _liveEnemyThreatReader.Initialize();
-        if (!IndependentVehicleRuntimeFallback.IsAvailable)
+        if (!ReflectionContractBinder.TryProbeCapability(
+                () => IndependentVehicleRuntimeFallback.IsAvailable,
+                "EnergyCatapultTrainCacheService independent-vehicle contract",
+                out string independentVehicleMissing))
         {
-            missing.Add("EnergyCatapultTrainCacheService independent-vehicle contract");
+            missing.Add(independentVehicleMissing);
         }
-        if (!DirectUpgradeUiRuntimeFallback.IsAvailable)
+        if (!ReflectionContractBinder.TryProbeCapability(
+                () => DirectUpgradeUiRuntimeFallback.IsAvailable,
+                "RebuildUI_DirectUpgradePanel decoration-factory contract",
+                out string directUpgradeMissing))
         {
-            missing.Add("RebuildUI_DirectUpgradePanel decoration-factory contract");
+            missing.Add(directUpgradeMissing);
         }
         MissingMembers = missing;
         IsAvailable = missing.Count == 0;

@@ -542,35 +542,51 @@ internal static class IndependentVehicleRuntimeFallback
             return true;
         }
 
-        Type? serviceType = FindType("MetroTD.CatapultSystem.EnergyCatapultTrainCacheService");
-        Type? railType = FindType("MetroTD.LineSystem.Rail");
-        Type? pointType = FindType("MetroTD.LineSystem.LinePoint");
-        Type? vehicleType = FindType("MetroTD.VehicleSystem.VehicleController");
-        Type? configType = FindType("MetroTD.LineSystem.TrainConfigSO");
-        PropertyInfo? instance = serviceType?.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
-        MethodInfo? evaluate = serviceType?.GetMethod("EvaluateDeployment", BindingFlags.Public | BindingFlags.Instance);
-        MethodInfo? deploy = serviceType?.GetMethod("TryDeployVehicle", BindingFlags.Public | BindingFlags.Instance);
-        MethodInfo? waiting = serviceType?.GetMethod("GetWaitingVehicleCount", BindingFlags.Public | BindingFlags.Instance);
-        MethodInfo? save = serviceType?.GetMethod("GetSaveData", BindingFlags.Public | BindingFlags.Instance);
-        if (serviceType == null || railType == null || pointType == null || vehicleType == null ||
-            instance == null || evaluate == null || deploy == null || waiting == null || save == null)
+        try
         {
+            Type? serviceType = FindType("MetroTD.CatapultSystem.EnergyCatapultTrainCacheService");
+            Type? railType = FindType("MetroTD.LineSystem.Rail");
+            Type? pointType = FindType("MetroTD.LineSystem.LinePoint");
+            Type? vehicleType = FindType("MetroTD.VehicleSystem.VehicleController");
+            Type? configType = FindType("MetroTD.LineSystem.TrainConfigSO");
+            PropertyInfo? instance = serviceType?.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
+            // 游戏 1.409 为 TryDeployVehicle 增加了带可选参数的重载，而插件只提交两个实参；
+            // 单名称查询会在两个重载之间抛 AmbiguousMatchException，因此按参数类型精确绑定。
+            MethodInfo? evaluate = ReflectionContractBinder.ResolveMethod(
+                serviceType, "EvaluateDeployment", pointType, vehicleType);
+            MethodInfo? deploy = ReflectionContractBinder.ResolveMethod(
+                serviceType, "TryDeployVehicle", pointType, vehicleType);
+            MethodInfo? waiting = ReflectionContractBinder.ResolveMethod(
+                serviceType, "GetWaitingVehicleCount", railType);
+            MethodInfo? save = ReflectionContractBinder.ResolveMethod(serviceType, "GetSaveData");
+            if (serviceType == null || railType == null || pointType == null || vehicleType == null ||
+                instance == null || evaluate == null || deploy == null || waiting == null || save == null)
+            {
+                contract = null!;
+                return false;
+            }
+
+            _contract = new ReflectionContract(
+                instance,
+                evaluate,
+                deploy,
+                waiting,
+                save,
+                railType,
+                pointType,
+                vehicleType,
+                configType?.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static));
+            contract = _contract;
+            return true;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // 独立战车只是一项可选能力：探测失败必须降级为“契约缺失”，
+            // 而不是让异常终止整个 AutoPlayer 运行时并切断 QA 控制通道。
+            _ = exception;
             contract = null!;
             return false;
         }
-
-        _contract = new ReflectionContract(
-            instance,
-            evaluate,
-            deploy,
-            waiting,
-            save,
-            railType,
-            pointType,
-            vehicleType,
-            configType?.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static));
-        contract = _contract;
-        return true;
     }
 
     private static Type? FindType(string fullName)
