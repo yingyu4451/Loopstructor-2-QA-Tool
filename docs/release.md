@@ -37,7 +37,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.80
+./scripts/package.ps1 -Version 0.6.81
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -47,8 +47,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.80-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.80-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.81-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.81-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -63,15 +63,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.80",
+  "version": "0.6.81",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.80-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.81-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.79",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.79-to-0.6.80-win-x64.delta.zip",
+      "fromVersion": "0.6.80",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.80-to-0.6.81-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -84,6 +84,7 @@ autoplayer-update-manifest.json
 - 增量包由 `scripts/package-delta.ps1` 生成，参数：`-BaseArchive`、`-BaseManifest`、`-TargetPackageDirectory`、`-TargetVersion`、`-ReleaseDirectory`。输出 `Loopstructor-2-QA-Tool-<from>-to-<to>-win-x64.delta.zip` 与 `.sha256`，并把增量项写回目标清单。
 - 增量包根目录固定为 `Loopstructor-2-QA-Tool.delta\`，内含 `files\`（相对目标包根的文件）和 `checksums.sha256`（目标整包完整校验和）；重建时先校验当前安装版本与 `fromVersion` 一致，再校验重建结果的校验和与目标清单。
 - 任一校验失败时客户端回退整包；不使用增量包作为唯一更新路径。
+- 增量包只包含相对上一发布版本内容变化的文件，不做二进制差分（`scripts/package-delta.ps1` 按 SHA-256 对比目标包与基线包）。0.6.81 起 Electron 主程序与静态资源在 patch 版本之间保持字节不变，常规 patch 发布的增量包因此只有 MB 量级。
 
 ## GitHub Actions
 
@@ -134,8 +135,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.80
-git push origin v0.6.80
+git tag v0.6.81
+git push origin v0.6.81
 ```
 
 ## 升级 BepInEx
@@ -166,6 +167,18 @@ git push origin v0.6.80
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.81
+
+- 修复增量更新包体积过大的问题。此前每次 patch 发布都会重新分发约 247 MB 的 Electron 主程序与约 35 MB 的 `app.asar`：`0.6.79 → 0.6.80` 的增量包为 115.8 MB，其中压缩后的主程序 104.6 MB、`app.asar` 9.3 MB，合计约占增量包的 98%。放大体积的原因与对应处理：
+  - `build.disableAsarIntegrity: true`：electron-builder 原先把 `app.asar` 的 SHA-256 完整性清单写进主程序资源，`app.asar` 每版变化都会改写整个主程序；Windows 默认不启用该完整性校验，关闭嵌入后不影响启动（已用打包产物实测）。
+  - `build.extraMetadata.shortVersion` / `shortVersionWindows` 固定主程序文件版本元数据为 `0.6.0` / `0.6.0.0`，patch 版本升级不再改写主程序字节（连续两次打包的主程序 SHA-256 完全一致）。代价是 Windows 文件属性里的“文件版本”固定为 0.6.0，应用界面显示的版本仍取自 `package.json`；升级到 0.7 时需同步调整这两个字段。
+  - `build.files` 排除 `node_modules/**`：界面代码由 Vite 打包、主进程只依赖 Electron 与 Node 内置模块，产物运行时不需要 `node_modules`；`app.asar` 从 35.3 MB 降到约 0.5 MB，整包也随之变小，并避免把开发依赖打进发布包。
+  - `build.asarUnpack` 将图片/字体等静态资源解包到 `resources\app.asar.unpacked\`：静态资源跨版本不变时不再进入增量包。
+- 效果（本地实测）：整包 zip 从 197.8 MB 降到 191.3 MB（314 个文件）；用 `0.6.81 → 0.6.82` 的模拟发布实测增量包，只有 17/313 个文件变化、增量包 2.67 MB（主程序不再进入增量包）。`0.6.80 → 0.6.81` 这一次的增量包仍会偏大，因为主程序字节首次切换为稳定值。
+- `desktop/tests/dependency-contract.spec.ts` 新增打包契约守护：固定版本元数据必须跟随 `major.minor`、必须排除 `node_modules`、静态资源必须解包，防止后续改动把增量包重新撑大。
+- `scripts/package.ps1` 对 Electron 主程序的版本校验改为读取并校验打包配置里固定的 `shortVersionWindows`（其余发布二进制仍要求等于产品版本）。
+- 桌面单元测试 25 → 26；.NET 测试数保持 653；Release 构建 0 警告，全部测试与 e2e 通过。本版不改变游戏内插件运行时契约与作弊命令。
 
 ### 0.6.80
 

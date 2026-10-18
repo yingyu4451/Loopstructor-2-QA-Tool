@@ -127,7 +127,8 @@ Loopstructor-2-QA-Tool\
 ├─ Loopstructor-2-QA-Tool.exe          根启动器（AOT、体积优化）
 ├─ manager\
 │  ├─ Loopstructor-2-QA-Tool.exe       Electron 应用
-│  ├─ resources\app.asar               界面构建产物
+│  ├─ resources\app.asar               界面代码构建产物（不含 node_modules）
+│  ├─ resources\app.asar.unpacked\     图片/字体等静态资源（解包以保持跨版本字节稳定）
 │  ├─ Loopstructor.AutoPlayer.Host.exe/.dll/.deps.json/.runtimeconfig.json
 │  ├─ Loopstructor.AutoPlayer.Updater.exe/.dll/.deps.json/.runtimeconfig.json
 │  ├─ coreclr.dll                      共享 .NET 运行时

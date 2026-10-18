@@ -63,6 +63,23 @@ describe('desktop dependency contract', () => {
     expect(lockfile).not.toContain('lucide-vue-next')
   })
 
+  it('keeps packaged updates incremental', () => {
+    const packageJson = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'))
+    const build = packageJson.build
+
+    expect(build.disableAsarIntegrity).toBe(true)
+    expect(build.files).toContain('!node_modules/**/*')
+    expect(build.asarUnpack).toEqual([
+      'dist/assets/*.png',
+      'dist/assets/*.jpg',
+      'dist/assets/*.ttf',
+    ])
+
+    const minor = packageJson.version.split('.').slice(0, 2).join('.')
+    expect(build.extraMetadata.shortVersion).toBe(`${minor}.0`)
+    expect(build.extraMetadata.shortVersionWindows).toBe(`${minor}.0.0`)
+  })
+
   it('keeps automation control behind the typed preload whitelist', () => {
     const preload = readFileSync(resolve(root, 'electron/preload.cts'), 'utf8')
     expect(preload).toContain("ipcRenderer.invoke('automation:start')")

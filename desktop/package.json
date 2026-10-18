@@ -1,6 +1,6 @@
 {
   "name": "loopstructor-autoplayer-desktop",
-  "version": "0.6.80",
+  "version": "0.6.81",
   "private": true,
   "description": "Loopstructor 2 QA Tool unified Electron desktop client",
   "author": "yingyu4451",
@@ -51,6 +51,16 @@
     "productName": "Loopstructor 2 QA Tool",
     "electronDist": "node_modules/electron/dist",
     "asar": true,
+    "disableAsarIntegrity": true,
+    "asarUnpack": [
+      "dist/assets/*.png",
+      "dist/assets/*.jpg",
+      "dist/assets/*.ttf"
+    ],
+    "extraMetadata": {
+      "shortVersion": "0.6.0",
+      "shortVersionWindows": "0.6.0.0"
+    },
     "directories": {
       "output": "dist-electron",
       "buildResources": "../assets/branding"
@@ -59,6 +69,7 @@
       "dist/**/*",
       "dist-main/**/*",
       "!dist-main/**/*.test.cjs",
+      "!node_modules/**/*",
       "package.json"
     ],
     "extraResources": [

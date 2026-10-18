@@ -407,6 +407,44 @@ function Assert-ProductVersion {
     }
 }
 
+function Assert-ManagerVersion {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ExpectedVersion
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "Versioned release binary is missing: $Path"
+    }
+
+    # Electron 主程序的版本元数据被固定为 desktop/package.json 的 build.extraMetadata 值，
+    # 这样 patch 发布不再改写主程序字节，增量更新包可以保持很小。这里校验固定值与产品版本
+    # 属于同一 major.minor，并确认配置里的固定值确实写进了二进制。
+    $desktopPackageJsonPath = Join-Path $repositoryRoot 'desktop\package.json'
+    $desktopPackageJson = Get-Content -LiteralPath $desktopPackageJsonPath -Raw | ConvertFrom-Json
+    $pinnedVersion = [string]$desktopPackageJson.build.extraMetadata.shortVersionWindows
+    if ([string]::IsNullOrWhiteSpace($pinnedVersion)) {
+        throw "desktop/package.json must pin build.extraMetadata.shortVersionWindows for the Electron manager: $desktopPackageJsonPath"
+    }
+
+    $productParts = $ExpectedVersion.Split('.')
+    $pinnedParts = $pinnedVersion.Split('.')
+    if ($productParts.Length -lt 2 -or $pinnedParts.Length -lt 2 -or
+        $pinnedParts[0] -ne $productParts[0] -or $pinnedParts[1] -ne $productParts[1]) {
+        throw "Electron manager metadata version $pinnedVersion must share the product major.minor $($productParts[0]).$($productParts[1]): $Path"
+    }
+
+    $actualVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($Path).ProductVersion
+    $actualMatches = [StringComparer]::Ordinal.Equals($actualVersion, $pinnedVersion) -or
+        [StringComparer]::Ordinal.Equals($actualVersion, "$pinnedVersion.0")
+    if (-not $actualMatches) {
+        throw "Electron manager product version must be pinned to $pinnedVersion but was $actualVersion`: $Path"
+    }
+}
+
 foreach ($requiredProject in @($launcherProject, $hostProject, $updaterProject, $pluginProject, $editorRuntimeProject)) {
     if (-not (Test-Path -LiteralPath $requiredProject -PathType Leaf)) {
         throw "Required release project not found: $requiredProject"
@@ -526,7 +564,7 @@ foreach ($editorRuntimeFile in @(
     Copy-Item -LiteralPath (Join-Path $editorRuntimeOutput $editorRuntimeFile) -Destination $editorPayloadOutput
 }
 
-Assert-ProductVersion -Path (Join-Path $managerOutput 'Loopstructor-2-QA-Tool.exe') -ExpectedVersion $packageVersion
+Assert-ManagerVersion -Path (Join-Path $managerOutput 'Loopstructor-2-QA-Tool.exe') -ExpectedVersion $packageVersion
 Assert-ProductVersion -Path (Join-Path $managerOutput 'Loopstructor.AutoPlayer.Host.exe') -ExpectedVersion $packageVersion
 Assert-ProductVersion -Path $bundledUpdaterExecutable -ExpectedVersion $packageVersion
 Assert-ProductVersion -Path $rootManagerExecutable -ExpectedVersion $packageVersion
