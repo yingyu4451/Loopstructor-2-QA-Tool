@@ -5,6 +5,6 @@
     <RootNamespace>Loopstructor.AutoPlayer.Core</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" PrivateAssets="all" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.2" PrivateAssets="all" />
   </ItemGroup>
 </Project>

@@ -126,6 +126,13 @@ internal sealed class AutoPlayController
     private const float RewardCollectionObservationSeconds = 0.75f;
     private const float MapOpenAnimationFallbackSeconds = 1.55f;
     private const float MapOpenAnimationPollSeconds = 0.1f;
+
+    // 游戏 1.419 起不再提供独立的原生地图界面：节点卡片直接显示在游戏主界面，
+    // 旧版地图按钮会打开设置面板。暂时禁用地图界面交互（只保留状态读取与节点选择），
+    // 避免自动游玩打开设置面板后卡在不存在的“地图关闭”等待。
+    // TODO: 后续改为按游戏版本或能力探测自动切换，或暴露为 Manager 可见选项。
+    private static readonly bool MapInterfaceSelectionEnabled = false;
+
     private const float RewardObjectAppearanceGraceSeconds = 1.25f;
     private const float RewardObjectAppearancePollSeconds = 0.1f;
     private const float RewardVehicleContextFrameDelaySeconds = 0.02f;
@@ -140,6 +147,7 @@ internal sealed class AutoPlayController
     private const int MaxOwnedPreviewReleaseVerificationAttempts = 12;
     private const int MaxWaveStartAttempts = 3;
     private const float RequiredRailTopologyRetryBaseSeconds = 0.75f;
+    private const int RequiredRailTopologyMaterialExhaustionAttempts = 2;
     private static readonly TimeSpan FrontEndTransitionTimeout = TimeSpan.FromSeconds(20);
 
     private readonly object _sync = new();
@@ -229,6 +237,8 @@ internal sealed class AutoPlayController
     private bool _requiredRailTopologyMaintenance;
     private int _requiredRailTopologyRetryCount;
     private float _requiredRailTopologyRetryAt = -1f;
+    private bool _defenseExpansionMaterialsUnavailable;
+    private bool _railTopologyGateAbandonedForMaterialExhaustion;
     private string _selectionHighlightOwner = string.Empty;
     private string _selectionHighlightFingerprint = string.Empty;
     private string _selectionPreviewFingerprint = string.Empty;
@@ -1506,7 +1516,7 @@ internal sealed class AutoPlayController
                 blocked,
                 _defensePrepared,
                 _pendingSublevel,
-                mapOpen,
+                mapOpen && MapInterfaceSelectionEnabled,
                 canStartWave))
         {
             _openingDefensePreparationActive = true;
@@ -1515,7 +1525,8 @@ internal sealed class AutoPlayController
             return;
         }
 
-        if (!inWave &&
+        if (MapInterfaceSelectionEnabled &&
+            !inWave &&
             !blocked &&
             !_defensePrepared &&
             !_pendingSublevel &&
@@ -1561,6 +1572,14 @@ internal sealed class AutoPlayController
 
     private bool TryEnsureMapOpenForSelectionPreview(bool routeSelectionOutstanding, bool mapOpen)
     {
+        if (!MapInterfaceSelectionEnabled)
+        {
+            // 新版游戏没有独立地图界面：节点已直接显示在主界面，永远不要点击旧版地图按钮，
+            // 也不要等待“地图打开/关闭”动画，否则会打开设置面板并永久卡住。
+            ResetMapPreviewOpenWait();
+            return false;
+        }
+
         if (!routeSelectionOutstanding)
         {
             ResetMapPreviewOpenWait();
@@ -1882,6 +1901,12 @@ internal sealed class AutoPlayController
         if (_openingDefensePreparationPlanner.Phase == OpeningDefensePreparationPhase.Completed &&
             _runState == AutoPlayerRunState.Running)
         {
+            string openingPlanWarning = _openingDefensePreparationPlanner.OpeningPlanWarning;
+            if (!string.IsNullOrWhiteSpace(openingPlanWarning))
+            {
+                AddWarning(openingPlanWarning);
+                AddTimeline("opening-defense", openingPlanWarning);
+            }
             _openingDefensePreparationActive = false;
             _defensePrepared = true;
             RequestDefenseMaintenance();
@@ -5652,10 +5677,13 @@ internal sealed class AutoPlayController
                     {
                         MarkDefenseRailMaintenanceStable();
                     }
+                    _defenseExpansionMaterialsUnavailable = true;
                     FinishDefenseMaintenance(
                         $"没有可用的 {_defensePlacementDisposableEnum} 弹射点道具，已结束本轮扩建。");
                     return true;
                 }
+
+                _defenseExpansionMaterialsUnavailable = false;
 
                 if (!_defenseStationGridProbe.TryInitializePlacement(
                         _defensePlacementDisposableEnum,
@@ -7020,6 +7048,26 @@ internal sealed class AutoPlayController
         bool battleSpecialMove = _defenseBattleSpecialMoveOnly;
         if (_requiredRailTopologyMaintenance && !battleSpecialMove)
         {
+            if (_defenseExpansionMaterialsUnavailable &&
+                _requiredRailTopologyRetryCount + 1 >= RequiredRailTopologyMaterialExhaustionAttempts)
+            {
+                _railTopologyGateAbandonedForMaterialExhaustion = true;
+                ResetRequiredRailTopologyMaintenance();
+                _defenseMaintenanceRequested = false;
+                _defenseMaintenanceReady = false;
+                ResetDefenseMaintenanceState();
+                string abandonMessage =
+                    detail + " 扩建道具已耗尽且无法把地图新增站点接入闭环；" +
+                    "已解除轨道门禁继续游玩，该站点保持未接入。";
+                AddWarning(abandonMessage);
+                AddTimeline(
+                    "rail-maintenance-gate",
+                    "扩建材料耗尽，连续 " + RequiredRailTopologyMaterialExhaustionAttempts +
+                    " 次无法完成闭环对账；已解除轨道门禁继续流程，未接入站点保持原状。");
+                SetStage(AutomationStage.PreparingDefense, abandonMessage);
+                return;
+            }
+
             _requiredRailTopologyRetryCount++;
             float delay = Math.Min(
                 3f,
@@ -8962,7 +9010,8 @@ internal sealed class AutoPlayController
                     ? "地图节点产生了未接入闭环的弹射点"
                     : !topology.AllValid
                         ? "地图节点后的轨道闭环不合法"
-                        : "地图节点后的站点集合发生变化");
+                        : "地图节点后的站点集合发生变化",
+                allowMaterialExhaustionAbandon: unassignedStation && topology.AllValid);
             if (!duplicate)
             {
                 RequestDefenseMaintenance();
@@ -9018,8 +9067,16 @@ internal sealed class AutoPlayController
         return true;
     }
 
-    private void RequireRailTopologyMaintenance(string reason)
+    private void RequireRailTopologyMaintenance(string reason, bool allowMaterialExhaustionAbandon = false)
     {
+        if (allowMaterialExhaustionAbandon && _railTopologyGateAbandonedForMaterialExhaustion)
+        {
+            if (!TryRecoverAbandonedRailTopologyGate())
+            {
+                return;
+            }
+        }
+
         if (!_requiredRailTopologyMaintenance)
         {
             AddTimeline("rail-maintenance-gate", reason + "；轨道重连完成前不会继续选图或开波。");
@@ -9029,6 +9086,29 @@ internal sealed class AutoPlayController
         _requiredRailTopologyRetryCount = 0;
         _requiredRailTopologyRetryAt = -1f;
         _defenseRailMaintenanceStableLayoutFingerprint = string.Empty;
+    }
+
+    private bool TryRecoverAbandonedRailTopologyGate()
+    {
+        if (!TryInvokeOptionalReadOnly("queryDisposable", null, out JObject disposableState))
+        {
+            return false;
+        }
+
+        bool hasExpansionMaterial =
+            _battleDecisionEngine.DecideExpansionDisposableUse(disposableState, "FreePoint_Attribute") != null ||
+            _battleDecisionEngine.DecideMovableStationDisposableUse(disposableState, requireAttribute: false) != null;
+        if (!hasExpansionMaterial)
+        {
+            return false;
+        }
+
+        _defenseExpansionMaterialsUnavailable = false;
+        _railTopologyGateAbandonedForMaterialExhaustion = false;
+        AddTimeline(
+            "rail-maintenance-gate",
+            "已重新发现可用于扩建的弹射点道具；恢复轨道闭环门禁并重试重连。");
+        return true;
     }
 
     private bool CompleteRequiredRailTopologyMaintenance(
@@ -9735,11 +9815,17 @@ internal sealed class AutoPlayController
             return;
         }
 
+        string nativeType = option?["nativeType"]?.Value<string>() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(nativeType))
+        {
+            nativeType = "MetroTD.RewardSystem.GeneralRewardItemUI";
+        }
+
         ShowSelectionHighlight(
             "reward",
             _rewardOptionsFingerprint + "|" + instanceId,
             NativeSelectionTarget.ByInstance(
-                "MetroTD.RewardSystem.GeneralRewardItemUI",
+                nativeType,
                 instanceId,
                 option?["path"]?.Value<string>()));
     }

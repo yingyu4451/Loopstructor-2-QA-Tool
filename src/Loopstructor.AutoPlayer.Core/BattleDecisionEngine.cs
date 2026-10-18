@@ -311,7 +311,8 @@ public sealed class BattleDecisionEngine
         JObject? drawResult,
         JObject? currentRailResult,
         AutomationAction? drawAction,
-        int expectedRailInstanceId)
+        int expectedRailInstanceId,
+        bool allowUnbalancedRing = false)
     {
         if (!TryReadRailSnapshot(
                 baselineResult,
@@ -386,7 +387,15 @@ public sealed class BattleDecisionEngine
         }
 
         RailRuntimeValidation runtimeTopology = RailRuntimeTopologyInspector.InspectRail(addedRail);
-        if (!runtimeTopology.Loop.IsValid ||
+        if (!runtimeTopology.Loop.IsValid)
+        {
+            return RailVerificationFailure(
+                "唯一新增轨道虽然被游戏标记为闭环，但不是合法的简单闭环：" +
+                $"最大角缺口 {runtimeTopology.Layout.MaxAngularGapDegrees:0.###}°，" +
+                $"半径比 {runtimeTopology.Layout.RadiusRatio:0.###}。");
+        }
+
+        if (!allowUnbalancedRing &&
             !RailLayoutStrategyPlanner.IsBalancedDefenseRing(runtimeTopology.Layout))
         {
             return RailVerificationFailure(

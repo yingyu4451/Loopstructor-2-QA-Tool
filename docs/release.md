@@ -9,7 +9,7 @@
 | BepInEx.Core | 5.4.21 | 插件 NuGet 引用 |
 | UnityEngine.Modules | 2022.3.62 | 插件与 Editor Bridge 运行时引用 |
 | 插件目标框架 | netstandard2.1 | 游戏 Mono 2.1 |
-| 公共依赖（Core/Plugin） | Newtonsoft.Json 13.0.4 | NuGet 引用 |
+| 公共依赖（Core/Plugin/EditorBridge.Runtime） | Newtonsoft.Json 13.0.2 | NuGet 引用；与游戏及 Unity 自带的 Json.NET 13.0.2 API 对齐。13.0.3+ 新增的 `JToken.ToString(Formatting)` 重载在游戏内不存在，会导致运行时 `MissingMethodException`。Host 与测试项目仍使用 13.0.4（自带运行时，不进入游戏进程） |
 | 测试依赖 | xunit 2.9.3、xunit.runner.visualstudio 4.0.1、Microsoft.NET.Test.Sdk 18.11.0、Mono.Cecil 0.11.6 | `tests/Loopstructor.AutoPlayer.Tests` |
 | Editor Bridge | UPM 包，Unity 2022.3，依赖 `com.unity.nuget.newtonsoft-json` 3.2.1 | `resources/unity-package/com.loopstructor.qa-editor-bridge` |
 | Electron | 44.9.0 | `desktop/package.json`（精确版本） |
@@ -37,7 +37,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.77
+./scripts/package.ps1 -Version 0.6.78
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -47,8 +47,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.77-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.77-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.78-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.78-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -63,15 +63,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.77",
+  "version": "0.6.78",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.77-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.78-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.76",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.76-to-0.6.77-win-x64.delta.zip",
+      "fromVersion": "0.6.77",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.77-to-0.6.78-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -134,8 +134,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.77
-git push origin v0.6.77
+git tag v0.6.78
+git push origin v0.6.78
 ```
 
 ## 升级 BepInEx
@@ -148,6 +148,14 @@ git push origin v0.6.77
 
 ## 真实包验证基线
 
+2026-10-18，Skyspine `1.419`，隔离 QA 模式：
+
+- 插件 0.6.78 加载、`hello` 握手与自动游玩启动正常；开局防御闭环、地图节点选择、轨神事件、波次战斗、关卡奖励领取与失败结算检测均在实机走通，无卡死、无未处理异常。
+- 单局运行统计：`WavesStarted=3`、`WavesCompleted=2`；本局第 3 波被击破，由失败结算界面确认结束（`RunState=3`、`Outcome=3`），属玩法结果而非故障。
+- 该版本地图节点会新增弹射点：无可用 `FreePoint_Attribute` 扩建道具时，轨道闭环门禁在连续 2 次对账失败后解除并告警，未接入站点保持原状。
+- `Assembly-CSharp.dll` SHA-256：`cdf019572c315fbdd7343694aec7b8fcdbea1bbd3d5a3a1ff4289b0a6f54e150`。
+- 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
+
 2026-07-29，Skyspine `1.385`，隔离 QA 模式：
 
 - 普通模式与随机模式均正常开局、自动游玩并停止。
@@ -157,6 +165,17 @@ git push origin v0.6.77
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.78
+
+- 以 Skyspine `1.419` 打包版做隔离 QA 实机验证，修复该版本暴露的四个阻断问题：
+  - Unity 侧工程（Core、Plugin、EditorBridge.Runtime）的 Newtonsoft.Json 编译引用回退到 `13.0.2`，与游戏/Unity 自带 Json.NET 的 API 面一致；`13.0.3+` 新增的单参数 `JToken.ToString(Formatting)` 在游戏运行时不存在，已实机复现 `MissingMethodException`。Host 与测试工程继续使用 `13.0.4`。
+  - 关卡奖励收集界面：奖励轻量反射契约支持 `RewardUIPanel.DisplayedRewards` / `RewardCollectionItemUI.Data` 与卡片 `Claim()`，按卡片逐项领取（批量领取在游戏侧被禁止），旧版队列面板路径保留。
+  - 地图界面：1.419 已无独立地图面板（旧地图按钮实际会打开设置面板），暂时禁用地图界面交互、只保留节点选择，避免等待不存在的“地图关闭”。
+  - 开局防御闭环：站点布局无法组成严格均衡闭环时不再直接失败，依次降级为“排除非必需站点后保持均衡”→“接受可用的非均衡闭环”，降级原因写入运行警告与时间线；绘制出的开局闭环按“合法简单闭环”校验，只有选择器仍拿到严格均衡计划时才要求均衡圆环，未纳入站点仍交由开波前轨道门禁处理。
+- 轨道闭环门禁：扩建材料（`FreePoint_Attribute` 弹射点道具）确认耗尽且连续 2 次无法完成闭环对账时，解除门禁继续流程并告警；非法闭环、站点读取超时等安全门禁保持失效即关闭。`docs/safety.md` 补充该例外。
+- 测试数 630 → 645（新增关卡奖励契约 8 项、开局闭环降级选择 7 项，并更新性能契约断言），全部通过；Release 构建 0 警告。
+- 发布包内容与发布流程不变（整包 + 相对 0.6.77 的增量包）。
 
 ### 0.6.77
 

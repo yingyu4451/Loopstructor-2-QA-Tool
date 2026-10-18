@@ -1,8 +1,10 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 
@@ -25,12 +27,20 @@ internal static class RewardUiRuntimeFallback
     private const string DisposableManagerTypeName = "MetroTD.DisposableSystem.DisposableManager";
     private const string SuperModuleManagerTypeName = "MetroTD.SuperModuleSystem.SuperModuleManager";
     private const string MapConfigControllerTypeName = "MetroTD.RoomSystem.LoopstructorMapCfgController";
+    private const string LevelRewardCollectionItemTypeName = "MetroTD.RewardSystem.RewardCollectionItemUI";
+    private const string LevelRewardCollectionIconTypeName = "MetroTD.RewardSystem.LevelRewardCollectionIcon";
     private const string ResultSource = "pluginReflection:RewardUI:light";
 
     private static ReflectionContract? _contract;
+    private static LevelReflectionContract? _levelContract;
 
     internal static bool TryQueryState(out JObject result)
     {
+        if (TryQueryLevelState(out result))
+        {
+            return true;
+        }
+
         result = null!;
         if (!TryGetContract(out ReflectionContract contract))
         {
@@ -54,6 +64,11 @@ internal static class RewardUiRuntimeFallback
 
     internal static bool TryChooseOption(JObject? arguments, out JObject result)
     {
+        if (TryChooseLevelOption(arguments, out result))
+        {
+            return true;
+        }
+
         result = null!;
         if (!TryGetContract(out ReflectionContract contract))
         {
@@ -731,6 +746,585 @@ internal static class RewardUiRuntimeFallback
         panelInstanceId,
         string.Join(",", options.Select(option => option.InstanceId)));
 
+    private static bool TryQueryLevelState(out JObject result)
+    {
+        result = null!;
+        if (!TryGetLevelContract(out LevelReflectionContract contract))
+        {
+            return false;
+        }
+
+        // 新版游戏的面板在首次打开前可能尚未创建：此时旧奖励队列契约也已不存在，
+        // 如实返回“面板关闭”状态，避免让调用方误以为轻量奖励契约不可用。
+        if (!TryGetLevelPanel(contract, out object? panel) || panel == null)
+        {
+            result = Success("已读取轻量奖励界面状态。", BuildLevelClosedState());
+            return true;
+        }
+
+        if (!IsLevelCollectionActive(contract, panel))
+        {
+            return false;
+        }
+
+        try
+        {
+            RewardSnapshot snapshot = BuildLevelSnapshot(contract, panel);
+            result = Success("已读取轻量奖励界面状态。", snapshot.State);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            result = Error(
+                "读取奖励界面失败：" + Unwrap(exception).Message,
+                new JObject { ["source"] = ResultSource });
+            return true;
+        }
+    }
+
+    private static JObject BuildLevelClosedState() => new()
+    {
+        ["panelOpen"] = false,
+        ["panelActive"] = false,
+        ["panelAvailable"] = false,
+        ["panelInstanceId"] = 0,
+        ["phaseToken"] = string.Empty,
+        ["busy"] = false,
+        ["mutexAvailable"] = false,
+        ["spawnerAvailable"] = false,
+        ["pending"] = false,
+        ["needsPolling"] = false,
+        ["activeRewardObjectCount"] = 0,
+        ["pooledRewardObjectCount"] = 0,
+        ["rewardObjects"] = new JArray(),
+        ["options"] = new JArray(),
+        ["source"] = ResultSource,
+        ["refresh"] = false,
+        ["finished"] = false,
+        ["levelCollection"] = true
+    };
+
+    private static bool TryChooseLevelOption(JObject? arguments, out JObject result)
+    {
+        result = null!;
+        if (!TryGetLevelContract(out LevelReflectionContract contract) ||
+            !TryGetLevelPanel(contract, out object? panel) || panel == null ||
+            !IsLevelCollectionActive(contract, panel))
+        {
+            return false;
+        }
+
+        RewardSnapshot before;
+        try
+        {
+            before = BuildLevelSnapshot(contract, panel);
+        }
+        catch (Exception exception)
+        {
+            result = Error(
+                "选择奖励前无法读取界面状态：" + Unwrap(exception).Message,
+                new JObject { ["source"] = ResultSource });
+            return true;
+        }
+
+        if (!TryReadSelection(arguments, out string phaseToken, out int itemInstanceId, out int index))
+        {
+            result = SelectionError(
+                "奖励选择参数不完整；必须同时提供 phaseToken、itemInstanceId 和 index。",
+                before.State);
+            return true;
+        }
+
+        if (!before.PanelOpen)
+        {
+            result = SelectionError("奖励面板已经关闭。", before.State);
+            return true;
+        }
+
+        if (!string.Equals(before.PhaseToken, phaseToken, StringComparison.Ordinal))
+        {
+            result = SelectionError("奖励阶段已变化，拒绝使用过期选项。", before.State);
+            return true;
+        }
+
+        RewardOptionSnapshot? target = before.Options.FirstOrDefault(option =>
+            option.Index == index && option.InstanceId == itemInstanceId);
+        if (target == null)
+        {
+            result = SelectionError("奖励选项实例与索引不匹配。", before.State);
+            return true;
+        }
+
+        if (target.LevelIcon == null || target.LevelCard == null)
+        {
+            result = SelectionError("奖励卡片尚未绑定，本次未执行领取。", before.State);
+            return true;
+        }
+
+        if (!target.ButtonActive)
+        {
+            result = SelectionError("指定奖励选项当前不可点击。", before.State);
+            return true;
+        }
+
+        if (!target.CanAcquire)
+        {
+            string reason = string.IsNullOrWhiteSpace(target.UnavailableReason)
+                ? "游戏当前不允许领取该奖励。"
+                : target.UnavailableReason;
+            result = SelectionError("指定奖励当前不可领取：" + reason, before.State);
+            return true;
+        }
+
+        bool invocationStarted = false;
+        try
+        {
+            invocationStarted = true;
+            contract.CardClaim.Invoke(target.LevelCard, null);
+
+            RewardSnapshot after = BuildLevelSnapshot(contract, panel);
+            after.State["invocationStarted"] = true;
+            after.State["selectedPhaseToken"] = phaseToken;
+            after.State["selectedItemInstanceId"] = itemInstanceId;
+            after.State["selectedIndex"] = index;
+            result = Success("已发送一次奖励领取，正在等待奖励界面刷新。", after.State);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            JObject failureState = before.State;
+            failureState["source"] = ResultSource;
+            if (invocationStarted)
+            {
+                failureState["outcomeUnknown"] = true;
+                failureState["needsReconciliation"] = true;
+                failureState["uncertaintyOrigin"] = "rewardClaimException";
+                failureState["invocationStarted"] = true;
+            }
+
+            result = Error(
+                "奖励领取调用失败：" + Unwrap(exception).Message,
+                failureState);
+            return true;
+        }
+    }
+
+    private static bool TryGetLevelPanel(LevelReflectionContract contract, out object? panel)
+    {
+        try
+        {
+            panel = contract.PanelInstance.GetValue(null, null);
+        }
+        catch
+        {
+            panel = null;
+        }
+
+        return panel != null;
+    }
+
+    private static bool IsLevelCollectionActive(LevelReflectionContract contract, object panel)
+    {
+        try
+        {
+            if (contract.IsShowingLevelRewards != null &&
+                contract.IsShowingLevelRewards.GetValue(panel, null) is bool showing && showing)
+            {
+                return true;
+            }
+
+            return ReadLevelCards(contract, panel).Any(card => contract.CardData.GetValue(card, null) != null);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static RewardSnapshot BuildLevelSnapshot(LevelReflectionContract contract, object panel)
+    {
+        bool panelOpen = IsOpenLevelPanel(contract, panel);
+        bool panelActive = panelOpen && contract.PanelIsActive.GetValue(panel, null) is bool active && active;
+        bool claiming = panelOpen &&
+                        contract.ClaimingLevelRewards?.GetValue(panel) is bool claimInProgress &&
+                        claimInProgress;
+        bool refreshRequested = panelOpen &&
+                                contract.RefreshRequested?.GetValue(panel) is bool refresh &&
+                                refresh;
+        List<RewardOptionSnapshot> options = panelOpen
+            ? GetLevelRewardOptions(contract, panel)
+            : new List<RewardOptionSnapshot>();
+        string phaseToken = panelOpen ? BuildLevelPhaseToken(panel, options) : string.Empty;
+        bool optionsPending = panelOpen && options.Count == 0;
+        JObject state = new()
+        {
+            ["panelOpen"] = panelOpen,
+            ["panelActive"] = panelActive,
+            ["panelAvailable"] = true,
+            ["panelInstanceId"] = EnsureNonZeroIdentity(GetObjectIdentity(panel)),
+            ["phaseToken"] = phaseToken,
+            ["busy"] = claiming,
+            ["mutexAvailable"] = true,
+            ["spawnerAvailable"] = false,
+            ["pending"] = optionsPending,
+            ["needsPolling"] = optionsPending,
+            ["activeRewardObjectCount"] = 0,
+            ["pooledRewardObjectCount"] = 0,
+            ["rewardObjects"] = new JArray(),
+            ["options"] = new JArray(options.Select(option => option.State)),
+            ["source"] = ResultSource,
+            ["refresh"] = refreshRequested,
+            ["finished"] = false,
+            ["levelCollection"] = true
+        };
+
+        return new RewardSnapshot(state, panelOpen, phaseToken, true, claiming, options);
+    }
+
+    private static bool IsOpenLevelPanel(LevelReflectionContract contract, object panel)
+    {
+        if (!IsActiveSceneObject(panel))
+        {
+            return false;
+        }
+
+        return contract.PanelIsOpen.Invoke(panel, null) is bool open && open;
+    }
+
+    private static List<RewardOptionSnapshot> GetLevelRewardOptions(
+        LevelReflectionContract contract,
+        object panel)
+    {
+        List<RewardOptionSnapshot> options = new();
+        object? displayed = contract.DisplayedRewards.GetValue(panel, null);
+        if (displayed is not IEnumerable icons)
+        {
+            return options;
+        }
+
+        List<object> cards = ReadLevelCards(contract, panel);
+        int index = 0;
+        foreach (object? icon in icons)
+        {
+            if (icon == null)
+            {
+                continue;
+            }
+
+            object? card = FindLevelCard(contract, cards, icon);
+            options.Add(BuildLevelRewardOption(contract, icon, card, index));
+            index++;
+        }
+
+        return options;
+    }
+
+    private static List<object> ReadLevelCards(LevelReflectionContract contract, object panel)
+    {
+        List<object> cards = new();
+        if (contract.PanelCreator == null || contract.CreatorComponents == null)
+        {
+            return cards;
+        }
+
+        object? creator = contract.PanelCreator.GetValue(panel);
+        if (creator == null || contract.CreatorComponents.GetValue(creator, null) is not IEnumerable components)
+        {
+            return cards;
+        }
+
+        foreach (object? card in components)
+        {
+            if (card == null)
+            {
+                continue;
+            }
+
+            if (!IsActiveSceneObject(card))
+            {
+                continue;
+            }
+
+            cards.Add(card);
+        }
+
+        return cards;
+    }
+
+    private static object? FindLevelCard(
+        LevelReflectionContract contract,
+        List<object> cards,
+        object icon)
+    {
+        foreach (object card in cards)
+        {
+            if (ReferenceEquals(contract.CardData.GetValue(card, null), icon))
+            {
+                return card;
+            }
+        }
+
+        object? settlementId = contract.IconSettlementId.GetValue(icon);
+        object? itemIndex = contract.IconItemIndex.GetValue(icon);
+        object? layerMoney = contract.IconLayerMoney.GetValue(icon);
+        foreach (object card in cards)
+        {
+            object? data = contract.CardData.GetValue(card, null);
+            if (data == null)
+            {
+                continue;
+            }
+
+            if (!Equals(contract.IconSettlementId.GetValue(data), settlementId) ||
+                !Equals(contract.IconItemIndex.GetValue(data), itemIndex) ||
+                !Equals(contract.IconLayerMoney.GetValue(data), layerMoney))
+            {
+                continue;
+            }
+
+            return card;
+        }
+
+        return null;
+    }
+
+    private static RewardOptionSnapshot BuildLevelRewardOption(
+        LevelReflectionContract contract,
+        object icon,
+        object? card,
+        int index)
+    {
+        bool granted = contract.IconGranted.GetValue(icon) is bool grantedValue && grantedValue;
+        bool canClaim = contract.IconCanClaim.GetValue(icon) is bool canClaimValue && canClaimValue;
+        bool buttonActive = card != null && canClaim && !granted;
+        bool canAcquire = buttonActive;
+        string unavailableReason = card == null
+            ? "奖励卡片尚未绑定。"
+            : granted
+                ? "该奖励已经领取。"
+                : canClaim
+                    ? string.Empty
+                    : "游戏当前不允许领取该奖励。";
+        string rewardType = contract.IconItemType.GetValue(icon)?.ToString() ?? "Unknown";
+        string rewardKind = rewardType switch
+        {
+            "Vehicle" => "vehicle",
+            "Disposable" => "disposable",
+            "SuperModule" => "superModule",
+            "Money" => "money",
+            _ => "unknown"
+        };
+        object? settlementItem = ReadLevelSettlementField(contract.IconItem, icon);
+        int money = rewardKind == "money" &&
+                    contract.IconQuantity?.GetValue(icon) is string quantityText &&
+                    int.TryParse(quantityText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedMoney)
+            ? parsedMoney
+            : 0;
+        object? fetter = rewardKind == "vehicle"
+            ? ReadLevelSettlementField(contract.SettlementFetter, settlementItem)
+            : null;
+        JObject? fetterState = BuildLevelFetterState(contract, fetter);
+        bool willCarryInitFetter = rewardKind == "vehicle" &&
+                                   fetterState?["isActual"]?.Value<bool>() == true;
+        JArray effectiveFetters = new();
+        if (willCarryInitFetter && fetterState != null)
+        {
+            effectiveFetters.Add(fetterState.DeepClone());
+        }
+
+        int instanceId = card == null
+            ? BuildLevelSyntheticInstanceId(contract, icon)
+            : EnsureNonZeroIdentity(GetObjectIdentity(card));
+        string? fallbackName = contract.IconFallbackName.GetValue(icon) as string;
+        string? sourceLabel = contract.IconSourceLabel?.GetValue(icon) as string;
+        JObject state = new()
+        {
+            ["index"] = index,
+            ["instanceId"] = instanceId,
+            ["type"] = card == null ? LevelRewardCollectionIconTypeName : card.GetType().Name,
+            ["buttonActive"] = buttonActive,
+            ["canAcquire"] = canAcquire,
+            ["unavailableReason"] = NullableString(unavailableReason),
+            ["rewardKind"] = rewardKind,
+            ["rewardType"] = NullableString(rewardType),
+            ["rewardName"] = NullableString(fallbackName),
+            ["rewardRare"] = JValue.CreateNull(),
+            ["vehicleType"] = NullableString(rewardKind == "vehicle"
+                ? ReadLevelSettlementField(contract.SettlementVehicleType, settlementItem)?.ToString()
+                : null),
+            ["initFetter"] = NullableString(fetterState?["fetterEnum"]?.Value<string>()),
+            ["templateInitFetter"] = (JToken?)fetterState ?? JValue.CreateNull(),
+            ["carryInitFetter"] = rewardKind == "vehicle" ? (JToken)true : JValue.CreateNull(),
+            ["mapRewardVehicleGetFetter"] = rewardKind == "vehicle" ? (JToken)true : JValue.CreateNull(),
+            ["willCarryInitFetter"] = rewardKind == "vehicle" ? (JToken)willCarryInitFetter : JValue.CreateNull(),
+            ["effectiveInitFetter"] = NullableString(willCarryInitFetter
+                ? fetterState?["fetterEnum"]?.Value<string>()
+                : null),
+            ["effectiveFetters"] = effectiveFetters,
+            ["disposableEnum"] = NullableString(rewardKind == "disposable"
+                ? ReadLevelSettlementField(contract.SettlementDisposable, settlementItem)?.ToString()
+                : null),
+            ["assignDisposableEnum"] = JValue.CreateNull(),
+            ["superModuleEnum"] = NullableString(rewardKind == "superModule"
+                ? ReadLevelSettlementField(contract.SettlementSuperModule, settlementItem)?.ToString()
+                : null),
+            ["allowRepeatedAcquire"] = rewardKind == "superModule" &&
+                                       ReadLevelSettlementField(contract.SettlementAllowRepeated, settlementItem) is bool repeated &&
+                                       repeated,
+            ["money"] = money,
+            ["granted"] = granted,
+            ["nativeType"] = LevelRewardCollectionItemTypeName,
+            ["path"] = JValue.CreateNull(),
+            ["sourceLabel"] = NullableString(sourceLabel),
+            ["source"] = ResultSource
+        };
+
+        return new RewardOptionSnapshot(
+            card ?? icon,
+            index,
+            instanceId,
+            buttonActive,
+            canAcquire,
+            unavailableReason,
+            state,
+            icon,
+            card);
+    }
+
+    private static object? ReadLevelSettlementField(FieldInfo? field, object? settlementItem)
+    {
+        if (field == null || settlementItem == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return field.GetValue(settlementItem);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static JObject? BuildLevelFetterState(LevelReflectionContract contract, object? fetter)
+    {
+        if (fetter == null || contract.FetterEnum == null || contract.FetterLevel == null ||
+            contract.FetterCount == null)
+        {
+            return null;
+        }
+
+        string fetterEnum = contract.FetterEnum.GetValue(fetter)?.ToString() ?? string.Empty;
+        int level = contract.FetterLevel.GetValue(fetter) is int readLevel ? readLevel : 0;
+        int count = contract.FetterCount.GetValue(fetter) is int readCount ? readCount : 0;
+        return new JObject
+        {
+            ["fetterEnum"] = fetterEnum,
+            ["level"] = level,
+            ["count"] = count,
+            ["isActual"] = count > 0 && !string.Equals(fetterEnum, "None", StringComparison.OrdinalIgnoreCase)
+        };
+    }
+
+    private static int BuildLevelSyntheticInstanceId(LevelReflectionContract contract, object icon)
+    {
+        string settlementId = contract.IconSettlementId.GetValue(icon) as string ?? string.Empty;
+        int itemIndex = contract.IconItemIndex.GetValue(icon) is int readIndex ? readIndex : -1;
+        bool layerMoney = contract.IconLayerMoney.GetValue(icon) is bool readLayerMoney && readLayerMoney;
+        unchecked
+        {
+            int hash = (int)2166136261;
+            foreach (char character in settlementId)
+            {
+                hash = (hash ^ character) * 16777619;
+            }
+
+            hash = (hash ^ itemIndex) * 16777619;
+            hash = (hash ^ (layerMoney ? 1 : 0)) * 16777619;
+            return hash == 0 ? 1 : hash;
+        }
+    }
+
+    private static int GetObjectIdentity(object? target)
+    {
+        if (target == null)
+        {
+            return 0;
+        }
+
+        // 用反射读取 Unity 对象的实例 ID：轻量奖励契约需要在没有 UnityEngine 程序集的测试宿主中也能运行。
+        MethodInfo? getInstanceId = target.GetType().GetMethod(
+            "GetInstanceID",
+            BindingFlags.Public | BindingFlags.Instance,
+            null,
+            Type.EmptyTypes,
+            null);
+        if (getInstanceId != null && getInstanceId.ReturnType == typeof(int))
+        {
+            try
+            {
+                if (getInstanceId.Invoke(target, null) is int instanceId)
+                {
+                    return instanceId;
+                }
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        return RuntimeHelpers.GetHashCode(target);
+    }
+
+    private static bool IsActiveSceneObject(object? target)
+    {
+        if (target == null)
+        {
+            return false;
+        }
+
+        // 真实游戏对象（Component）通过反射检查激活状态；测试替身没有 gameObject 成员时视为可用。
+        PropertyInfo? gameObjectProperty = FindInstanceProperty(target.GetType(), "gameObject");
+        if (gameObjectProperty == null || gameObjectProperty.PropertyType.FullName != "UnityEngine.GameObject")
+        {
+            return true;
+        }
+
+        object? gameObject = gameObjectProperty.GetValue(target, null);
+        if (gameObject == null)
+        {
+            return false;
+        }
+
+        PropertyInfo? activeInHierarchy = FindInstanceProperty(gameObject.GetType(), "activeInHierarchy");
+        if (activeInHierarchy?.GetValue(gameObject, null) is bool active && !active)
+        {
+            return false;
+        }
+
+        PropertyInfo? sceneProperty = FindInstanceProperty(gameObject.GetType(), "scene");
+        object? scene = sceneProperty?.GetValue(gameObject, null);
+        if (scene != null &&
+            FindInstanceMethod(scene.GetType(), "IsValid") is MethodInfo isValid &&
+            isValid.Invoke(scene, null) is bool valid &&
+            !valid)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static int EnsureNonZeroIdentity(int identity) => identity == 0 ? 1 : identity;
+
+    private static string BuildLevelPhaseToken(object panel, IEnumerable<RewardOptionSnapshot> options) => string.Join(
+        ":",
+        EnsureNonZeroIdentity(GetObjectIdentity(panel)),
+        string.Join(",", options.Select(option => option.InstanceId)));
+
     private static bool IsOpenPanel(ReflectionContract contract, Component? panel)
     {
         if (panel == null || panel.gameObject == null || !panel.gameObject.scene.IsValid() ||
@@ -920,6 +1514,99 @@ internal static class RewardUiRuntimeFallback
         return true;
     }
 
+    private static bool TryGetLevelContract(out LevelReflectionContract contract)
+    {
+        if (_levelContract != null)
+        {
+            contract = _levelContract;
+            return true;
+        }
+
+        Type? panelType = FindType(RewardPanelTypeName);
+        Type? iconType = FindType(LevelRewardCollectionIconTypeName);
+        Type? cardType = FindType(LevelRewardCollectionItemTypeName);
+
+        PropertyInfo? panelInstance = FindStaticProperty(panelType, "Instance");
+        MethodInfo? panelIsOpen = FindInstanceMethod(panelType, "IsOpen");
+        PropertyInfo? panelIsActive = FindInstanceProperty(panelType, "IsActive");
+        PropertyInfo? displayedRewards = FindInstanceProperty(panelType, "DisplayedRewards");
+        PropertyInfo? isShowingLevelRewards = FindInstanceProperty(panelType, "IsShowingLevelRewards");
+        FieldInfo? panelCreator = FindInstanceField(panelType, "m_creator");
+        PropertyInfo? creatorComponents = FindInstanceProperty(panelCreator?.FieldType, "Components");
+        FieldInfo? claimingLevelRewards = FindInstanceField(panelType, "m_claimingLevelRewards");
+        FieldInfo? refreshRequested = FindInstanceField(panelType, "m_refreshRequested");
+
+        FieldInfo? iconSettlementId = FindInstanceField(iconType, "settlementId");
+        FieldInfo? iconItemIndex = FindInstanceField(iconType, "itemIndex");
+        FieldInfo? iconItemType = FindInstanceField(iconType, "itemType");
+        FieldInfo? iconLayerMoney = FindInstanceField(iconType, "layerMoney");
+        FieldInfo? iconGranted = FindInstanceField(iconType, "granted");
+        FieldInfo? iconCanClaim = FindInstanceField(iconType, "canClaim");
+        FieldInfo? iconFallbackName = FindInstanceField(iconType, "fallbackName");
+        FieldInfo? iconQuantity = FindInstanceField(iconType, "quantity");
+        FieldInfo? iconSourceLabel = FindInstanceField(iconType, "sourceLabel");
+        FieldInfo? iconItem = FindInstanceField(iconType, "item");
+        PropertyInfo? cardData = FindInstanceProperty(cardType, "Data");
+        MethodInfo? cardClaim = FindInstanceMethod(cardType, "Claim");
+
+        Type? settlementItemType = iconItem?.FieldType;
+        FieldInfo? settlementVehicleType = FindInstanceField(settlementItemType, "vehicleType");
+        FieldInfo? settlementDisposable = FindInstanceField(settlementItemType, "disposableEnum");
+        FieldInfo? settlementSuperModule = FindInstanceField(settlementItemType, "superModuleEnum");
+        FieldInfo? settlementFetter = FindInstanceField(settlementItemType, "fetter");
+        FieldInfo? settlementAllowRepeated = FindInstanceField(settlementItemType, "allowRepeatedAcquire");
+        FieldInfo? fetterEnum = FindInstanceField(settlementFetter?.FieldType, "fetterEnum");
+        FieldInfo? fetterLevel = FindInstanceField(settlementFetter?.FieldType, "level");
+        FieldInfo? fetterCount = FindInstanceField(settlementFetter?.FieldType, "count");
+
+        if (panelType == null || iconType == null || cardType == null ||
+            panelInstance == null || panelIsOpen == null || panelIsActive == null ||
+            displayedRewards == null ||
+            iconSettlementId == null || iconItemIndex == null || iconItemType == null ||
+            iconLayerMoney == null || iconGranted == null || iconCanClaim == null ||
+            iconFallbackName == null ||
+            cardData == null || cardClaim == null)
+        {
+            contract = null!;
+            return false;
+        }
+
+        _levelContract = new LevelReflectionContract
+        {
+            PanelInstance = panelInstance,
+            PanelIsOpen = panelIsOpen,
+            PanelIsActive = panelIsActive,
+            DisplayedRewards = displayedRewards,
+            IsShowingLevelRewards = isShowingLevelRewards,
+            PanelCreator = panelCreator,
+            CreatorComponents = creatorComponents,
+            ClaimingLevelRewards = claimingLevelRewards,
+            RefreshRequested = refreshRequested,
+            IconSettlementId = iconSettlementId,
+            IconItemIndex = iconItemIndex,
+            IconItemType = iconItemType,
+            IconLayerMoney = iconLayerMoney,
+            IconGranted = iconGranted,
+            IconCanClaim = iconCanClaim,
+            IconFallbackName = iconFallbackName,
+            IconQuantity = iconQuantity,
+            IconSourceLabel = iconSourceLabel,
+            IconItem = iconItem,
+            CardData = cardData,
+            CardClaim = cardClaim,
+            SettlementVehicleType = settlementVehicleType,
+            SettlementDisposable = settlementDisposable,
+            SettlementSuperModule = settlementSuperModule,
+            SettlementFetter = settlementFetter,
+            SettlementAllowRepeated = settlementAllowRepeated,
+            FetterEnum = fetterEnum,
+            FetterLevel = fetterLevel,
+            FetterCount = fetterCount
+        };
+        contract = _levelContract;
+        return true;
+    }
+
     private static Type? FindType(string fullName)
     {
         foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
@@ -1083,13 +1770,15 @@ internal static class RewardUiRuntimeFallback
     private sealed class RewardOptionSnapshot
     {
         public RewardOptionSnapshot(
-            Component item,
+            object item,
             int index,
             int instanceId,
             bool buttonActive,
             bool canAcquire,
             string unavailableReason,
-            JObject state)
+            JObject state,
+            object? levelIcon = null,
+            object? levelCard = null)
         {
             Item = item;
             Index = index;
@@ -1098,15 +1787,19 @@ internal static class RewardUiRuntimeFallback
             CanAcquire = canAcquire;
             UnavailableReason = unavailableReason;
             State = state;
+            LevelIcon = levelIcon;
+            LevelCard = levelCard;
         }
 
-        public Component Item { get; }
+        public object Item { get; }
         public int Index { get; }
         public int InstanceId { get; }
         public bool ButtonActive { get; }
         public bool CanAcquire { get; }
         public string UnavailableReason { get; }
         public JObject State { get; }
+        public object? LevelIcon { get; }
+        public object? LevelCard { get; }
     }
 
     private sealed class RewardObjectCollectionSnapshot
@@ -1258,5 +1951,38 @@ internal static class RewardUiRuntimeFallback
         public PropertyInfo MapConfigInstance { get; }
         public PropertyInfo MapConfigCurrent { get; }
         public FieldInfo MapRewardVehicleGetFetter { get; }
+    }
+
+    private sealed class LevelReflectionContract
+    {
+        public PropertyInfo PanelInstance = null!;
+        public MethodInfo PanelIsOpen = null!;
+        public PropertyInfo PanelIsActive = null!;
+        public PropertyInfo DisplayedRewards = null!;
+        public PropertyInfo? IsShowingLevelRewards;
+        public FieldInfo? PanelCreator;
+        public PropertyInfo? CreatorComponents;
+        public FieldInfo? ClaimingLevelRewards;
+        public FieldInfo? RefreshRequested;
+        public FieldInfo IconSettlementId = null!;
+        public FieldInfo IconItemIndex = null!;
+        public FieldInfo IconItemType = null!;
+        public FieldInfo IconLayerMoney = null!;
+        public FieldInfo IconGranted = null!;
+        public FieldInfo IconCanClaim = null!;
+        public FieldInfo IconFallbackName = null!;
+        public FieldInfo? IconQuantity;
+        public FieldInfo? IconSourceLabel;
+        public FieldInfo? IconItem;
+        public PropertyInfo CardData = null!;
+        public MethodInfo CardClaim = null!;
+        public FieldInfo? SettlementVehicleType;
+        public FieldInfo? SettlementDisposable;
+        public FieldInfo? SettlementSuperModule;
+        public FieldInfo? SettlementFetter;
+        public FieldInfo? SettlementAllowRepeated;
+        public FieldInfo? FetterEnum;
+        public FieldInfo? FetterLevel;
+        public FieldInfo? FetterCount;
     }
 }

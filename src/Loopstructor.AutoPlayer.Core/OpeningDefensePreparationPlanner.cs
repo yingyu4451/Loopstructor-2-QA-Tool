@@ -226,6 +226,184 @@ public sealed class OpeningDefensePreparationDecision
 }
 
 /// <summary>
+/// Result of choosing the opening rail loop. A selected plan always links at least one attribute
+/// station plus two common stations; a fully balanced, encircling ring is preferred but degraded
+/// layouts fall back to any legal loop so a QA run is not hard-failed by station placement.
+/// </summary>
+public sealed class OpeningDefenseLoopSelection
+{
+    public RailLoopPlan? Plan { get; set; }
+    public string Warning { get; set; } = string.Empty;
+    public string Error { get; set; } = string.Empty;
+
+    /// <summary>
+    /// True when the accepted plan is not a balanced, encircling defense ring. Callers must then
+    /// verify the drawn rail as a legal loop instead of demanding a perfect defense ring.
+    /// </summary>
+    public bool Degraded { get; set; }
+
+    public bool Selected => Plan != null;
+}
+
+/// <summary>
+/// Chooses the opening rail loop with graceful degradation:
+/// 1. Prefer a balanced ring that includes every available station (historical behavior).
+/// 2. If an outlier station makes that ring unshapely, keep the balanced ring and leave the
+///    excluded station unconnected so the pre-wave rail gate can reconcile it later.
+/// 3. If no balanced ring exists at all, accept the best valid encircling loop instead of
+///    hard-failing the whole run, because game builds can spawn stations in degenerate layouts.
+/// 4. If the stations cannot even encircle the base (for example a map node spawned a station on
+///    one side only), accept any legal loop so the run can continue; the warning states that
+///    defense coverage is incomplete.
+/// </summary>
+public static class OpeningDefenseLoopSelector
+{
+    public const string NoLoopError = "可用站点无法组成分布均衡、包围基地的防御圆环。";
+
+    public static OpeningDefenseLoopSelection Select(IEnumerable<RailLoopPointCandidate>? candidates)
+    {
+        RailLoopPointCandidate[] source = candidates?
+            .Where(candidate => candidate != null)
+            .GroupBy(candidate => candidate.InstanceId)
+            .Select(group => group.First())
+            .ToArray() ?? Array.Empty<RailLoopPointCandidate>();
+        if (source.Length < 3)
+        {
+            return new OpeningDefenseLoopSelection { Error = NoLoopError };
+        }
+
+        Dictionary<int, RailLayoutPoint> grids = source.ToDictionary(
+            candidate => candidate.InstanceId,
+            candidate => candidate.Grid);
+
+        RailLoopPlan? strict = RailLayoutStrategyPlanner.PlanPlayerLoop(
+            source.Select(candidate => WithMustInclude(candidate, true)));
+        if (IsAcceptable(strict, requireBalance: true))
+        {
+            return new OpeningDefenseLoopSelection { Plan = strict };
+        }
+
+        RailLoopPlan? flexible = RailLayoutStrategyPlanner.PlanPlayerLoop(
+            source.Select(candidate => WithMustInclude(candidate, false)));
+        if (IsAcceptable(flexible, requireBalance: true))
+        {
+            return new OpeningDefenseLoopSelection
+            {
+                Plan = flexible,
+                Warning = "开局闭环无法同时纳入全部可用站点；已优先保证均衡防御圆环，" +
+                          "未纳入的站点保持未接入，稍后由开波前轨道门禁处理。"
+            };
+        }
+
+        if (IsAcceptable(strict, requireBalance: false))
+        {
+            return new OpeningDefenseLoopSelection
+            {
+                Plan = strict,
+                Degraded = true,
+                Warning = "可用站点只能组成非均衡闭环；已接受包围基地的可用圆环继续开局，" +
+                          "防御覆盖可能不完整。"
+            };
+        }
+
+        if (IsAcceptable(flexible, requireBalance: false))
+        {
+            return new OpeningDefenseLoopSelection
+            {
+                Plan = flexible,
+                Degraded = true,
+                Warning = "可用站点无法组成均衡闭环；已接受可用的包围圆环并排除部分站点，" +
+                          "未纳入的站点保持未接入。"
+            };
+        }
+
+        if (IsAcceptable(strict, requireBalance: false, requireEncircling: false) &&
+            HasUsableLoopArea(strict, grids))
+        {
+            return new OpeningDefenseLoopSelection
+            {
+                Plan = strict,
+                Degraded = true,
+                Warning = "可用站点无法组成包围基地的开局闭环；已按全部可用站点绘制合法闭环继续开局，" +
+                          "防御覆盖可能不完整。"
+            };
+        }
+
+        if (IsAcceptable(flexible, requireBalance: false, requireEncircling: false) &&
+            HasUsableLoopArea(flexible, grids))
+        {
+            return new OpeningDefenseLoopSelection
+            {
+                Plan = flexible,
+                Degraded = true,
+                Warning = "可用站点无法组成包围基地的开局闭环；已排除部分站点后绘制合法闭环继续开局，" +
+                          "未纳入的站点保持未接入。"
+            };
+        }
+
+        return new OpeningDefenseLoopSelection { Error = NoLoopError };
+    }
+
+    private static bool HasUsableLoopArea(
+        RailLoopPlan? plan,
+        IReadOnlyDictionary<int, RailLayoutPoint> grids)
+    {
+        if (plan == null)
+        {
+            return false;
+        }
+
+        RailLayoutPoint[] points = plan.OrderedPointInstanceIds
+            .Where(grids.ContainsKey)
+            .Select(instanceId => grids[instanceId])
+            .ToArray();
+        if (points.Length < 3)
+        {
+            return false;
+        }
+
+        double twiceArea = 0d;
+        for (int index = 0; index < points.Length; index++)
+        {
+            RailLayoutPoint current = points[index];
+            RailLayoutPoint next = points[(index + 1) % points.Length];
+            twiceArea += (current.X * next.Y) - (next.X * current.Y);
+        }
+
+        return Math.Abs(twiceArea) * 0.5d >= 0.5d;
+    }
+
+    private static RailLoopPointCandidate WithMustInclude(
+        RailLoopPointCandidate candidate,
+        bool mustInclude) =>
+        new()
+        {
+            InstanceId = candidate.InstanceId,
+            IsAttribute = candidate.IsAttribute,
+            MustInclude = mustInclude,
+            Grid = candidate.Grid
+        };
+
+    private static bool IsAcceptable(
+        RailLoopPlan? plan,
+        bool requireBalance,
+        bool requireEncircling = true)
+    {
+        if (plan == null || !plan.Score.IsValid || plan.OrderedPointInstanceIds.Count < 3)
+        {
+            return false;
+        }
+
+        if (requireEncircling && !plan.Score.EncirclesBase)
+        {
+            return false;
+        }
+
+        return !requireBalance || RailLayoutStrategyPlanner.IsBalancedDefenseRing(plan.Score);
+    }
+}
+
+/// <summary>
 /// Builds the initial defense as a verified, forward-only transaction. Every decision returns at
 /// most one runtime command. The planner never calls the monolithic default-defense command, never
 /// resubmits a rail draw, and never deletes a legal rail after it has been committed.
@@ -280,6 +458,8 @@ public sealed class OpeningDefensePreparationPlanner
     private bool _drawSubmitted;
     private bool _vehiclePlacementSubmitted;
     private string _failureDetail = string.Empty;
+    private string _openingPlanWarning = string.Empty;
+    private bool _openingPlanDegraded;
 
     public OpeningDefensePreparationPlanner(IOpeningDefenseGridProbe probe)
     {
@@ -293,6 +473,12 @@ public sealed class OpeningDefensePreparationPlanner
     public int CleanDrawRetryAttempts => _cleanDrawRetryAttempts;
     public double RecommendedRetryDelaySeconds => _recommendedRetryDelaySeconds;
     public string PlacementDisposableEnum => _placementDisposableEnum;
+
+    /// <summary>
+    /// Non-empty when the opening loop had to exclude stations or accept a non-ideal shape.
+    /// The owner surfaces this to the user instead of silently degrading the defense.
+    /// </summary>
+    public string OpeningPlanWarning => _openingPlanWarning;
     public bool HasCommittedWrite =>
         _submittedPlacementGrid.HasValue || _drawSubmitted || _vehiclePlacementSubmitted;
     public string VehiclePlacementCommand => _vehiclePlacementAction?.Command ?? string.Empty;
@@ -339,6 +525,8 @@ public sealed class OpeningDefensePreparationPlanner
         _drawSubmitted = false;
         _vehiclePlacementSubmitted = false;
         _failureDetail = string.Empty;
+        _openingPlanWarning = string.Empty;
+        _openingPlanDegraded = false;
         _phase = OpeningDefensePreparationPhase.QueryCatapults;
     }
 
@@ -1203,7 +1391,8 @@ public sealed class OpeningDefensePreparationPlanner
             _drawResult,
             result,
             _drawAction,
-            _expectedRailInstanceId);
+            _expectedRailInstanceId,
+            allowUnbalancedRing: _openingPlanDegraded);
         if (verification.Verified && verification.Rail != null)
         {
             RailRuntimeValidation topology = RailRuntimeTopologyInspector.InspectRail(verification.Rail);
@@ -1218,7 +1407,8 @@ public sealed class OpeningDefensePreparationPlanner
                      string.Join("；", topology.Loop.Errors));
                 return;
             }
-            if (!RailLayoutStrategyPlanner.IsBalancedDefenseRing(topology.Layout))
+            if (!_openingPlanDegraded &&
+                !RailLayoutStrategyPlanner.IsBalancedDefenseRing(topology.Layout))
             {
                 Fail(
                     "游戏返回的开局轨道虽然闭合，但站点分布塌缩成细长形状，不能作为全向防御圆环。");
@@ -1397,9 +1587,9 @@ public sealed class OpeningDefensePreparationPlanner
                     {
                         InstanceId = instanceId,
                         IsAttribute = point["isAttribute"]?.Value<bool>() == true,
-                        // Every station deployed by the opening transaction belongs to its final
-                        // ring. Do not silently leave ordinary inventory points unconnected merely
-                        // because a shorter three-point loop has a higher estimated N/T.
+                        // Prefer every station deployed by the opening transaction in the final
+                        // ring, but let the selector drop an outlier instead of hard-failing:
+                        // an unconnected station is reconciled by the pre-wave rail gate later.
                         MustInclude = true,
                         Grid = new RailLayoutPoint(grid.X, grid.Y)
                     };
@@ -1407,15 +1597,17 @@ public sealed class OpeningDefensePreparationPlanner
             .Where(candidate => candidate != null)
             .Cast<RailLoopPointCandidate>()
             .ToList();
-        RailLoopPlan? best = RailLayoutStrategyPlanner.PlanPlayerLoop(loopCandidates);
 
-        if (best == null || !best.Score.IsValid ||
-            !RailLayoutStrategyPlanner.IsBalancedDefenseRing(best.Score) ||
-            best.OrderedPointInstanceIds.Count < 3)
+        OpeningDefenseLoopSelection loopSelection = OpeningDefenseLoopSelector.Select(loopCandidates);
+        RailLoopPlan? best = loopSelection.Plan;
+        if (best == null)
         {
-            error = "可用站点无法组成分布均衡、包围基地的防御圆环。";
+            error = loopSelection.Error;
             return false;
         }
+
+        _openingPlanWarning = loopSelection.Warning;
+        _openingPlanDegraded = loopSelection.Degraded;
 
         int selectedAttributeId = best.OrderedPointInstanceIds[0];
         JObject? selectedAttribute = attributes.SingleOrDefault(point =>

@@ -9,6 +9,7 @@ public sealed class OpeningDefenseGridRankerPerformanceContractTests
     private const string RankerType = "Loopstructor.AutoPlayer.Core.OpeningDefenseGridRanker";
     private const string PlannerType = "Loopstructor.AutoPlayer.Core.OpeningDefensePreparationPlanner";
     private const string LayoutPlannerType = "Loopstructor.AutoPlayer.Core.RailLayoutStrategyPlanner";
+    private const string LoopSelectorType = "Loopstructor.AutoPlayer.Core.OpeningDefenseLoopSelector";
 
     [Fact]
     public void CandidateRankingUsesLightweightGeometryAndDefersFullLoopPlanning()
@@ -30,6 +31,14 @@ public sealed class OpeningDefenseGridRankerPerformanceContractTests
         MethodDefinition buildRail = RequireType(core, PlannerType).Methods.Single(method =>
             method.Name == "TryBuildRailAction");
         Assert.Contains(Calls(buildRail), call =>
+            call.DeclaringType.FullName == LoopSelectorType &&
+            call.Name == "Select");
+
+        MethodReference[] selectorCalls = RequireType(core, LoopSelectorType).Methods
+            .Where(method => method.HasBody)
+            .SelectMany(Calls)
+            .ToArray();
+        Assert.Contains(selectorCalls, call =>
             call.DeclaringType.FullName == LayoutPlannerType &&
             call.Name == "PlanPlayerLoop");
     }
