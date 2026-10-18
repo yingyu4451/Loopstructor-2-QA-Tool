@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import {
-  Activity, Bot, BugPlay, ChevronLeft, ChevronRight, Gamepad2, Gem, History as ArchiveClock,
+  Activity, ArchiveClock, Bot, BugPlay, ChevronLeft, ChevronRight, Gamepad2, Gem,
   PackageOpen, ScanSearch, Settings, Swords, TrainFront,
-} from '@lucide/vue'
+} from '../icons'
 import type { Component } from 'vue'
 import type { RouteKey } from '../types'
 import { useAppStore } from '../stores/app'

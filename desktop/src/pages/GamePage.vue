@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted } from 'vue'
-import { FolderOpen, MonitorCog, Play, PlugZap, RefreshCw, ShieldCheck, Trash2, Unplug as Plug } from '@lucide/vue'
+import { FolderOpen, MonitorCog, Play, Plug, PlugZap, RefreshCw, ShieldCheck, Trash2 } from '../icons'
 import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
 

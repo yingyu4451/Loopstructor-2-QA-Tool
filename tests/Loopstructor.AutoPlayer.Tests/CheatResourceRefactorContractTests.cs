@@ -264,6 +264,67 @@ public sealed class CheatResourceRefactorContractTests
     }
 
     [Fact]
+    public void BulkVehicleDeletes_MirrorGameRolesAndBuildStateBeforeDeleting()
+    {
+        using AssemblyDefinition assembly = ReadPlugin();
+        TypeDefinition bridge = RequireType(assembly, BridgeType);
+        TypeDefinition controller = RequireType(assembly, ControllerType);
+        MethodDefinition field = RequireMethod(bridge, "ClearFieldVehicles");
+        MethodDefinition backpack = RequireMethod(bridge, "ClearBackpackVehicles");
+        MethodDefinition clear = RequireMethod(bridge, "ClearVehiclesByRole");
+        MethodDefinition classify = RequireMethod(bridge, "IsBackpackVehicle");
+        MethodDefinition executeCore = RequireMethod(controller, "ExecuteCore");
+
+        Assert.Contains(Calls(field), IsCall(BridgeType, "ClearVehiclesByRole"));
+        Assert.Contains(Calls(backpack), IsCall(BridgeType, "ClearVehiclesByRole"));
+        Assert.Contains(0, LoadedInts(field));
+        Assert.Contains(1, LoadedInts(backpack));
+
+        Assert.Contains(Calls(clear), IsCall(BridgeType, "GetRequiredSingleton"));
+        Assert.Contains(Calls(clear), IsCall(BridgeType, "SnapshotVehicles"));
+        Assert.Contains(Calls(clear), IsCall(BridgeType, "IsBackpackVehicle"));
+        Assert.Contains(Calls(clear), IsCall(BridgeType, "BuildVehicleState"));
+        Assert.Contains("DeleteVehicle", LoadedStrings(clear));
+        Assert.Contains("removedCount", LoadedStrings(clear));
+        Assert.Contains("fieldVehicleCount", LoadedStrings(clear));
+        Assert.Contains("backpackVehicleCount", LoadedStrings(clear));
+        Assert.Contains("场上没有可删除的战车。", LoadedStrings(clear));
+        Assert.Contains("背包中没有可删除的战车。", LoadedStrings(clear));
+        Assert.Contains(LoadedStrings(clear), value => value.Contains("未能删除", StringComparison.Ordinal));
+        Assert.Contains(Calls(clear), call => call.Name == "Invoke");
+
+        int buildStateIndex = FirstCallIndex(clear, IsCall(BridgeType, "BuildVehicleState"));
+        int deleteInvokeIndex = FirstCallIndex(clear, call => call.Name == "Invoke");
+        Assert.True(
+            buildStateIndex >= 0 && deleteInvokeIndex > buildStateIndex,
+            "战车状态必须在 DeleteVehicle 销毁组件之前读取。");
+
+        // 游戏 GuiGameMcpVehicleRuntime.ResolveVehicleRole：背包战车 = 未激活 + 仍有选择按钮。
+        Assert.Contains("vehicleSelectButton", LoadedStrings(classify));
+        Assert.Contains(Calls(classify), IsCall(BridgeType, "GetMember"));
+        Assert.Contains(Calls(classify), call => call.Name == "get_activeInHierarchy");
+        Assert.Contains(Calls(classify), call => call.Name == "get_gameObject");
+
+        Assert.Contains("cheat.clearfieldvehicles", LoadedStrings(executeCore));
+        Assert.Contains("cheat.clearbackpackvehicles", LoadedStrings(executeCore));
+
+        // Editor Bridge 与插件共用同一份命令分发，防止只加插件而漏掉 Editor 模式。
+        string editorBridge = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "Loopstructor.AutoPlayer.EditorBridge.Runtime",
+            "UnityEditorCheatBridge.cs"));
+        Assert.Contains(
+            "CheatCommands.ClearFieldVehicles => m_bridge.ClearFieldVehicles()",
+            editorBridge,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "CheatCommands.ClearBackpackVehicles => m_bridge.ClearBackpackVehicles()",
+            editorBridge,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ClickDelete_ConsumesInput_UsesExactHoveredPoint_AndResetsWithTransientFeatures()
     {
         using AssemblyDefinition assembly = ReadPlugin();
@@ -313,6 +374,39 @@ public sealed class CheatResourceRefactorContractTests
             Calls(described),
             call => call.DeclaringType.FullName == "Loopstructor.AutoPlayer.Plugin.CheatRuntimeBridge" &&
                     call.Name == "InvokeInfoManager");
+    }
+
+    private static int FirstCallIndex(MethodDefinition method, Predicate<MethodReference> predicate)
+    {
+        Instruction[] instructions = method.Body.Instructions.ToArray();
+        for (int index = 0; index < instructions.Length; index++)
+        {
+            Instruction instruction = instructions[index];
+            if (instruction.OpCode.Code is not (Code.Call or Code.Callvirt or Code.Newobj or Code.Ldftn or Code.Ldvirtftn))
+            {
+                continue;
+            }
+
+            if (instruction.Operand is MethodReference reference && predicate(reference)) return index;
+        }
+
+        return -1;
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory != null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Loopstructor.AutoPlayer.sln")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("未找到仓库根目录（Loopstructor.AutoPlayer.sln）。");
     }
 
     private static AssemblyDefinition ReadPlugin()

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { ImageOff, Plus, Search, Trash2 } from '@lucide/vue'
+import { ImageOff, Plus, Search, Trash2 } from '../icons'
 import { useAppStore } from '../stores/app'
 import type { CatalogItem } from '../types'
 import CatalogCard from '../components/CatalogCard.vue'
@@ -122,6 +122,11 @@ async function grantVehicle() {
           @invoke="adjustEnchantment"
         />
         <p v-if="selectedEnchantments.length === 0" class="empty-state">未选择附魔时获取普通战车。</p>
+      </div>
+      <div class="bulk-delete-row grant-row">
+        <span>批量删除</span>
+        <button class="btn btn-error btn-sm button danger compact" :disabled="store.writeLocked" @click="store.command('cheat.clearFieldVehicles').then(() => store.refreshState())"><Trash2 :size="16" />删除场上全部战车</button>
+        <button class="btn btn-error btn-sm button danger compact" :disabled="store.writeLocked" @click="store.command('cheat.clearBackpackVehicles').then(() => store.refreshState())"><Trash2 :size="16" />删除背包全部战车</button>
       </div>
       <div class="grant-row">
         <label>数量<input v-model.number="count" class="input input-bordered input-sm" name="vehicle-count" autocomplete="off" type="number" inputmode="numeric" min="1" max="999" /></label>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Download, Minus, Square, X } from '@lucide/vue'
+import { Download, Minus, Square, X } from '../icons'
 import managerLogo from '../../../assets/branding/manager-logo-256.png'
 import { useAppStore } from '../stores/app'
 

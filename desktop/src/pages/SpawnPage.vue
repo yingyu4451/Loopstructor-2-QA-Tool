@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { BugPlay, Crosshair, Plus, Search, Trash2 } from '@lucide/vue'
+import { BugPlay, Crosshair, Plus, Search, Trash2 } from '../icons'
 import { useAppStore } from '../stores/app'
 import type { CatalogItem } from '../types'
 import VirtualCatalogGrid from '../components/VirtualCatalogGrid.vue'

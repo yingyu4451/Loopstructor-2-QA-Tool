@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, toRaw, watch } from 'vue'
-import { FolderOpen, History as ArchiveClock, RefreshCw, RotateCcw as BackupRestore, Save } from '@lucide/vue'
+import { ArchiveClock, BackupRestore, FolderOpen, RefreshCw, Save } from '../icons'
 import type { ManagerSettings, SaveBackupEntry } from '../types'
 import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'

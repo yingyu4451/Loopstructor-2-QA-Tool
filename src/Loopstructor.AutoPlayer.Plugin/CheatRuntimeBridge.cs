@@ -709,6 +709,95 @@ internal sealed class CheatRuntimeBridge
             new JObject { ["removed"] = removed.Count, ["vehicles"] = removed });
     }
 
+    public CheatExecutionResult ClearFieldVehicles() => ClearVehiclesByRole(backpack: false);
+
+    public CheatExecutionResult ClearBackpackVehicles() => ClearVehiclesByRole(backpack: true);
+
+    private CheatExecutionResult ClearVehiclesByRole(bool backpack)
+    {
+        EnsureAvailable();
+        object manager = GetRequiredSingleton(_vehicleManagerType!, "VehicleManager");
+        MethodInfo delete = FindMethod(manager.GetType(), "DeleteVehicle", _vehicleInterfaceType!)
+                            ?? throw new MissingMethodException(manager.GetType().FullName, "DeleteVehicle");
+        List<object> targets = SnapshotVehicles()
+            .Where(vehicle => IsBackpackVehicle(vehicle) == backpack)
+            .ToList();
+        JArray removed = new();
+        JArray failed = new();
+        foreach (object target in targets)
+        {
+            JObject reference;
+            try
+            {
+                // DeleteVehicle 会销毁战车组件，车辆状态必须在删除前读取。
+                reference = BuildVehicleState(target);
+            }
+            catch (Exception exception)
+            {
+                failed.Add(new JObject
+                {
+                    ["vehicleId"] = GetInt(target, "ID"),
+                    ["message"] = "读取战车状态失败：" + Unwrap(exception).Message
+                });
+                continue;
+            }
+
+            try
+            {
+                delete.Invoke(manager, new[] { target });
+                removed.Add(reference);
+            }
+            catch (Exception exception)
+            {
+                failed.Add(new JObject
+                {
+                    ["vehicle"] = reference,
+                    ["message"] = Unwrap(exception).Message
+                });
+            }
+        }
+
+        int fieldVehicleCount = 0;
+        int backpackVehicleCount = 0;
+        foreach (object remaining in SnapshotVehicles())
+        {
+            if (IsBackpackVehicle(remaining)) backpackVehicleCount++;
+            else fieldVehicleCount++;
+        }
+
+        JObject data = new()
+        {
+            ["removedCount"] = removed.Count,
+            ["removed"] = removed,
+            ["fieldVehicleCount"] = fieldVehicleCount,
+            ["backpackVehicleCount"] = backpackVehicleCount
+        };
+        if (failed.Count > 0)
+        {
+            data["failed"] = failed;
+            return CheatExecutionResult.Partial(
+                $"已删除{(backpack ? "背包" : "场上")}战车 {removed.Count} 辆，{failed.Count} 辆未能删除。",
+                data);
+        }
+
+        string message = removed.Count == 0
+            ? (backpack ? "背包中没有可删除的战车。" : "场上没有可删除的战车。")
+            : $"已删除{(backpack ? "背包" : "场上")}全部战车，共 {removed.Count} 辆。";
+        return CheatExecutionResult.Changed(message, data);
+    }
+
+    private static bool IsBackpackVehicle(object vehicle)
+    {
+        Component? component = vehicle as Component;
+        if (component == null) return false;
+        if (component.gameObject.activeInHierarchy) return false;
+        // 游戏 GuiGameMcpVehicleRuntime.ResolveVehicleRole 以 vehicleSelectButton 区分两类战车：
+        // 背包战车保留选择按钮且 GameObject 未激活；未激活但仍残留按钮（或缺失按钮的旧存档）
+        // 一律按背包处理，确保“删除场上全部战车”不会漏删或误删。
+        _ = GetMember(vehicle, "vehicleSelectButton");
+        return true;
+    }
+
     public CheatExecutionResult GrantDisposable(JObject arguments)
     {
         EnsureAvailable();

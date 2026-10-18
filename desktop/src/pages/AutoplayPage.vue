@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, toRaw, watch } from 'vue'
-import { Activity, Bot, OctagonX, Pause, Play, RefreshCw, ShieldAlert } from '@lucide/vue'
+import { Activity, Bot, OctagonX, Pause, Play, RefreshCw, ShieldAlert } from '../icons'
 import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
 import type { ManagerSettings } from '../types'

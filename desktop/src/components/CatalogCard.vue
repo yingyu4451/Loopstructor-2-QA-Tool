@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, ImageOff } from '@lucide/vue'
+import { Check, ImageOff } from '../icons'
 import { computed } from 'vue'
 import type { CatalogItem } from '../types'
 

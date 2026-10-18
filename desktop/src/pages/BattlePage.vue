@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Eye, FastForward, Gift, Map, Shield, Skull, Sparkles } from '@lucide/vue'
+import { Eye, FastForward, Gift, Map, Shield, Skull, Sparkles } from '../icons'
 import { useAppStore } from '../stores/app'
 const store = useAppStore()
 

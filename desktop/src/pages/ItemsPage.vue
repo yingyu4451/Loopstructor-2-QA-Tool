@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { MapPin, PackageOpen, Search, Trash2 } from '@lucide/vue'
+import { MapPin, PackageOpen, Search, Trash2 } from '../icons'
 import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
 import type { CatalogItem } from '../types'

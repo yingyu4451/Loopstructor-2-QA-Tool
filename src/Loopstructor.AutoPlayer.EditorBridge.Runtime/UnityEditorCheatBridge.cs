@@ -158,6 +158,8 @@ internal sealed class EditorCheatRuntime : IDisposable
             {
                 CheatCommands.GrantVehicle => m_bridge.GrantVehicle(arguments),
                 CheatCommands.RemoveVehicle => m_bridge.RemoveVehicle(arguments),
+                CheatCommands.ClearFieldVehicles => m_bridge.ClearFieldVehicles(),
+                CheatCommands.ClearBackpackVehicles => m_bridge.ClearBackpackVehicles(),
                 CheatCommands.GrantDisposable => m_bridge.GrantDisposable(arguments),
                 CheatCommands.ClearConsumables => m_bridge.ClearConsumables(),
                 CheatCommands.GrantCatapultPoint => m_bridge.GrantCatapultPoint(arguments),

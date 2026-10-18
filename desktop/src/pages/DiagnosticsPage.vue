@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { Activity, FileText, FolderOpen, Trash2 } from '@lucide/vue'
+import { Activity, FileText, FolderOpen, Trash2 } from '../icons'
 import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
 const store = useAppStore()

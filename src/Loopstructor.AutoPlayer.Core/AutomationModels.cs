@@ -376,6 +376,8 @@ public static class CheatCommands
     public const string QueryState = "cheat.queryState";
     public const string GrantVehicle = "cheat.grantVehicle";
     public const string RemoveVehicle = "cheat.removeVehicle";
+    public const string ClearFieldVehicles = "cheat.clearFieldVehicles";
+    public const string ClearBackpackVehicles = "cheat.clearBackpackVehicles";
     public const string GrantDisposable = "cheat.grantDisposable";
     public const string ClearConsumables = "cheat.clearConsumables";
     public const string GrantCatapultPoint = "cheat.grantCatapultPoint";
@@ -412,6 +414,8 @@ public static class CheatCommands
         QueryState,
         GrantVehicle,
         RemoveVehicle,
+        ClearFieldVehicles,
+        ClearBackpackVehicles,
         GrantDisposable,
         ClearConsumables,
         GrantCatapultPoint,
@@ -446,6 +450,8 @@ public static class CheatCommands
     {
         GrantVehicle,
         RemoveVehicle,
+        ClearFieldVehicles,
+        ClearBackpackVehicles,
         GrantDisposable,
         ClearConsumables,
         GrantCatapultPoint,

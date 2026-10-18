@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Bug, RefreshCw, Save, TrainFront, Trash2 } from '@lucide/vue'
+import { Bug, RefreshCw, Save, TrainFront, Trash2 } from '../icons'
 import { useAppStore } from '../stores/app'
 
 const store = useAppStore()

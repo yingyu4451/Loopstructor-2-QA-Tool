@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, toRaw, watch } from 'vue'
 import type { ManagerSettings } from '../types'
-import { Check, Download, GitBranch as Github, MonitorCog, Palette, RefreshCw } from '@lucide/vue'
+import { Check, Download, Github, MonitorCog, Palette, RefreshCw } from '../icons'
 import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
 import { skinOptions } from '../theme/skins'

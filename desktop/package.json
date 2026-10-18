@@ -1,6 +1,6 @@
 {
   "name": "loopstructor-autoplayer-desktop",
-  "version": "0.6.79",
+  "version": "0.6.80",
   "private": true,
   "description": "Loopstructor 2 QA Tool unified Electron desktop client",
   "author": "yingyu4451",
@@ -20,7 +20,8 @@
     "test:e2e": "pnpm build && playwright test"
   },
   "dependencies": {
-    "@lucide/vue": "1.59.0",
+    "@iconify-icons/mdi": "2.0.0",
+    "@iconify/vue": "5.0.3",
     "gsap": "3.15.0",
     "pinia": "4.1.0",
     "vue": "3.5.44"

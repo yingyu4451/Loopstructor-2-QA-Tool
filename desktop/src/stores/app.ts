@@ -3,7 +3,8 @@ import type { AutomationSetup, CatalogItem, ControlResponse, EditorBridgeInstanc
 import { useUiStore } from './ui'
 
 const mutationCommands = new Set([
-  'cheat.grantVehicle', 'cheat.removeVehicle', 'cheat.grantDisposable', 'cheat.clearConsumables',
+  'cheat.grantVehicle', 'cheat.removeVehicle', 'cheat.clearFieldVehicles', 'cheat.clearBackpackVehicles',
+  'cheat.grantDisposable', 'cheat.clearConsumables',
   'cheat.grantCatapultPoint', 'cheat.removeCatapultPoint', 'cheat.clearBackpackCatapultPoints',
   'cheat.removeFieldCatapultPoint', 'cheat.clearFieldCatapultPoints', 'cheat.setFieldCatapultDeleteMode',
   'cheat.setBaseGodMode', 'cheat.endWave', 'cheat.clearEnemies', 'cheat.skipRewardPopup',

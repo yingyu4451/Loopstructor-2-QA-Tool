@@ -17,7 +17,7 @@
 | pnpm | 11.19.0 | `desktop/package.json` 的 `packageManager` |
 | Vue / Vite / TypeScript | 3.5.44 / 8.3.4 / 5.9.3 | `desktop/package.json`（TypeScript 7 因 typescript-eslint 与 vue-tsc 尚不支持而未升级） |
 | Tailwind / daisyUI | 4.3.3 / 5.7.50 | `desktop/package.json` |
-| 界面图标 | @lucide/vue 1.59.0 | `desktop/package.json`（无 Iconify 依赖，无已废弃的 lucide-vue-next） |
+| 界面图标 | @iconify/vue 5.0.3 + @iconify-icons/mdi 2.0.0 | `desktop/package.json` 与 `desktop/src/icons.ts`（离线图标数据静态导入，无 Iconify API 请求；不使用 lucide） |
 | 发布 RID | win-x64 | Host、Updater、Launcher 发布 |
 
 ## 本地构建和测试
@@ -37,7 +37,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.79
+./scripts/package.ps1 -Version 0.6.80
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -47,8 +47,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.79-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.79-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.80-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.80-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -63,15 +63,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.79",
+  "version": "0.6.80",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.79-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.80-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.78",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.78-to-0.6.79-win-x64.delta.zip",
+      "fromVersion": "0.6.79",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.79-to-0.6.80-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -134,8 +134,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.79
-git push origin v0.6.79
+git tag v0.6.80
+git push origin v0.6.80
 ```
 
 ## 升级 BepInEx
@@ -150,6 +150,7 @@ git push origin v0.6.79
 
 2026-10-18，Skyspine `1.419`，隔离 QA 模式：
 
+- 插件 0.6.80 在 1.419 实机验证新增的 `cheat.clearFieldVehicles` / `cheat.clearBackpackVehicles`：开局防御部署后场上战车被正确识别为场上并整批删除；未激活战车归入背包删除；删除后 `queryVehicles` 返回 0，重复执行返回准确的空集合提示。
 - 插件 0.6.78 加载、`hello` 握手与自动游玩启动正常；开局防御闭环、地图节点选择、轨神事件、波次战斗、关卡奖励领取与失败结算检测均在实机走通，无卡死、无未处理异常。
 - 单局运行统计：`WavesStarted=3`、`WavesCompleted=2`；本局第 3 波被击破，由失败结算界面确认结束（`RunState=3`、`Outcome=3`），属玩法结果而非故障。
 - 该版本地图节点会新增弹射点：无可用 `FreePoint_Attribute` 扩建道具时，轨道闭环门禁在连续 2 次对账失败后解除并告警，未接入站点保持原状。
@@ -165,6 +166,16 @@ git push origin v0.6.79
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.80
+
+- 图标体系改为离线 Iconify（Material Design Icons）：移除 `@lucide/vue`，恢复 `@iconify/vue` 5.0.3 + `@iconify-icons/mdi` 2.0.0 依赖与 `desktop/src/icons.ts` 门面（按需静态导入，无 Iconify API/网络请求）；17 个组件与页面统一从 `../icons` 导入，`desktop/tests/dependency-contract.spec.ts` 守护该约定。
+- 新增一键删除全部战车，分「删除场上全部战车」（`cheat.clearFieldVehicles`）与「删除背包全部战车」（`cheat.clearBackpackVehicles`）：战车页“本次装配”卡片新增批量删除行，一次点击生效（自动游玩运行或暂停期间受写锁保护）。
+- 插件按游戏 `GuiGameMcpVehicleRuntime.ResolveVehicleRole` 的规则分类——激活中的战车属于场上，未激活的（含旧存档残留）属于背包；逐辆调用 `VehicleManager.DeleteVehicle`，删除前先快照车辆状态，单辆失败不中断整批并返回部分失败明细与剩余场上/背包数量。
+- 命令注册在 Core `CheatCommands`（`All` 35 项 / `Mutations` 25 项），Plugin 与 Editor Bridge 分发分支同步。
+- 在 Skyspine `1.419` 打包版上实机验证两条新命令：开局防御部署后 `cheat.clearFieldVehicles` 删除场上 1 辆战车、`cheat.clearBackpackVehicles` 删除背包 1 辆战车；删除后 `queryVehicles` 为 0，重复执行返回“场上/背包中没有可删除的战车”。
+- 测试数 652 → 653；Release 构建 0 警告、全部测试通过，桌面 typecheck/lint/单元测试与 e2e 通过。
+- 本版插件只新增作弊命令，游戏运行时契约与 0.6.79 相同。
 
 ### 0.6.79
 

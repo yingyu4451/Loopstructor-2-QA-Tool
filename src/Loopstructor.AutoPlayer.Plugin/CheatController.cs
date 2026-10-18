@@ -192,6 +192,8 @@ internal sealed class CheatController : IDisposable
         {
             "cheat.grantvehicle" => _runtime.GrantVehicle(arguments),
             "cheat.removevehicle" => _runtime.RemoveVehicle(arguments),
+            "cheat.clearfieldvehicles" => _runtime.ClearFieldVehicles(),
+            "cheat.clearbackpackvehicles" => _runtime.ClearBackpackVehicles(),
             "cheat.grantdisposable" => _runtime.GrantDisposable(arguments),
             "cheat.clearconsumables" => _runtime.ClearConsumables(),
             "cheat.grantcatapultpoint" => _runtime.GrantCatapultPoint(arguments),
