@@ -484,6 +484,7 @@ static void VerifyInterruptedRecovery(string root)
     string message = installer.RecoverIncomplete(target);
     Require(message.Contains("已从中断的更新中恢复上一版本", StringComparison.Ordinal), "interrupted transaction reports restore");
     Require(ReadReleaseVersion(target) == "0.3.0", "interrupted transaction restored old target");
+    Require(!Directory.Exists(staging), "interrupted transaction removes the abandoned staging root");
     Require(!File.Exists(journalPath), "recovery journal removed");
 }
 
@@ -583,6 +584,7 @@ static void VerifyPreparedWindowRecovery(string root)
     TransactionalInstaller installer = new(journalPath: journalPath);
     installer.RecoverIncomplete(target);
     Require(ReadReleaseVersion(target) == "0.7.0", "prepared crash window restored old target");
+    Require(!Directory.Exists(staging), "prepared crash window removes the abandoned staging root");
     Require(!File.Exists(journalPath), "prepared crash journal removed");
 }
 

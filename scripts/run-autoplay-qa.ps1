@@ -11,12 +11,35 @@ param(
 
 $ErrorActionPreference = "Stop"
 $script:QaArtifactRoot = ""
+$script:GameProcess = $null
 trap {
     if (-not [string]::IsNullOrWhiteSpace($script:QaArtifactRoot)) {
         $detail = ($_ | Format-List * -Force | Out-String)
         Set-Content -LiteralPath (Join-Path $script:QaArtifactRoot "qa-script-error.txt") -Value $detail -Encoding UTF8
     }
+    Stop-QaGameProcess
     exit 99
+}
+
+function Stop-QaGameProcess {
+    $process = $script:GameProcess
+    if (-not $process) { return }
+    try {
+        $process.Refresh()
+        if ($process.HasExited) { return }
+        Write-Output ("QA_TERMINATING_GAME_PROCESS={0}" -f $process.Id)
+        $process.Kill()
+        $null = $process.WaitForExit(15000)
+    }
+    catch {
+        if (-not [string]::IsNullOrWhiteSpace($script:QaArtifactRoot)) {
+            try {
+                Set-Content -LiteralPath (Join-Path $script:QaArtifactRoot "qa-process-termination-error.txt") `
+                    -Value ($_ | Format-List * -Force | Out-String) -Encoding UTF8
+            }
+            catch { }
+        }
+    }
 }
 
 function New-RandomHex([int]$ByteCount) {
@@ -113,6 +136,12 @@ namespace AutoPlayerQa {
         public struct Rect { public int Left, Top, Right, Bottom; }
         [DllImport("user32.dll")]
         public static extern bool GetWindowRect(IntPtr handle, out Rect rect);
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll")]
+        public static extern bool SetForegroundWindow(IntPtr handle);
+        [DllImport("user32.dll")]
+        public static extern bool ShowWindow(IntPtr handle, int command);
     }
 }
 "@
@@ -121,6 +150,9 @@ namespace AutoPlayerQa {
     $Process.Refresh()
     $handle = $Process.MainWindowHandle
     if ($handle -eq [IntPtr]::Zero) { return $false }
+    [AutoPlayerQa.NativeWindow]::ShowWindow($handle, 9) | Out-Null
+    [AutoPlayerQa.NativeWindow]::SetForegroundWindow($handle) | Out-Null
+    Start-Sleep -Milliseconds 250
     $rect = New-Object AutoPlayerQa.NativeWindow+Rect
     if (-not [AutoPlayerQa.NativeWindow]::GetWindowRect($handle, [ref]$rect)) { return $false }
     $width = $rect.Right - $rect.Left
@@ -137,6 +169,17 @@ namespace AutoPlayerQa {
     finally {
         $graphics.Dispose()
         $bitmap.Dispose()
+    }
+
+    # CopyFromScreen only captures what is visible on screen. Record when another
+    # window covered the game so the screenshot is not mistaken for solid evidence.
+    if ([AutoPlayerQa.NativeWindow]::GetForegroundWindow() -ne $handle -and
+        -not [string]::IsNullOrWhiteSpace($script:QaArtifactRoot)) {
+        $warning = "The game window was not the foreground window when '$Path' was captured; " +
+            "the screenshot may show a different window."
+        Set-Content -LiteralPath (Join-Path $script:QaArtifactRoot "qa-screenshot-occluded.txt") `
+            -Value $warning -Encoding UTF8
+        Write-Warning $warning
     }
     return $true
 }
@@ -208,6 +251,7 @@ $environment["LOOPSTRUCTOR_AUTOPLAYER_CHEAT_ALLOWED"] = "1"
 
 $process = [System.Diagnostics.Process]::Start($startInfo)
 if (-not $process) { throw "Windows did not create the game process." }
+$script:GameProcess = $process
 
 $metadata = [ordered]@{
     sessionId = $sessionId
@@ -342,4 +386,5 @@ $captured = Save-ProcessWindowScreenshot $process $timeoutScreenshot
 Write-Output ("QA_TIMEOUT=true;CHAPTER={0};MAP_STAGE={1};LAYER={2};SCREENSHOT={3};CAPTURED={4}" -f `
     $status.CurrentChapter, $status.CurrentMapStage, $status.CurrentMapLayer,
     $timeoutScreenshot, $captured)
+Stop-QaGameProcess
 exit 3

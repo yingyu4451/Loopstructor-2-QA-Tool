@@ -33,6 +33,8 @@ internal sealed class CheatController : IDisposable
         _log = log;
         _baseContractAccepted = baseContractAccepted;
         _runtime.Initialize(_activation.ArtifactRoot, message => _log.LogDebug(message));
+        _runtime.NativeCommandInvoker = (command, arguments) =>
+            _autoPlay.InvokeNativeCommand(command, arguments);
         _sceneHandle = SceneManager.GetActiveScene().handle;
         _lastManagerHeartbeatUtcTicks = DateTime.UtcNow.Ticks;
 
@@ -488,10 +490,10 @@ internal sealed class CheatExecutionResult
         Data = data ?? new JObject()
     };
 
-    public static CheatExecutionResult Fail(string message, string errorCode = "CHEAT_COMMAND_FAILED") => new()
+    public static CheatExecutionResult Fail(string message, string errorCode = "CHEAT_COMMAND_FAILED", JObject? data = null) => new()
     {
         Message = message,
         ErrorCode = errorCode,
-        Data = new JObject { ["errorCode"] = errorCode }
+        Data = data ?? new JObject { ["errorCode"] = errorCode }
     };
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Shield, Map, Eye, Sparkles, FastForward, Skull, Gift } from '../icons'
+import { Eye, FastForward, Gift, Map, Shield, Skull, Sparkles } from '@lucide/vue'
 import { useAppStore } from '../stores/app'
 const store = useAppStore()
 
@@ -36,3 +36,4 @@ async function toggle(command: string, value: boolean) {
     </section>
   </div>
 </template>
+

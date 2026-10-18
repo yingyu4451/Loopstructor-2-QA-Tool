@@ -1,5 +1,5 @@
 import { _electron as electron, expect, test } from '@playwright/test'
-import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
@@ -11,7 +11,8 @@ const releaseHostPath = resolve(repositoryRoot, 'src/Loopstructor.AutoPlayer.Hos
 const hostPath = existsSync(releaseHostPath)
   ? releaseHostPath
   : resolve(repositoryRoot, 'src/Loopstructor.AutoPlayer.Host/bin/Debug/net8.0-windows/Loopstructor.AutoPlayer.Host.exe')
-const screenshotRoot = resolve(repositoryRoot, 'artifacts/ui/v0.6.76-electron')
+const desktopPackage = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')) as { version: string }
+const screenshotRoot = resolve(repositoryRoot, `artifacts/ui/v${desktopPackage.version}-electron`)
 
 test('unified desktop is sandboxed and responsive across every route', async () => {
   const dataRoot = mkdtempSync(resolve(tmpdir(), 'loopstructor-electron-e2e-'))

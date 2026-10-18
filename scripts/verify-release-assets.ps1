@@ -510,10 +510,27 @@ foreach ($requiredFile in @(
     'manager/resources/unity-package/com.loopstructor.qa-editor-bridge/Editor/QaBridgeServer.cs'
     'payload/editor/Loopstructor.AutoPlayer.EditorBridge.Runtime.dll'
     'payload/editor/Loopstructor.AutoPlayer.Core.dll'
+    'payload/plugin/Loopstructor.AutoPlayer.Plugin.dll'
+    'payload/plugin/Loopstructor.AutoPlayer.Core.dll'
+    'payload/plugin/Loopstructor.AutoPlayer.Plugin.deps.json'
+    'payload/bepinex/winhttp.dll'
+    'payload/bepinex/doorstop_config.ini'
+    'payload/bepinex/BepInEx/core/BepInEx.dll'
 )) {
     if (-not ($packagePaths -ccontains $requiredFile)) {
         throw "Release archive is missing required file: $requiredFile"
     }
+}
+
+# The plugin payload is installed into the game's BepInEx folder; debug symbols and
+# documentation files are build artifacts, never release content.
+$unexpectedPluginArtifacts = @($packagePaths | Where-Object {
+    $_.StartsWith('payload/plugin/', [StringComparison]::Ordinal) -and
+    ($_.EndsWith('.pdb', [StringComparison]::OrdinalIgnoreCase) -or
+        $_.EndsWith('.xml', [StringComparison]::OrdinalIgnoreCase))
+})
+if ($unexpectedPluginArtifacts.Count -ne 0) {
+    throw "Release archive must not ship plugin symbols or documentation files: $($unexpectedPluginArtifacts -join ', ')"
 }
 if (@($packagePaths | Where-Object {
     $_.StartsWith('updater/', [StringComparison]::Ordinal)

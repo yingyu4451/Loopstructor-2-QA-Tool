@@ -10,6 +10,7 @@ public sealed class TransactionalInstaller
 {
     private const string RollbackPrefix = ".LoopstructorAutoPlayer-rollback-";
     private const string LegacyBackupPrefix = ".LoopstructorAutoPlayer-backup-";
+    private const string StagingPrefix = ".LoopstructorAutoPlayer-staging-";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -48,7 +49,7 @@ public sealed class TransactionalInstaller
         string target = ReleasePackageValidator.NormalizeRoot(targetRoot);
         string parent = Directory.GetParent(target)?.FullName
                         ?? throw new InvalidOperationException("更新目标没有父目录。");
-        return Path.Combine(parent, ".LoopstructorAutoPlayer-staging-" + Guid.NewGuid().ToString("N"));
+        return Path.Combine(parent, StagingPrefix + Guid.NewGuid().ToString("N"));
     }
 
     public string Apply(
@@ -59,6 +60,24 @@ public sealed class TransactionalInstaller
     {
         string target = ReleasePackageValidator.NormalizeRoot(targetRoot);
         string staging = ReleasePackageValidator.NormalizeRoot(stagingRoot);
+        try
+        {
+            return ApplyTransaction(staging, target, expectedVersion, progress);
+        }
+        finally
+        {
+            // A failed transaction must never leave the updater-generated staging directory behind,
+            // because the recovery journal does not track it while the caller retries or gives up.
+            CleanupAbandonedStaging(staging, target);
+        }
+    }
+
+    private string ApplyTransaction(
+        string staging,
+        string target,
+        string expectedVersion,
+        Action<UpdateInstallPhase>? progress)
+    {
         _validator.Validate(target, validateTargetSafety: true);
         _validator.Validate(staging, expectedVersion);
         string targetParent = Directory.GetParent(target)?.FullName
@@ -194,6 +213,7 @@ public sealed class TransactionalInstaller
                 throw new IOException("新版已经安装成功，但临时回滚目录尚未清理完成。请重新运行更新器重试清理。");
             }
 
+            CleanupAbandonedStaging(journal.StagingRoot, target);
             CleanupLegacyBackups(target);
             DeleteJournal();
             return "已完成一项在事务日志结束前已经安装成功的更新，并清理临时回滚目录。";
@@ -203,6 +223,7 @@ public sealed class TransactionalInstaller
         {
             RestoreBackup(journal);
             _validator.Validate(target, validateTargetSafety: true);
+            CleanupAbandonedStaging(journal.StagingRoot, target);
             DeleteJournal();
             return "已从中断的更新中恢复上一版本。";
         }
@@ -210,6 +231,7 @@ public sealed class TransactionalInstaller
         if (Directory.Exists(target))
         {
             _validator.Validate(target, validateTargetSafety: true);
+            CleanupAbandonedStaging(journal.StagingRoot, target);
             DeleteJournal();
             return "已清理在替换开始前或回滚完成后中断的更新。";
         }
@@ -254,9 +276,29 @@ public sealed class TransactionalInstaller
             || !string.Equals(Directory.GetParent(staging)?.FullName, parent, StringComparison.OrdinalIgnoreCase)
             || (!IsGeneratedTransactionDirectoryName(backupName, RollbackPrefix)
                 && !IsGeneratedTransactionDirectoryName(backupName, LegacyBackupPrefix))
-            || !Path.GetFileName(staging).StartsWith(".LoopstructorAutoPlayer-staging-", StringComparison.Ordinal))
+            || !Path.GetFileName(staging).StartsWith(StagingPrefix, StringComparison.Ordinal))
         {
             throw new InvalidDataException("更新事务日志包含不安全的路径。");
+        }
+    }
+
+    private static void CleanupAbandonedStaging(string staging, string target)
+    {
+        try
+        {
+            string parent = Directory.GetParent(target)?.FullName ?? string.Empty;
+            if (parent.Length == 0
+                || !string.Equals(Directory.GetParent(staging)?.FullName, parent, StringComparison.OrdinalIgnoreCase)
+                || !Path.GetFileName(staging).StartsWith(StagingPrefix, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _ = TryDeleteDirectory(staging);
+        }
+        catch
+        {
+            // Staging cleanup is best-effort: the transaction outcome is what callers observe.
         }
     }
 
@@ -334,6 +376,14 @@ public sealed class TransactionalInstaller
             catch (UnauthorizedAccessException) when (attempt < 3)
             {
                 Thread.Sleep(50 * (attempt + 1));
+            }
+            catch (IOException)
+            {
+                break;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                break;
             }
         }
 

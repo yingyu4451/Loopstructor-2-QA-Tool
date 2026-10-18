@@ -89,7 +89,12 @@ internal static class IndependentVehicleRuntimeFallback
 
             result = Success("已读取独立战车、轨道容量与等待队列。", new JObject
             {
-                ["independentVehicleMode"] = ReadIndependentVehicleMode(contract),
+                // 游戏 1.237 已移除 TrainConfigSO.independentVehicleMode；这里如实报告不可用，
+                // 不再返回会误导自动化决策的 false。
+                ["independentVehicleMode"] = JValue.CreateNull(),
+                ["independentVehicleModeAvailable"] = false,
+                ["independentVehicleModeUnavailableReason"] =
+                    "当前游戏版本已移除 TrainConfigSO.independentVehicleMode 开关。",
                 ["rails"] = rails,
                 ["vehicles"] = vehicles,
                 ["railCount"] = rails.Count,
@@ -512,12 +517,6 @@ internal static class IndependentVehicleRuntimeFallback
         return native?["driverMaxSpeed"]?.Value<double?>() ?? 0d;
     }
 
-    private static bool ReadIndependentVehicleMode(ReflectionContract contract)
-    {
-        object? config = contract.TrainConfigInstance?.GetValue(null, null);
-        return ReadMember(config, "independentVehicleMode") is bool enabled && enabled;
-    }
-
     private static object? ResolveRailFromPoint(Component point)
     {
         object? rail = ReadMember(point, "LastRail");
@@ -548,7 +547,6 @@ internal static class IndependentVehicleRuntimeFallback
             Type? railType = FindType("MetroTD.LineSystem.Rail");
             Type? pointType = FindType("MetroTD.LineSystem.LinePoint");
             Type? vehicleType = FindType("MetroTD.VehicleSystem.VehicleController");
-            Type? configType = FindType("MetroTD.LineSystem.TrainConfigSO");
             PropertyInfo? instance = serviceType?.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
             // 游戏 1.409 为 TryDeployVehicle 增加了带可选参数的重载，而插件只提交两个实参；
             // 单名称查询会在两个重载之间抛 AmbiguousMatchException，因此按参数类型精确绑定。
@@ -574,8 +572,7 @@ internal static class IndependentVehicleRuntimeFallback
                 save,
                 railType,
                 pointType,
-                vehicleType,
-                configType?.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static));
+                vehicleType);
             contract = _contract;
             return true;
         }
@@ -668,8 +665,7 @@ internal static class IndependentVehicleRuntimeFallback
             MethodInfo getSaveData,
             Type railType,
             Type linePointType,
-            Type vehicleType,
-            PropertyInfo? trainConfigInstance)
+            Type vehicleType)
         {
             ServiceInstance = serviceInstance;
             EvaluateDeployment = evaluateDeployment;
@@ -679,7 +675,6 @@ internal static class IndependentVehicleRuntimeFallback
             RailType = railType;
             LinePointType = linePointType;
             VehicleType = vehicleType;
-            TrainConfigInstance = trainConfigInstance;
         }
 
         public PropertyInfo ServiceInstance { get; }
@@ -690,7 +685,6 @@ internal static class IndependentVehicleRuntimeFallback
         public Type RailType { get; }
         public Type LinePointType { get; }
         public Type VehicleType { get; }
-        public PropertyInfo? TrainConfigInstance { get; }
     }
 
     private sealed class QueueSnapshot

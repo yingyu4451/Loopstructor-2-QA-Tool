@@ -247,8 +247,8 @@ export interface DesktopApi {
   readonly isUpdater: boolean
   getSnapshot(): Promise<HostSnapshot>
   saveSettings(settings: ManagerSettings): Promise<ManagerSettings>
-  selectGameDirectory(): Promise<unknown>
-  validateGame(path: string): Promise<unknown>
+  selectGameDirectory(): Promise<GameValidation | null>
+  validateGame(path: string): Promise<GameValidation>
   selectUnityProject(): Promise<UnityProjectInspection | null>
   validateUnityProject(path: string): Promise<UnityProjectInspection>
   installEditorBridge(): Promise<{ success: boolean; message: string; inspection?: UnityProjectInspection }>
@@ -256,10 +256,10 @@ export interface DesktopApi {
   listEditorInstances(): Promise<EditorBridgeInstance[]>
   connectEditor(instanceId: string): Promise<EditorBridgeConnection>
   disconnectEditor(): Promise<{ success: boolean; message: string }>
-  installPlugin(): Promise<unknown>
-  setPluginEnabled(enabled: boolean): Promise<unknown>
-  uninstallPlugin(): Promise<unknown>
-  launchGame(): Promise<unknown>
+  installPlugin(): Promise<{ success: boolean; message: string }>
+  setPluginEnabled(enabled: boolean): Promise<{ success: boolean; message: string }>
+  uninstallPlugin(): Promise<{ success: boolean; message: string }>
+  launchGame(): Promise<{ success: boolean; processId: number; attached: boolean }>
   refreshConnection(): Promise<HostSnapshot>
   cheatCommand(command: string, args?: unknown): Promise<ControlResponse>
   queryAutomationSetup(): Promise<ControlResponse>
@@ -278,7 +278,7 @@ export interface DesktopApi {
   openSaveBackups(): Promise<{ path: string }>
   listSaveBackups(): Promise<SaveBackupCatalog>
   restoreSaveBackup(backupId: string): Promise<SaveRestoreResponse>
-  clearLogs(): Promise<unknown>
+  clearLogs(): Promise<{ success: boolean }>
   minimize(): Promise<void>
   toggleMaximize(): Promise<void>
   close(): Promise<void>

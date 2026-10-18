@@ -86,18 +86,23 @@ export const useAppStore = defineStore('app', {
     },
     async selectGame() {
       const ui = useUiStore()
-      await ui.run(() => window.loopstructorDesktop.selectGameDirectory(), '游戏目录已验证。')
+      const validation = await ui.run(() => window.loopstructorDesktop.selectGameDirectory())
+      if (!validation) return undefined
+      ui.toast(validation.isValid ? '游戏目录已验证。' : (validation.errors[0] || '游戏目录验证失败。'), validation.isValid ? 'success' : 'error')
+      return validation
     },
     async selectUnityProject() {
-      const inspection = await useUiStore().run(() => window.loopstructorDesktop.selectUnityProject(), 'Unity 工程已验证。')
+      const ui = useUiStore()
+      const inspection = await ui.run(() => window.loopstructorDesktop.selectUnityProject())
       if (inspection && this.snapshot) this.snapshot.editorProject = inspection
+      if (inspection) ui.toast(inspection.valid ? 'Unity 工程已验证。' : (inspection.message || 'Unity 工程验证失败。'), inspection.valid ? 'success' : 'error')
       return inspection
     },
     async installEditorBridge() {
       const ui = useUiStore()
       const result = await ui.run(() => window.loopstructorDesktop.installEditorBridge())
       if (result?.inspection && this.snapshot) this.snapshot.editorProject = result.inspection
-      if (result?.success) ui.toast(result.message, 'success')
+      if (result) ui.toast(result.message || (result.success ? 'Editor 连接组件已安装。' : 'Editor 连接组件安装失败。'), result.success ? 'success' : 'error')
       return result
     },
     async uninstallEditorBridge() {
@@ -111,7 +116,7 @@ export const useAppStore = defineStore('app', {
       })) return undefined
       const result = await ui.run(() => window.loopstructorDesktop.uninstallEditorBridge())
       if (result?.inspection && this.snapshot) this.snapshot.editorProject = result.inspection
-      if (result?.success) ui.toast(result.message, 'success')
+      if (result) ui.toast(result.message || (result.success ? 'Editor 连接组件已卸载。' : 'Editor 连接组件卸载失败。'), result.success ? 'success' : 'error')
       return result
     },
     async refreshEditorInstances() {
@@ -124,28 +129,44 @@ export const useAppStore = defineStore('app', {
       }
     },
     async connectEditor(instanceId: string) {
-      const connection = await useUiStore().run(() => window.loopstructorDesktop.connectEditor(instanceId), 'Unity Editor 已连接。')
+      const ui = useUiStore()
+      const connection = await ui.run(() => window.loopstructorDesktop.connectEditor(instanceId))
       if (connection && this.snapshot) this.snapshot.editorConnection = connection
+      if (connection) ui.toast(connection.message || (connection.success ? 'Unity Editor 已连接。' : 'Unity Editor 连接失败。'), connection.success ? 'success' : 'error')
       return connection
     },
     async disconnectEditor() {
-      const result = await useUiStore().run(() => window.loopstructorDesktop.disconnectEditor(), 'Unity Editor 已断开。')
-      if (result && this.snapshot) this.snapshot.editorConnection = undefined
+      const ui = useUiStore()
+      const result = await ui.run(() => window.loopstructorDesktop.disconnectEditor())
+      if (result?.success && this.snapshot) this.snapshot.editorConnection = undefined
+      if (result) ui.toast(result.message || (result.success ? 'Unity Editor 已断开。' : 'Unity Editor 断开失败。'), result.success ? 'success' : 'error')
       return result
     },
     async installPlugin() {
-      await useUiStore().run(() => window.loopstructorDesktop.installPlugin(), '插件已安装。')
+      const ui = useUiStore()
+      const result = await ui.run(() => window.loopstructorDesktop.installPlugin())
+      if (result) ui.toast(result.message || (result.success ? '插件已安装。' : '插件安装失败。'), result.success ? 'success' : 'error')
+      return result
     },
     async setPluginEnabled(enabled: boolean) {
-      await useUiStore().run(() => window.loopstructorDesktop.setPluginEnabled(enabled), enabled ? '插件已启用。' : '插件已停用。')
+      const ui = useUiStore()
+      const result = await ui.run(() => window.loopstructorDesktop.setPluginEnabled(enabled))
+      if (result) ui.toast(result.message || (result.success ? (enabled ? '插件已启用。' : '插件已停用。') : '插件状态切换失败。'), result.success ? 'success' : 'error')
+      return result
     },
     async uninstallPlugin() {
       const ui = useUiStore()
-      if (!await ui.confirm({ title: '卸载 AutoPlayer 插件', message: '仅删除 AutoPlayer 插件及其配置，保留共享 BepInEx 运行时。', confirmText: '卸载', danger: true })) return
-      await ui.run(() => window.loopstructorDesktop.uninstallPlugin(), '插件已卸载。')
+      if (!await ui.confirm({ title: '卸载 AutoPlayer 插件', message: '仅删除 AutoPlayer 插件及其配置，保留共享 BepInEx 运行时。', confirmText: '卸载', danger: true })) return undefined
+      const result = await ui.run(() => window.loopstructorDesktop.uninstallPlugin())
+      if (result) ui.toast(result.message || (result.success ? '插件已卸载。' : '插件卸载失败。'), result.success ? 'success' : 'error')
+      return result
     },
     async launchGame() {
-      await useUiStore().run(() => window.loopstructorDesktop.launchGame(), '游戏启动请求已发送。')
+      const ui = useUiStore()
+      const result = await ui.run(() => window.loopstructorDesktop.launchGame())
+      if (!result) return undefined
+      ui.toast(result.attached ? '游戏已在运行，正在连接现有进程。' : '游戏启动请求已发送。', 'success')
+      return result
     },
     async refreshSaveBackups(announce = false) {
       const catalog = await useUiStore().run(

@@ -33,10 +33,10 @@ internal sealed class CheatExecutionResult
         Data = data ?? new JObject()
     };
 
-    public static CheatExecutionResult Fail(string message, string errorCode = "CHEAT_COMMAND_FAILED") => new()
+    public static CheatExecutionResult Fail(string message, string errorCode = "CHEAT_COMMAND_FAILED", JObject? data = null) => new()
     {
         Message = message,
         ErrorCode = errorCode,
-        Data = new JObject { ["errorCode"] = errorCode }
+        Data = data ?? new JObject { ["errorCode"] = errorCode }
     };
 }

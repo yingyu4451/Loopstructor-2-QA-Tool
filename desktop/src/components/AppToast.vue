@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CheckCircle2, Info, TriangleAlert, XCircle } from '../icons'
+import { CircleCheckBig as CheckCircle2, CircleX as XCircle, Info, TriangleAlert } from '@lucide/vue'
 import { useUiStore } from '../stores/ui'
 const ui = useUiStore()
 const icons = { success: CheckCircle2, info: Info, warning: TriangleAlert, error: XCircle }
@@ -13,3 +13,4 @@ const icons = { success: CheckCircle2, info: Info, warning: TriangleAlert, error
     </div>
   </Transition>
 </template>
+

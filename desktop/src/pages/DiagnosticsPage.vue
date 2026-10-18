@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { FileText, Activity, Trash2, FolderOpen } from '../icons'
+import { Activity, FileText, FolderOpen, Trash2 } from '@lucide/vue'
 import { useAppStore } from '../stores/app'
+import { useUiStore } from '../stores/ui'
 const store = useAppStore()
+const ui = useUiStore()
 const api = window.loopstructorDesktop
 const active = ref<'logs' | 'status'>('logs')
 const logHost = ref<HTMLElement>()
@@ -19,6 +21,15 @@ const statusRows = computed(() => {
     ['程序集', store.snapshot?.game?.assemblySha256], ['证据目录', status?.evidenceDirectory || status?.artifactDirectory],
   ]
 })
+
+async function openEvidence() {
+  await ui.run(() => api.openEvidence())
+}
+
+async function clearLogs() {
+  const result = await ui.run(() => api.clearLogs())
+  if (result && store.snapshot) store.snapshot.logs = []
+}
 </script>
 
 <template>
@@ -29,8 +40,8 @@ const statusRows = computed(() => {
         <button class="tab" :class="{ active: active === 'status' }" role="tab" :aria-selected="active === 'status'" @click="active = 'status'"><Activity :size="16" />运行状态</button>
       </div>
       <div class="header-actions">
-        <button class="btn btn-outline btn-sm button secondary compact" @click="api.openEvidence()"><FolderOpen :size="16" />证据目录</button>
-        <button v-if="active === 'logs'" class="btn btn-outline btn-sm button secondary compact" @click="api.clearLogs()"><Trash2 :size="16" />清空</button>
+        <button class="btn btn-outline btn-sm button secondary compact" @click="openEvidence"><FolderOpen :size="16" />证据目录</button>
+        <button v-if="active === 'logs'" class="btn btn-outline btn-sm button secondary compact" @click="clearLogs"><Trash2 :size="16" />清空</button>
       </div>
     </header>
     <div v-if="active === 'logs'" ref="logHost" class="log-console">
@@ -44,3 +55,4 @@ const statusRows = computed(() => {
     </div>
   </div>
 </template>
+

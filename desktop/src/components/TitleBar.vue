@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Minus, Square, X, Download } from '../icons'
+import { Download, Minus, Square, X } from '@lucide/vue'
 import managerLogo from '../../../assets/branding/manager-logo-256.png'
 import { useAppStore } from '../stores/app'
 
 const store = useAppStore()
 const api = window.loopstructorDesktop
 const props = defineProps<{ updaterMode?: boolean }>()
+const appVersion = __APP_VERSION__
 const connectionClass = computed(() => store.snapshot?.connection.trusted ? 'is-online' : 'is-waiting')
 
 function systemMenu(event: MouseEvent) {
@@ -25,7 +26,7 @@ function systemMenu(event: MouseEvent) {
       <img :src="managerLogo" alt="" width="42" height="42" class="brand-logo" fetchpriority="high" />
       <div>
         <strong translate="no">Loopstructor 2 QA Tool</strong>
-        <span>v{{ store.snapshot?.version ?? '0.6.76' }}</span>
+        <span>v{{ store.snapshot?.version ?? appVersion }}</span>
       </div>
     </div>
     <div class="titlebar-status">
@@ -50,3 +51,4 @@ function systemMenu(event: MouseEvent) {
     </div>
   </header>
 </template>
+

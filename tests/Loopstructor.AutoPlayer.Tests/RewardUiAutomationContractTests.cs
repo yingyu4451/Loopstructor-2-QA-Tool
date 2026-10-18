@@ -39,7 +39,7 @@ public sealed class RewardUiAutomationContractTests
         MethodDefinition skip = RequireMethod(bridge, "InvokeLightweightRewardSkip");
         Assert.Contains(Calls(query), IsCall(FallbackType, "TryQueryState"));
         Assert.Contains(Calls(selection), IsCall(FallbackType, "TryChooseOption"));
-        Assert.Contains(Calls(skip), IsCall(FallbackType, "TrySkipCurrentOpportunity"));
+        Assert.DoesNotContain(Calls(skip), call => call.DeclaringType.FullName == FallbackType);
         Assert.Contains(Calls(query), IsCall(BridgeType, "LightweightContractUnavailable"));
         Assert.Contains(Calls(selection), IsCall(BridgeType, "LightweightContractUnavailable"));
         Assert.Contains(Calls(skip), IsCall(BridgeType, "LightweightContractUnavailable"));
@@ -63,13 +63,9 @@ public sealed class RewardUiAutomationContractTests
         MethodDefinition options = RequireMethod(fallback, "GetRewardOptions");
         MethodDefinition rewardObjects = RequireMethod(fallback, "BuildRewardObjects");
         MethodDefinition contract = RequireMethod(fallback, "TryGetContract");
-        MethodDefinition currentQueueMandatory = RequireMethod(fallback, "IsCurrentQueueMandatory");
 
         Assert.Contains("m_rewardContent", LoadedStrings(contract));
         Assert.Contains("m_rewardObjects", LoadedStrings(contract));
-        Assert.Contains("m_currentQueueItem", LoadedStrings(contract));
-        Assert.Contains("m_refresh", LoadedStrings(contract));
-        Assert.Contains("m_currentQueueItemFinished", LoadedStrings(contract));
         Assert.Contains("isInUsing", LoadedStrings(contract));
         Assert.Contains("m_instance", LoadedStrings(contract));
         Assert.Contains("m_reward", LoadedStrings(contract));
@@ -77,14 +73,28 @@ public sealed class RewardUiAutomationContractTests
         Assert.Contains("BtnActive", LoadedStrings(contract));
         Assert.DoesNotContain("m_btn", LoadedStrings(contract));
         Assert.Contains("initFetterModuleData", LoadedStrings(contract));
-        Assert.Contains("isMandatory", LoadedStrings(contract));
-        Assert.Contains(Calls(snapshot), IsCall(FallbackType, "IsCurrentQueueMandatory"));
-        Assert.Contains(currentQueueMandatory.Body.Instructions, instruction =>
-            instruction.OpCode.Code == Code.Ldc_I4_0);
-        Assert.Contains("SkipHandle", LoadedStrings(contract));
         Assert.Contains("TryGetDisposableTemplate", LoadedStrings(contract));
         Assert.Contains("CanAdd", LoadedStrings(contract));
         Assert.Contains("GetCurrentAll", LoadedStrings(contract));
+
+        // 游戏 1.237 已移除奖励选择队列：这些成员不得再出现在轻量奖励契约里。
+        foreach (string removedMember in new[]
+                 {
+                     "m_currentQueueItem",
+                     "m_currentRewardQueneItems",
+                     "m_refresh",
+                     "m_currentQueueItemFinished",
+                     "isMandatory",
+                     "SkipHandle",
+                     "UseCurrent"
+                 })
+        {
+            Assert.DoesNotContain(removedMember, LoadedStrings(contract));
+        }
+
+        Assert.DoesNotContain(Calls(snapshot), IsCall(FallbackType, "IsCurrentQueueMandatory"));
+        Assert.DoesNotContain(fallback.Methods, method => method.Name == "IsCurrentQueueMandatory");
+        Assert.DoesNotContain(fallback.Methods, method => method.Name == "TrySkipCurrentOpportunity");
         Assert.Contains(Calls(snapshot), IsCall(FallbackType, "TryGetRegisteredComponent"));
         Assert.Contains(Calls(snapshot), IsCall(FallbackType, "TryGetRegisteredObject"));
         Assert.Contains(Calls(contract), IsCall(FallbackType, "FindStaticField"));
@@ -157,20 +167,16 @@ public sealed class RewardUiAutomationContractTests
     }
 
     [Fact]
-    public void RewardSkip_RequiresCurrentPhaseAndInvokesPanelOnce()
+    public void RewardSkip_ReportsTheRemovedQueueHonestlyInsteadOfInvokingTheScene()
     {
         using AssemblyDefinition assembly = ReadPlugin();
-        TypeDefinition fallback = RequireType(assembly, FallbackType);
-        MethodDefinition skip = RequireMethod(fallback, "TrySkipCurrentOpportunity");
-        MethodDefinition readPhase = RequireMethod(fallback, "TryReadPhaseToken");
+        TypeDefinition bridge = RequireType(assembly, BridgeType);
+        MethodDefinition skip = RequireMethod(bridge, "InvokeLightweightRewardSkip");
 
-        Assert.Contains("phaseToken", LoadedStrings(readPhase));
-        Assert.Contains(Calls(skip), IsCall(FallbackType + "/RewardSnapshot", "get_CanSkip"));
-        Assert.Equal(
-            1,
-            Calls(skip).Count(call =>
-                call.DeclaringType.FullName == "System.Reflection.MethodBase" && call.Name == "Invoke"));
-        Assert.Contains("rewardSkipException", LoadedStrings(skip));
+        Assert.Contains(Calls(skip), IsCall(BridgeType, "LightweightContractUnavailable"));
+        Assert.Contains(LoadedStrings(skip), value => value.Contains("已移除奖励队列", StringComparison.Ordinal));
+        Assert.DoesNotContain(Calls(skip), call => call.DeclaringType.FullName == FallbackType);
+        Assert.DoesNotContain(Calls(skip), call => call.Name == "InvokeNative");
     }
 
     [Fact]

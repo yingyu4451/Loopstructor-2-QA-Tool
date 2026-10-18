@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Search, Plus, Trash2, ImageOff } from '../icons'
+import { ImageOff, Plus, Search, Trash2 } from '@lucide/vue'
 import { useAppStore } from '../stores/app'
 import type { CatalogItem } from '../types'
 import CatalogCard from '../components/CatalogCard.vue'
@@ -138,3 +138,4 @@ async function grantVehicle() {
     </section>
   </div>
 </template>
+

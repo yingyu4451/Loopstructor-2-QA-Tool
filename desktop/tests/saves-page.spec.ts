@@ -1,5 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises } from '@vue/test-utils'
+import { mountWithTooltip } from './helpers/mount'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import SavesPage from '../src/pages/SavesPage.vue'
 import { useAppStore } from '../src/stores/app'
@@ -26,7 +27,7 @@ describe('save archive page', () => {
     const store = useAppStore()
     store.applySnapshot(snapshot())
 
-    const wrapper = mount(SavesPage, { global: { directives: { tooltip: () => undefined } } })
+    const wrapper = mountWithTooltip(SavesPage)
     await flushPromises()
 
     expect(wrapper.text()).toContain('第 2 章 · 第 4 关')

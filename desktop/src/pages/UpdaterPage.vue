@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { gsap } from 'gsap'
-import { CheckCircle2, Download, RefreshCw, XCircle } from '../icons'
+import { CircleCheckBig as CheckCircle2, CircleX as XCircle, Download, RefreshCw } from '@lucide/vue'
 
 interface ProgressSnapshot {
   stage?: string
@@ -137,3 +137,4 @@ onBeforeUnmount(() => {
     </section>
   </main>
 </template>
+

@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 
@@ -114,11 +113,6 @@ internal static class RewardUiRuntimeFallback
             return true;
         }
 
-        if (before.Refresh || before.Finished)
-        {
-            result = SelectionError("\u5956\u52b1\u961f\u5217\u6b63\u5728\u5207\u6362\uff0c\u672c\u6b21\u672a\u6267\u884c\u70b9\u51fb\u3002", before.State);
-            return true;
-        }
 
         if (!target.ButtonActive)
         {
@@ -164,79 +158,6 @@ internal static class RewardUiRuntimeFallback
             result = Error(
                 "\u5956\u52b1\u9009\u62e9\u8c03\u7528\u5931\u8d25\uff1a" + Unwrap(exception).Message,
                 failureState);
-            return true;
-        }
-    }
-
-    internal static bool TrySkipCurrentOpportunity(JObject? arguments, out JObject result)
-    {
-        result = null!;
-        if (!TryGetContract(out ReflectionContract contract))
-        {
-            return false;
-        }
-
-        RewardSnapshot before;
-        try
-        {
-            before = BuildSnapshot(contract);
-        }
-        catch (Exception exception)
-        {
-            result = Error(
-                "跳过奖励前无法读取界面状态：" + Unwrap(exception).Message,
-                new JObject { ["source"] = ResultSource });
-            return true;
-        }
-
-        if (!TryReadPhaseToken(arguments, out string phaseToken))
-        {
-            result = SelectionError("跳过奖励必须提供当前 phaseToken。", before.State);
-            return true;
-        }
-
-        if (!before.PanelOpen || !string.Equals(before.PhaseToken, phaseToken, StringComparison.Ordinal))
-        {
-            result = SelectionError("奖励阶段已经变化，拒绝跳过过期的奖励机会。", before.State);
-            return true;
-        }
-
-        if (!before.CanSkip)
-        {
-            result = SelectionError("当前奖励机会不可跳过，或奖励界面仍在切换。", before.State);
-            return true;
-        }
-
-        Component? panel = TryGetRegisteredComponent(contract.PanelInstance);
-        if (panel == null)
-        {
-            result = SelectionError("奖励面板已经不可用，本次未执行跳过。", before.State);
-            return true;
-        }
-
-        bool invocationStarted = false;
-        try
-        {
-            invocationStarted = true;
-            contract.PanelSkipHandle.Invoke(panel, null);
-            RewardSnapshot after = BuildSnapshot(contract);
-            after.State["invocationStarted"] = true;
-            after.State["skippedPhaseToken"] = phaseToken;
-            result = Success("当前奖励均不可领取，已跳过本次可选奖励。", after.State);
-            return true;
-        }
-        catch (Exception exception)
-        {
-            JObject failureState = before.State;
-            if (invocationStarted)
-            {
-                failureState["outcomeUnknown"] = true;
-                failureState["needsReconciliation"] = true;
-                failureState["uncertaintyOrigin"] = "rewardSkipException";
-                failureState["invocationStarted"] = true;
-            }
-
-            result = Error("跳过奖励调用失败：" + Unwrap(exception).Message, failureState);
             return true;
         }
     }
@@ -424,17 +345,6 @@ internal static class RewardUiRuntimeFallback
         Component? panel = TryGetRegisteredComponent(contract.PanelInstance);
         bool panelOpen = IsOpenPanel(contract, panel);
         bool panelActive = panelOpen && contract.PanelIsActive.GetValue(panel, null) is bool active && active;
-        bool refresh = panel != null && contract.PanelRefresh.GetValue(panel) is bool refreshing && refreshing;
-        bool finished = panel != null && contract.PanelFinished.GetValue(panel) is bool queueFinished && queueFinished;
-        object? currentQueueItem = panel == null ? null : contract.PanelCurrentQueueItem.GetValue(panel);
-        int currentQueueIdentity = currentQueueItem == null ? 0 : RuntimeHelpers.GetHashCode(currentQueueItem);
-        string currentQueueItemType = currentQueueItem == null
-            ? string.Empty
-            : contract.QueueItemType.GetValue(currentQueueItem)?.ToString() ?? string.Empty;
-        bool currentQueueMandatory = IsCurrentQueueMandatory(contract, currentQueueItem);
-        int queueCount = panel != null && contract.PanelQueue.GetValue(panel) is ICollection queue
-            ? queue.Count
-            : 0;
 
         bool mutexAvailable = TryGetRegisteredObject(contract.MutexInstance, out object? mutex);
         bool busy = mutexAvailable && mutex != null &&
@@ -445,7 +355,7 @@ internal static class RewardUiRuntimeFallback
             ? GetRewardOptions(contract, panel, mapRewardVehicleGetFetter)
             : new List<RewardOptionSnapshot>();
         string phaseToken = panelOpen && panel != null
-            ? BuildPhaseToken(panel.GetInstanceID(), currentQueueIdentity, currentQueueItemType, options)
+            ? BuildPhaseToken(panel.GetInstanceID(), options)
             : string.Empty;
 
         JArray optionStates = new(options.Select(option => option.State));
@@ -455,8 +365,6 @@ internal static class RewardUiRuntimeFallback
             out bool spawnerAvailable);
         bool optionsPending = panelOpen && (options.Count == 0 || !mutexAvailable);
         bool rewardObjectsPending = !panelOpen && !spawnerAvailable;
-        bool canSkip = panelOpen && currentQueueItem != null && !currentQueueMandatory &&
-                       !busy && !refresh && !finished;
         JObject state = new()
         {
             ["panelOpen"] = panelOpen,
@@ -464,13 +372,6 @@ internal static class RewardUiRuntimeFallback
             ["panelAvailable"] = panel != null,
             ["panelInstanceId"] = panel == null ? 0 : panel.GetInstanceID(),
             ["phaseToken"] = phaseToken,
-            ["queueCount"] = queueCount,
-            ["currentQueueIdentity"] = currentQueueIdentity,
-            ["currentQueueItemType"] = currentQueueItemType,
-            ["currentQueueMandatory"] = currentQueueMandatory,
-            ["canSkip"] = canSkip,
-            ["refresh"] = refresh,
-            ["finished"] = finished,
             ["busy"] = busy,
             ["mutexAvailable"] = mutexAvailable,
             ["spawnerAvailable"] = spawnerAvailable,
@@ -487,30 +388,9 @@ internal static class RewardUiRuntimeFallback
             state,
             panelOpen,
             phaseToken,
-            refresh,
-            finished,
             mutexAvailable,
             busy,
-            canSkip,
             options);
-    }
-
-    private static bool IsCurrentQueueMandatory(ReflectionContract contract, object? currentQueueItem)
-    {
-        if (currentQueueItem == null)
-        {
-            return true;
-        }
-
-        FieldInfo? mandatoryField = contract.QueueItemMandatory;
-        if (mandatoryField == null)
-        {
-            // Older builds expose an unconditional SkipHandle and do not carry
-            // per-opportunity mandatory metadata. Their queue remains operable.
-            return false;
-        }
-
-        return mandatoryField.GetValue(currentQueueItem) is not bool mandatory || mandatory;
     }
 
     private static List<RewardOptionSnapshot> GetRewardOptions(
@@ -846,15 +726,9 @@ internal static class RewardUiRuntimeFallback
         }
     }
 
-    private static string BuildPhaseToken(
-        int panelInstanceId,
-        int currentQueueIdentity,
-        string currentQueueItemType,
-        IEnumerable<RewardOptionSnapshot> options) => string.Join(
+    private static string BuildPhaseToken(int panelInstanceId, IEnumerable<RewardOptionSnapshot> options) => string.Join(
         ":",
         panelInstanceId,
-        currentQueueIdentity,
-        currentQueueItemType,
         string.Join(",", options.Select(option => option.InstanceId)));
 
     private static bool IsOpenPanel(ReflectionContract contract, Component? panel)
@@ -926,14 +800,6 @@ internal static class RewardUiRuntimeFallback
         return !string.IsNullOrWhiteSpace(phaseToken) && itemInstanceId != 0 && index >= 0;
     }
 
-    private static bool TryReadPhaseToken(JObject? arguments, out string phaseToken)
-    {
-        phaseToken = arguments?["phaseToken"]?.Type == JTokenType.String
-            ? arguments["phaseToken"]!.Value<string>() ?? string.Empty
-            : string.Empty;
-        return !string.IsNullOrWhiteSpace(phaseToken);
-    }
-
     private static bool TryReadRewardObjectIdentity(JObject? arguments, out int instanceId)
     {
         instanceId = 0;
@@ -980,13 +846,6 @@ internal static class RewardUiRuntimeFallback
         MethodInfo? panelIsOpen = FindInstanceMethod(panelType, "IsOpen");
         PropertyInfo? panelIsActive = FindInstanceProperty(panelType, "IsActive");
         FieldInfo? panelRewardContent = FindInstanceField(panelType, "m_rewardContent");
-        FieldInfo? panelQueue = FindInstanceField(panelType, "m_currentRewardQueneItems");
-        FieldInfo? panelCurrentQueueItem = FindInstanceField(panelType, "m_currentQueueItem");
-        FieldInfo? panelRefresh = FindInstanceField(panelType, "m_refresh");
-        FieldInfo? panelFinished = FindInstanceField(panelType, "m_currentQueueItemFinished");
-        FieldInfo? queueItemType = FindInstanceField(panelCurrentQueueItem?.FieldType, "itemType");
-        FieldInfo? queueItemMandatory = FindInstanceField(panelCurrentQueueItem?.FieldType, "isMandatory");
-        MethodInfo? panelSkipHandle = FindInstanceMethod(panelType, "SkipHandle");
 
         FieldInfo? itemReward = FindInstanceField(itemType, "m_reward");
         FieldInfo? itemMoney = FindInstanceField(itemType, "m_money");
@@ -1029,9 +888,7 @@ internal static class RewardUiRuntimeFallback
             rewardObjectType == null || rewardType == null || razorRewardType == null ||
             potionRewardType == null || superModuleRewardType == null ||
             panelInstance == null || panelIsOpen == null || panelIsActive == null ||
-            panelRewardContent == null || panelQueue == null || panelCurrentQueueItem == null ||
-            panelRefresh == null || panelFinished == null || queueItemType == null ||
-            panelSkipHandle == null ||
+            panelRewardContent == null ||
             itemReward == null || itemMoney == null || itemButton == null || buttonActive == null ||
             clickEvent == null || mutexInstance == null || mutexBusy == null ||
             spawnerInstance == null || spawnerRewardObjects == null || rewardRare == null ||
@@ -1049,8 +906,7 @@ internal static class RewardUiRuntimeFallback
         }
 
         _contract = new ReflectionContract(
-            panelInstance, panelIsOpen, panelIsActive, panelRewardContent, panelQueue,
-            panelCurrentQueueItem, panelRefresh, panelFinished, queueItemType, queueItemMandatory, panelSkipHandle,
+            panelInstance, panelIsOpen, panelIsActive, panelRewardContent,
             itemType, itemReward, itemMoney, itemButton, buttonActive, clickEvent,
             mutexInstance, mutexBusy, spawnerInstance, spawnerRewardObjects, rewardObjectType,
             rewardObjectButton, rewardButtonPointEnter, rewardButtonLeftPointDown, rewardButtonLeftPointUp,
@@ -1204,32 +1060,23 @@ internal static class RewardUiRuntimeFallback
             JObject state,
             bool panelOpen,
             string phaseToken,
-            bool refresh,
-            bool finished,
             bool mutexAvailable,
             bool busy,
-            bool canSkip,
             List<RewardOptionSnapshot> options)
         {
             State = state;
             PanelOpen = panelOpen;
             PhaseToken = phaseToken;
-            Refresh = refresh;
-            Finished = finished;
             MutexAvailable = mutexAvailable;
             Busy = busy;
-            CanSkip = canSkip;
             Options = options;
         }
 
         public JObject State { get; }
         public bool PanelOpen { get; }
         public string PhaseToken { get; }
-        public bool Refresh { get; }
-        public bool Finished { get; }
         public bool MutexAvailable { get; }
         public bool Busy { get; }
-        public bool CanSkip { get; }
         public List<RewardOptionSnapshot> Options { get; }
     }
 
@@ -1289,13 +1136,6 @@ internal static class RewardUiRuntimeFallback
             MethodInfo panelIsOpen,
             PropertyInfo panelIsActive,
             FieldInfo panelRewardContent,
-            FieldInfo panelQueue,
-            FieldInfo panelCurrentQueueItem,
-            FieldInfo panelRefresh,
-            FieldInfo panelFinished,
-            FieldInfo queueItemType,
-            FieldInfo? queueItemMandatory,
-            MethodInfo panelSkipHandle,
             Type rewardItemType,
             FieldInfo itemReward,
             FieldInfo itemMoney,
@@ -1338,13 +1178,6 @@ internal static class RewardUiRuntimeFallback
             PanelIsOpen = panelIsOpen;
             PanelIsActive = panelIsActive;
             PanelRewardContent = panelRewardContent;
-            PanelQueue = panelQueue;
-            PanelCurrentQueueItem = panelCurrentQueueItem;
-            PanelRefresh = panelRefresh;
-            PanelFinished = panelFinished;
-            QueueItemType = queueItemType;
-            QueueItemMandatory = queueItemMandatory;
-            PanelSkipHandle = panelSkipHandle;
             RewardItemType = rewardItemType;
             ItemReward = itemReward;
             ItemMoney = itemMoney;
@@ -1388,13 +1221,6 @@ internal static class RewardUiRuntimeFallback
         public MethodInfo PanelIsOpen { get; }
         public PropertyInfo PanelIsActive { get; }
         public FieldInfo PanelRewardContent { get; }
-        public FieldInfo PanelQueue { get; }
-        public FieldInfo PanelCurrentQueueItem { get; }
-        public FieldInfo PanelRefresh { get; }
-        public FieldInfo PanelFinished { get; }
-        public FieldInfo QueueItemType { get; }
-        public FieldInfo? QueueItemMandatory { get; }
-        public MethodInfo PanelSkipHandle { get; }
         public Type RewardItemType { get; }
         public FieldInfo ItemReward { get; }
         public FieldInfo ItemMoney { get; }

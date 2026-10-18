@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Search, Gem, Download, Trash2 } from '../icons'
+import { Download, Gem, Search, Trash2 } from '@lucide/vue'
 import { useAppStore } from '../stores/app'
 import type { CatalogItem } from '../types'
 import VirtualCatalogGrid from '../components/VirtualCatalogGrid.vue'
@@ -50,3 +50,4 @@ onBeforeUnmount(() => { if (pollTimer) window.clearInterval(pollTimer) })
     </footer>
   </div>
 </template>
+

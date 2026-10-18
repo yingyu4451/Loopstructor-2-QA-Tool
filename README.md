@@ -1,286 +1,183 @@
 # Loopstructor 2 QA Tool
 
-Loopstructor 2 QA Tool 是一个面向 Windows x64 打包游戏和 Unity Editor 的本地调试工具。`v0.6.76` 为 QA 工具补上游戏包的报错日志：打包未勾选 Development Build 时游戏内不会出现任何报错，插件改为订阅 UnityEngine 的线程日志回调，把 `Error`、`Exception`、`Assert` 落盘成 `game-errors.log`，由 Host 以 ERROR 级别并入运行日志；相同错误在 5 秒窗口内合并计数，文件超过 8 MiB 自动轮转。编辑器不加载插件，不需要对应实现。`.NET 8 Host` 统一负责 Player 与 Editor 两条连接路径、游戏验证、插件安装、可信会话、存档、自动游玩、作弊命令和更新交接。
+面向 Loopstructor 2（Skyspine）Windows x64 构建的本地 QA 与自动游玩工具。同时支持已打包 Player 和正在运行的 Unity Editor，所有状态、日志和证据都留在本机。
 
-Editor 连接组件是工具管理的嵌入式 UPM 包，只安装到所选工程的 `Packages/com.loopstructor.qa-editor-bridge`。它不修改 `Assets` 或 `Packages/manifest.json`，不进入 Player 构建，也不把 BepInEx、Harmony 或 Player 插件 DLL 放入 Unity 工程。Editor Play Mode 通过独立运行程序集复用现有作弊反射核心；自动游玩和需要 Harmony 的地图自由跳转仍只在打包 Player 插件模式提供。
+## 组成
 
-> 本仓库只包含自动化工具代码，不包含、复制或发布任何游戏 DLL。工具不会改写磁盘上的 `Assembly-CSharp.dll`；它只读取该文件的 SHA-256 以确认 Player 或 Editor 工程。玩家模式使用当前 Windows 用户下、绑定游戏目录与程序集指纹的本机控制注册；Editor 使用带心跳的本机实例登记和随机 Bearer token；隔离 QA 模式仍使用一次性激活上下文。
+发布包根目录的启动器拉起 Electron 界面；界面驱动一个无窗口的 .NET Host，Host 通过命名管道控制游戏内的 BepInEx 插件，或通过回环 HTTP 访问 Unity Editor 内的桥接包。
+
+```text
+Loopstructor-2-QA-Tool.exe (Launcher)
+└─ manager\  Electron + Vue 3 界面 + .NET 8 Host + 更新器
+   ├─ 命名管道 JSON-RPC → BepInEx 插件（已打包 Player）
+   └─ 127.0.0.1 HTTP    → Editor Bridge UPM 包（Unity Editor）
+```
+
+| 组件 | 位置 | 职责 |
+| --- | --- | --- |
+| Launcher | 包根 `Loopstructor-2-QA-Tool.exe` | 只做一件事：以 `manager\` 为工作目录启动 `manager\Loopstructor-2-QA-Tool.exe`，原样透传命令行参数；失败时弹出错误框 |
+| Manager（界面） | `manager\` | Electron 44 + Vue 3：项目/游戏选择、运行控制、作弊面板、存档备份、设置、更新页 |
+| Host | `manager\Loopstructor.AutoPlayer.Host.exe` | 无窗口 .NET 8 进程，stdin/stdout JSON 行 RPC；负责安装插件、启动游戏、安全握手、日志与存档备份、更新编排 |
+| Plugin | 游戏 `BepInEx\plugins\Loopstructor.AutoPlayer\` | netstandard2.1 BepInEx 5 插件，在游戏进程内执行 QA 命令与自动游玩决策 |
+| Updater | `manager\Loopstructor.AutoPlayer.Updater.exe` | 控制台事务更新器：`check` / `apply` / `cleanup`，整包或增量重建、校验、备份、原子替换、失败回滚 |
+| Editor Bridge | Unity 工程 `Packages\com.loopstructor.qa-editor-bridge\` | 仅 Editor 的 UPM 包，向 Host 暴露本机回环 API |
 
 ## 适用范围
 
-- Windows x64、Unity `2022.3.62f3c1`、Mono 后端的 Loopstructor 2 测试包。
-- Unity Editor 连接支持包含完整 `Assets`、`Packages` 和 `ProjectSettings/ProjectVersion.txt` 的 Unity `2022.3` 工程。
-- 游戏包必须包含与当前源码一致的 `GuiGameAutomation.Runtime` 公共自动化契约。
-- 当前 BepInEx 与该 Unity Mono 构建组合要求完整游戏路径只含 ASCII 字符；可包含英文字母、数字和空格。该限制来自注入后的运行时兼容性，未安装 BepInEx 的游戏本体不受影响。
-- 玩家模式用于本地单机游玩，直接使用当前玩家存档和平台行为；Manager 可在章节关卡变化后自动复制稳定快照，但不会自动回滚。需要可重复、可审计且不接触正常存档的回归时，应使用隔离 QA 模式和专用测试账号。
-- 当前固定运行时为 BepInEx `5.4.23.5` Windows x64。
+- Windows x64；游戏为 Unity 2022.3.62f3c1 Mono 构建。
+- BepInEx 运行时固定为 5.4.23.5，随发布包提供。
+- 游戏目录全路径必须是 ASCII 字符：BepInEx/Mono 组合对非 ASCII 路径不稳定，不做兼容。
+- 已核对的真实包为 Skyspine 1.385。其他构建必须同时通过产品标识、程序集 SHA-256 指纹和运行时反射契约校验；任一不通过时只保留只读信息，自动游玩保持不可用。
+- 隔离 QA 模式下四个门禁标志必须全部为真：`SaveIsolationApplied`、`SaveIsolationVerified`、`PlatformWritesBlocked`、`GameArtifactsRedirected`；`ResidentPlayer` 模式则必须全部为假。不满足时不会降级为另一种模式，自动游玩保持不可用。详见 [docs/safety.md](docs/safety.md)。
 
-未知游戏构建、运行时契约缺失或程序集指纹不符时，自动游玩必须保持待机或进入不兼容状态。隔离 QA 模式还会把存档隔离、平台写入阻断和诊断产物重定向作为强制门禁；玩家模式反而要求这些 QA 重定向均未启用。
+## 环境要求
+
+| 依赖 | 版本 |
+| --- | --- |
+| Node.js | 24 |
+| pnpm | 11.19.0（`desktop/package.json` 的 `packageManager` 固定） |
+| .NET SDK | 8.0.423（`global.json` 固定，由 `scripts/bootstrap.ps1` 安装到仓库 `.dotnet`） |
+| 7-Zip | 打包时需要（`package.ps1` 自动探测，可用 `-SevenZipPath` 指定） |
 
 ## 从源码构建
 
-要求 Windows PowerShell 5.1 或 PowerShell 7、Node.js 24 与 pnpm 11。仓库不依赖机器已安装的 .NET SDK；bootstrap 会把固定的 .NET SDK `8.0.423` 安装到仓库内的 `.dotnet` 目录。
-
 ```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-
-.\scripts\bootstrap.ps1
-.\scripts\build.ps1 -Configuration Release
-.\scripts\test.ps1 -Configuration Release -NoRestore -NoBuild
-.\scripts\package.ps1 -Version 0.6.76 -SkipBuild
+./scripts/bootstrap.ps1
+./scripts/build.ps1 -Configuration Release
+./scripts/test.ps1 -Configuration Release -NoRestore -NoBuild
+./scripts/package.ps1 -Version 0.6.77
 ```
 
-若只想一步生成发布包，可以在 bootstrap 后运行：
-
-```powershell
-.\scripts\package.ps1 -Version 0.6.76
-```
-
-产物位于 `artifacts\release`。详细发布流程见 [docs/release.md](docs/release.md)。
+- `build.ps1` 构建解决方案与 `desktop`，输出在各项目 `bin`/`dist` 目录。
+- `test.ps1` 依次运行：解决方案测试（TRX 输出到 `artifacts\TestResults`）、`Verification` 控制台校验、`pnpm typecheck`、`pnpm lint`、`pnpm test`。
+- `desktop` 的 Playwright E2E 由 `pnpm test:e2e` 单独运行（CI 会执行；本地需要可交互的桌面会话）。
+- `package.ps1` 需要 Node/pnpm 与 7-Zip，输出到 `artifacts\release\`：`Loopstructor-2-QA-Tool-0.6.77-win-x64.zip`、对应的 `.sha256` 和 `autoplayer-update-manifest.json`。`-SkipBuild` 可复用已有构建产物。
+- 加 `-SkipBuild` 前必须先完成一次对应版本号的 Release 构建，否则包内二进制版本校验会失败。
 
 ## 使用发布包
 
-1. 将 `Loopstructor-2-QA-Tool-0.6.76-win-x64.zip` 完整解压；压缩包内只有一个固定的 `Loopstructor-2-QA-Tool\` 顶层目录，不在目录名中附加版本号。不要直接在资源管理器的 ZIP 预览中运行程序。
-2. 进入该目录并启动根部的 `Loopstructor-2-QA-Tool.exe`。发布包内已包含 Electron、`.NET 8 Host` 和无窗口事务用 .NET Updater，无需另外安装 Node.js 或系统 .NET；内部程序均位于 `manager\` 目录。发现更新时会复用同一个 Electron Manager，以 `--updater` 模式显示更新页面。
-3. 选择打包游戏的 EXE 或游戏根目录。不要选择 Unity 工程目录。Manager 会在安装前拒绝包含中文或其他非 ASCII 字符的完整游戏路径，并给出移动目录的中文提示。
-4. 安装或更新测试载荷。管理器只应安装包内 `payload\bepinex` 和 `payload\plugin` 的已知文件。
-5. 安装完成后，Manager 会为该游戏目录创建当前 Windows 用户专用的玩家模式本机控制注册；注册绑定游戏根目录、插件协议和 `Assembly-CSharp.dll` SHA-256，不会开放网络端口。
-6. 可以先手动启动游戏，也可以点击 Manager 的“启动游戏”。游戏已运行时 Manager 只连接现有进程，不会重复启动。
-7. Manager 会核验插件回传的真实游戏 PID、可执行文件路径、程序集指纹、运行时契约和本机令牌。握手通过后可随时开始、暂停、恢复或停止自动游玩。
-
-### 连接 Unity Editor
-
-1. 在“游戏与插件”页选择 Unity 工程根目录，然后安装或更新 Editor 连接组件。
-2. 返回 Unity 并等待脚本编译完成。Manager 每 2 秒发现一次当前 Windows 用户下的活动 Editor 实例，同一工程打开多个实例时会分别显示 PID、模式和场景。
-3. 在对应实例上点击“连接”。Edit Mode 保持只读工程状态；进入 Play Mode 后，Host 会再次核验 Unity 进程路径、PID、实例 ID 和 `Assembly-CSharp.dll` SHA-256，再开放 QA 调试命令。
-4. Editor 退出、域重载超过 10 秒或鉴权状态不一致时，Host 自动撤销可信状态；随机 token 和端口只保留在 Host 内，不会发送给 renderer。
-
-“运行轨道”区域可选择是否跳过普通事件剧情，以及“优先拿战车”或“优先拿弹射点”两种决策方向。剧情开关只作用于带剧情的普通事件；每章首个轨神事件仍按游戏原流程直接选择。设置会保存在当前 Manager 配置中。战斗维护以游戏容量服务返回的动态容量为准，轨道占用统一计算运行战车与 FIFO 等待战车；没有容量堵塞时，再按每辆战车的基础输出、独立速度、轨道长度和站点数估算扩轨吞吐。右侧目标型道具只会使用 MCP 当前返回且条件通过的真实目标，轨道扩建资源不会被当作战斗道具消耗。
-
-每次会话的数据默认位于：
+1. 解压 `Loopstructor-2-QA-Tool-<版本>-win-x64.zip`，保持单一顶层目录 `Loopstructor-2-QA-Tool\`，不要只复制其中的 exe。
+2. 包内结构：
 
 ```text
-%LOCALAPPDATA%\LoopstructorAutoPlayer\
-  control\installed-<game-root-id>.json
-  editor-instances\editor-<pid>.json
-  profiles\<game-id>\<qa-profile-id>\
-  artifacts\editor\<project-id>\
-  artifacts\<game-id>\<run-id>\
-  save-backups\<game-id>\第01章-第003关-20260831-123456\
-  tickets\launch-<game-root-id>.json
+Loopstructor-2-QA-Tool\
+├─ Loopstructor-2-QA-Tool.exe        启动器
+├─ manager\                          Electron 界面、Host、更新器、共享 .NET 运行时
+├─ payload\bepinex\                  固定版本 BepInEx 运行时
+├─ payload\plugin\                   AutoPlayer 插件
+├─ payload\editor\                   Editor Bridge 运行时程序集
+├─ autoplayer-release.json           发布标记（schema 2）
+├─ version.json                      与发布标记同内容
+└─ checksums.sha256                  全部文件校验和
 ```
 
-独立的“存档”页面可启用或关闭自动备份、设置最多保留 1–100 个步骤存档，并列出全部受管快照。Host 只处理正式玩家模式：检测到章节或关卡变化后先等待游戏写盘稳定，再在临时目录中复制；复制前后文件指纹一致才原子完成。目录名使用“章节 + 关卡号 + 本地日期时间”，超过上限时只删除工具自己管理且名称严格匹配的最旧备份。选择读档后，Manager 会请求 Skyspine 正常关闭，把快照完整校验后以临时事务替换当前玩家存档；失败会恢复读档前状态，成功后自动重启游戏。隔离 QA 存档不会进入玩家备份目录。
+3. 双击根目录 `Loopstructor-2-QA-Tool.exe`，在“游戏”页选择游戏根目录并验证。
+4. 安装插件：Host 把 `payload\bepinex\` 和 `payload\plugin\` 复制到游戏目录的 `BepInEx\` 下；插件目录为 `BepInEx\plugins\Loopstructor.AutoPlayer\`。支持启用、禁用（改名为 `.disabled`）和卸载，状态分为未安装、不完整、已启用、已禁用。
+5. 从 Manager 启动游戏。Host 先写本机控制注册（`control\installed-<game-id>.json`：管道名、随机令牌、profile/产物根、期望程序集 SHA-256），再以 `-logFile` 参数启动游戏；插件读取注册连回 Host。Host 校验进程路径、程序集指纹、运行时契约和 `ResidentPlayer` 门禁后建立可信连接。
+6. 更新：显示在更新页，由 Updater 执行；详见 [docs/release.md](docs/release.md)。
 
-玩家模式的本机注册使用稳定的 pipe 基础名与高熵 token，使手动启动的游戏也能被同一用户的 Manager 找到；每个实际游戏进程使用带 PID 的专属端点，握手后每条请求还必须匹配随机进程实例标识。Editor Bridge 只监听 `127.0.0.1`，每个 Editor 实例使用独立随机端口和 Bearer token，并通过原子登记文件发布心跳；renderer 只能取得移除凭据后的实例 DTO。插件、Bridge 和 Manager 分别校验目录、PID、进程路径、实例与程序集指纹；检测到多个实例时要求用户明确选择。隔离 QA 模式的启动票据在读取后立即删除，最长有效期为 10 分钟。所有 token 都不得写入日志、renderer 快照或 Git。
+## 连接 Unity Editor
 
-### 作弊调试模式
+1. 在“游戏”页选择 Unity 工程根目录；目录必须包含 `Assets`、`Packages` 和 `ProjectSettings/ProjectVersion.txt`。
+2. 安装 Editor Bridge。安装只复制 `com.loopstructor.qa-editor-bridge` 到工程的 `Packages\` 下，通过 staging 目录与备份目录替换；目标目录已存在且不属于本工具时拒绝覆盖。移除时只删除该包目录，不改 `Assets`、`Packages/manifest.json`，也不影响 Player 构建。
+3. 用 Unity 打开工程。Editor 内的桥接包会写 `%LOCALAPPDATA%\LoopstructorAutoPlayer\editor-instances\editor-<pid>.json`，其中包含回环端口和随机令牌；Host 定期扫描实例并校验文件时效。
+4. 在 Manager 中选择实例连接。Edit Mode 下只提供只读发现；进入 Play Mode 后 Host 重新校验实例 ID、进程 ID、工程路径、模式（`editor-edit` / `editor-play`）和程序集 SHA-256，通过后才转发 QA 命令。
+5. 自动游玩和依赖 Harmony 的地图跳过只对 Player 生效；Editor 仅用于 QA 运行控制。
 
-通过安全握手的 Player 或 Editor Play Mode 进程默认启用 QA 调试能力。战车、道具、遗物、战斗、对象属性和生成均为同一窗口中的独立页面；自动游玩遗留会话存在时，只读查询与敌人 ID/Buff 显示仍可用，其他写操作锁定。Player 玩家模式和 Editor Play Mode 都会直接修改当前游戏状态，使用前应自行备份；隔离 QA 模式才把修改限制在可丢弃测试档。
+## 自动游玩与运行控制
 
-战车、附魔、消耗品、弹射点和遗物目录直接读取当前游戏程序集与配置，怪物目录另行保留安全生成筛选；各目录优先显示游戏配置中的简体中文名称及图标，同时保留内部枚举名和 ID 便于诊断，配置缺少显示资料时才回退到内部 ID 和占位图。战车底层目录仍保留内部过渡形态用于旧数据诊断，但快捷投放区每个系列只显示“初始形态 / 升级形态”。新增或设置附魔的选择器不显示已停用的群组专属附魔；旧存档已有项仍可在对象详情中查看和移除。插件不会为了读取中文名而切换游戏的全局语言。
+- 运行模式：`Common`（指定角色/难度/超模块）与 `Random`；决策优先级为载具奖励、弹射点、遗物三选一。
+- 运行选项：覆盖游戏速度（0/1/2 档）、最长运行分钟数（5–480）、继续现有 profile、跳过剧情。
+- 开始按钮条件：可信连接已建立、状态允许开始（Standby / Completed / Faulted）、`NeedsProcessRestart` 为 false、未开启基地无敌或地图节点自由跳转。
+- 运行状态控制：
 
-作弊工具提供以下能力：
+| 状态 | 可用操作 |
+| --- | --- |
+| Standby / Completed / Faulted | 开始 |
+| Running | 暂停、停止 |
+| Paused | 继续、停止 |
 
-1. 获取指定战车；附魔使用常驻图标网格，左键增加层数、右键减少层数，种类和层数不设产品上限；
-2. 获取或一键删除所有非弹射点消耗品；
-3. 获取完整的普通、能量和特殊弹射点目录；可删除背包所选/全部弹射点、批量删除场上弹射点，或开启游戏内左键点击删除模式；
-4. 开启或关闭基地无敌；
-5. 结束当前波次；
-6. 清除当前已经生成的所有敌人；
-7. 删除指定已有战车；使用中文属性名修改车辆属性，并编辑已有战车的附魔等级或移除附魔；
-8. 修改指定敌人的属性；对象列表同时显示中文名、枚举名和图标，战车还显示已有附魔图标；
-9. 在游戏画面中显示敌人运行时 ID，以及位于怪物模型下方的 Buff 图标；同类 Buff 聚合显示层数徽标，并显示持续时间、减速率或移速倍率等当前运行时可读取数值；
-10. 获得或删除指定遗物，也可逐帧补齐全部尚未持有的已配置遗物，或逐帧删除所有遗物；
-11. 在一个或多个指定坐标周围分散生成允许且可被战车攻击的怪物；默认使用当前波次的正式 AI 等级和难度倍率，也可显式覆盖等级。进入定位状态后可在游戏内反复按住左 Alt 并点击鼠标左键添加位置，游戏画面会显示各点编号与坐标，作弊工具可单删或清空点位；
-12. 开启地图跳关后，游戏仍隐藏当前进度层及历史层，可在当前地图界面点击进度之后的任意节点直接跳转；波次未完全结算、子关卡待选、陈旧阶段请求、跨阶段目标或失效节点都会拒绝。
+- `NeedsProcessRestart` 只阻止新的开始；插件认为当前进程内的状态无法清理时置位，需要重启游戏进程。
 
-作弊工具中的所有下拉选择器均可搜索；资源、运行时对象和属性会同时显示中文名与枚举名，并可按中文名、枚举名、运行时 ID 或内部 ID 筛选。选择器获得焦点后结果列表保持打开，直到确认选择或主动关闭；搜索文本本身不会直接作为命令参数。
+## 作弊调试
 
-仅获得或开启作弊能力都不会阻止自动游玩。运行或暂停期间，插件只允许开关作弊模式、查询目录/战车/敌人，以及显示怪物 ID 与 Buff；覆盖层不会写存档、不会设置 `CheatUsed`，其他作弊写命令会在插件端拒绝。任何获准改变游戏状态的作弊操作都会先写入本机持久作弊标记，再调用游戏 API；标记失败时写操作直接拒绝。作弊尝试会把后续运行结果标为 `cheat-modified`，但不会仅因此要求重启；真正的自动化故障、协议不确定状态和运行时污染仍会保留彻底重启门禁。场景切换会关闭基地无敌、敌人 ID 显示、待捕获位置、已保存生成点和地图跳关等瞬态功能；Manager 连接或心跳丢失时，插件也会自动关闭作弊模式和这些瞬态功能。
+- 只对可信连接会话开放；`cheat.query*` 等只读命令随时可用。
+- 连接建立后 Host 默认开启作弊模式；插件未报告已启用时，Host 每 5 秒重试一次。
+- 自动游玩运行期间只允许只读观察类作弊命令，写入类命令被拒绝。
+- 写入类命令会在当前 QA profile 写入作弊标记；之后该 profile 的运行结果统一记为 `cheat-modified`，便于区分被改动过的证据。
+- 作弊会话依赖 Host 心跳；连接中断或心跳丢失时插件关闭作弊状态。
+- 能力覆盖：载具与消耗品、弹射点（背包/场地）、遗物、敌人查询与修改、覆盖层显示、结束波次、清怪、跳过奖励弹窗、基地无敌、地图节点自由跳转、刷怪、弹射点捕获。命令以 `cheat.` 为前缀，共 33 个，具体以插件返回的 `capabilities` 为准。
 
-为避免破坏波次账本，结束波次只允许用于正在进行的普通波次，模板锁定、没有活动波次或 Boss 波均会拒绝；刷怪只接受当前游戏配置中存在有效预制体的普通敌人，Boss 和特殊波单位不在允许列表。批量生成会在所选半径内保持间距，并逐个验证敌方阵营、战斗系统、受击组件和碰撞层；没有进入正常可攻击状态的对象会立即回收，不计入成功数量。清除所有敌人只清理已经生成的对象，波次计划中的后续敌人仍可能继续出现；需要结束波次时应使用单独的“结束当前波次”操作。
+## 存档备份
 
-### 运行状态与彻底重启门禁
+- 自动备份可开关，保留份数 1–100。
+- 进度变化并通过写入稳定检测（默认 2 秒）后生成快照；单次快照最多 5000 个文件、总计 2 GiB，超限跳过并记录原因。
+- 恢复流程：正常关闭游戏 → 事务替换存档目录 → 自动重启游戏；失败时保留原存档。
 
-玩家模式安装后，插件可从当前用户的本机控制注册进入后台待命，手动启动游戏也无需一次性票据。两种模式都由隐藏的独立运行时根对象持有控制通道，不再依赖会被游戏首次场景装载清理的 BepInEx 管理对象；场景切换若意外清除独立宿主，静态会话会在主线程重建它，而只有游戏进程真正退出才释放管道和补丁。该保护不会开始自动游玩，也不会为玩家模式启用存档、平台写入或诊断产物重定向。控制服务使用有界读写和四路监听，并且至少一个监听器成功绑定后才报告激活；耗时命令会释放监听通道，Manager 使用同一请求 ID 获取最终缓存结果，同一操作不会重复执行。
+## 运行时数据目录
 
-战败会在原生结算页确实出现后记录为 `Completed + Defeat`，不进入故障，也不要求重启；用户再次点击“开始”时，插件调用游戏原生“再来一局”入口并按当前设置重新开始。普通超时、只读查询失败或有界重试耗尽仍可进入 Faulted，但不会因此设置 `NeedsProcessRestart`。只有写命令已经开始后结果不确定、当前结果明确返回 `statePolluted=true` / `needsReset=true`、无法验证部分写入已完整回滚，或隔离门禁失效时，才回传 `NeedsProcessRestart = true`。此时 Manager 显示“必须彻底重启”，禁用“开始”并在命令发送层再次拒绝 `start`。单纯执行过作弊写操作只会标记结果，不再触发该门禁。开发截图可使用 `--demo-restart-required` 复现真正的重启门禁；该参数隐含 demo 模式，不连接真实游戏。
+`%LOCALAPPDATA%\LoopstructorAutoPlayer\`
 
-安全握手通过后的运行按钮矩阵如下；“安装、启动测试包、更新”等管理按钮不属于此矩阵：
+| 路径 | 内容 |
+| --- | --- |
+| `control\installed-<game-id>.json` | 玩家模式本机控制注册：profile/产物根、管道与令牌；Manager 启动的会话由此激活 |
+| `tickets\launch-<game-id>.json` | 一次性启动票据，5 分钟有效；本机控制注册不可用时的兜底激活路径 |
+| `profiles\<game-id>\<profile>` | 按 profile 隔离的状态根；隔离 QA 中作为存档根，作弊标记也记录在此 |
+| `artifacts\<game-id>\<session>` | Player 运行产物：证据、日志、`game-errors.log` 等；Manager 会话固定为 `player` |
+| `artifacts\editor\<project-id>` | Editor 会话产物 |
+| `save-backups\<game-id>\...` | 存档备份 |
+| `editor-instances\editor-<pid>.json` | Editor Bridge 实例登记（端口、令牌、工程信息） |
 
-| 状态 | 开始 | 暂停 | 继续 | 停止 |
-|---|---:|---:|---:|---:|
-| 握手未通过 | 禁用 | 禁用 | 禁用 | 禁用 |
-| Standby / Completed，且无需重启 | 启用 | 禁用 | 禁用 | 禁用 |
-| Running | 禁用 | 启用 | 禁用 | 启用 |
-| Paused | 禁用 | 禁用 | 启用 | 启用 |
-| Faulted，且无需重启 | 启用 | 禁用 | 禁用 | 禁用 |
-| `NeedsProcessRestart = true` | 禁用 | 禁用 | 禁用 | 禁用 |
+Plugin 端日志由 Host 合并显示；游戏处于非 Development Build 时不会把报错显示在游戏里，插件把 Error/Exception/Assert 写入产物目录的 `game-errors.log`，Host 把新增行并入运行日志（error 级）。插件对 5 秒内相同类别与消息只累加计数，在下一次落盘时注明合并次数；文件达到 8 MiB 轮转。
 
 ## 安全边界
 
-- 玩家常驻模式使用玩家原存档和游戏原有平台行为，明确不安装 QA 存档、平台写入或诊断产物重定向补丁；任何意外启用都会使握手失败。该模式适合玩家主动使用，不提供测试隔离保证。
-- 隔离 QA 模式通过游戏的 `SavePathUtility.GetCompanyAppDataPath` 契约把存档重定向到独立 profile。
-- 隔离 QA 模式的平台写入门禁是强制条件：必须同时成功阻断 Steam 成就、IGP 成就、结算飞书自动上传和 `RestartAppIfNecessary` 四个已知入口，否则不能开始自动游玩。
-- 隔离 QA 模式还必须把游戏诊断产物重定向到本次 artifact；重定向失败同样拒绝开始。
-- 开局默认防线若明确返回 `prepared=false`、`statePolluted=false` 且不要求 reset，会视为可恢复暂态，不累计普通连续失败。安全检查只依据当前写命令的有效结果，不把 `before`、`previous`、`history` 等历史快照中的旧标志误判为当前污染；只有当前结果明确为 `statePolluted=true`、`needsReset=true`，或存在无法确认回滚的部分写入时，才停止并要求新进程。若动力站点步骤曾提交、但最终状态已验证为无轨道、无运行或等待战车且背包身份完整，则按干净检查点重试。
-- 前端写操作会等待游戏的全局模块与当前场景 Main 完成初始化，并要求就绪状态稳定一个轮询周期。进入对局后，合法路线与子关卡选择优先于默认防线，避免在随机模式路线图背后提前放置道具或绘线。
-- “继续未完成对局”会操作当前模式正在使用的存档。成功执行 `continueGame` 后不会重新绘制开局默认防线，避免破坏存档中已有轨道和车辆。
-- Harmony 补丁只存在于当前游戏进程内；退出游戏后失效。
-- 隔离 QA 启动时设置的 `SteamAppId`/`SteamGameId` 只由本次游戏子进程继承，不写入 `steam_appid.txt`，也不修改系统级环境变量；玩家模式不注入这些变量。
-- 自动玩家通过游戏运行时契约操作，不发送系统级鼠标或键盘输入。
-- 连续失败、长时间无进展或兼容性检查失败会停止自动操作并保留状态、日志和截图证据。
+- 两种激活模式；插件按优先级解析激活来源：进程环境变量 → 本机控制注册 → 启动票据。
+  - `ResidentPlayer`：Manager/Host 启动的常规会话，由本机控制注册激活；四个隔离标志全为假，使用真实存档、成就与结算上报。
+  - `IsolatedQa`：隔离 QA，由 `scripts/run-autoplay-qa.ps1` 通过环境变量一次性激活、不经过 Host；四个标志全为真才可运行。
+- Host 管理的已安装会话只接受 `ResidentPlayer` 握手；隔离 QA 由脚本直接连接插件管道。
+- 隔离 QA 拦截四个入口：`SteamAchievementController.UnlockAchievement`、`PlatformAchievementBridge.ReportIGPAchievement`、`SettlementDataTotalManager.TryAutoSendResultOnce`、`SteamAPI.RestartAppIfNecessary`。
+- 游戏产物重定向：`GameDebugLogs`、`LocalizationStartup.log`、`GameSettlementData`、`ObjectUseData` 写入产物根目录，不污染游戏安装目录。
+- 两种启动方式都通过进程环境变量注入 `SteamAppId` / `SteamGameId`，不写 `steam_appid.txt`；`RestartAppIfNecessary` 补丁只在隔离 QA 安装。
+- 完整门禁、隔离与污染处理见 [docs/safety.md](docs/safety.md)。
 
-平台门禁只覆盖当前已识别的写入入口，不能承诺测试账号“零痕迹”。Steam/IGP 会话、在线状态、游戏时长、Overlay、云同步或新版新增的统计/遥测入口仍可能留下平台侧记录；涉及正式账号时应改用专用 QA 账号、离线环境或无平台测试包。
+## 更新机制
 
-完整约束、限制和卸载注意事项见 [docs/safety.md](docs/safety.md)。
+- 更新源为 GitHub Releases：默认仓库 `yingyu4451/Loopstructor-2-QA-Tool`，可用 `LOOPSTRUCTOR_AUTOPLAYER_GITHUB_OWNER` / `LOOPSTRUCTOR_AUTOPLAYER_GITHUB_REPOSITORY` 覆盖。
+- 无令牌时使用 `releases/latest` 的网页重定向，不消耗匿名 API 配额；配置令牌时只向 `api.github.com` 发送，不转发给下载 CDN。
+- 清单 schema 3：整包资产加可选取的增量资产列表（按 `fromVersion` 匹配）。
+- 增量包只在已安装版本与清单 `fromVersion` 完全一致、校验和通过、且体积小于整包时使用；否则回退整包。
+- `apply` 先从临时副本重启自身，等待 Manager 退出后 stage → 备份 → 替换，失败回滚；成功后重启 Manager。`cleanup` 清理更新残留进程与临时目录。
+- 发布由 `v*` 标签触发 GitHub Actions 生成整包、SHA-256、清单与上一版本增量包；见 [docs/release.md](docs/release.md)。
 
-## 当前真实包验证
+## 文档
 
-2026-07-29 在 Windows x64 的 Skyspine `1.385` 构建上完成了真实打包游戏验证：
-
-- 普通模式与随机模式都达到 `PLAY_OK`：两次独立运行均观察到 2 波启动、1 波完成，完成波后奖励物收集与奖励选择、波后路线选择，并进入第 2 波；状态证据均为 `WavesStarted=2`、`WavesCompleted=1`。
-- QA 存档隔离、平台写入门禁和游戏诊断产物重定向均为 true。真实玩家存档目录中原有 4 个文件的哈希与时间未改变。
-- 测试前后 `Assembly-CSharp.dll` SHA-256 均为 `962b9f69774d4ea20458877363bc33bc7f85cfa207baa1d775b0ea5677140f29`，即 `assemblyUnchanged=true`。
-- 首次随机模式测试曾因过早输入在 `Temp` 场景触发 `MetroTDAffixCreatorHandler.Clear()` 空引用；加入只读加载门禁后不再复现，并完成上述跨波验证。游戏仍会在随机转盘离场后记录 `RandomMode_TurnTableManager.StopDecorateAnimation` 的非致命 `Animator.Play` 空引用，当前未屏蔽，便于游戏侧继续修复。
-- 本机没有生产 Steam AppID `3841840` 的许可，日志出现 `[Steamworks.NET] SteamAPI_Init() failed`。两种模式的隔离自动测试仍可继续，但该结果不表示 Steam 功能已被禁用，也不能外推到有许可的 QA 账号。
+| 文档 | 内容 |
+| --- | --- |
+| [CONTEXT.md](CONTEXT.md) | 领域术语表 |
+| [docs/architecture.md](docs/architecture.md) | 组件边界、启动与握手、IPC、游戏运行时契约、决策循环、发布包结构 |
+| [docs/safety.md](docs/safety.md) | 门禁、隔离、作弊、证据与隐私模型 |
+| [docs/release.md](docs/release.md) | 构建、打包、更新清单、CI、发布检查表、版本记录 |
+| [docs/adr/0001-separate-player-and-editor-transport.md](docs/adr/0001-separate-player-and-editor-transport.md) | 为什么 Player 与 Editor 使用不同传输 |
+| [assets/branding/README.md](assets/branding/README.md) | 图标来源与生成方式 |
 
 ## 项目结构
 
-```text
-src/Loopstructor.AutoPlayer.Core/      共享协议、状态模型与决策引擎
-src/Loopstructor.AutoPlayer.Plugin/    netstandard2.1 BepInEx 5 插件
-src/Loopstructor.AutoPlayer.EditorBridge.Runtime/  无 BepInEx/Harmony 的 Editor Play Mode 运行层
-src/Loopstructor.AutoPlayer.Launcher/  根目录单文件启动器
-src/Loopstructor.AutoPlayer.Host/      .NET 8 无窗口服务与 JSON 行 RPC
-desktop/                               Electron 44 + Vue 3 统一桌面界面
-resources/unity-package/               随 Manager 发布的 Editor-only UPM 包
-src/Loopstructor.AutoPlayer.Manager/   Host 复用的安装、会话、存档与更新服务源
-src/Loopstructor.AutoPlayer.Updater/   独立更新进程
-tests/                                 自动化测试
-scripts/                               bootstrap、构建、测试和打包脚本
-docs/                                  架构、安全与发布说明
-```
+| 路径 | 内容 |
+| --- | --- |
+| `src/Loopstructor.AutoPlayer.Core` | 协议、状态模型、安全门禁、决策引擎与策略 |
+| `src/Loopstructor.AutoPlayer.Plugin` | BepInEx 插件（netstandard2.1）：管道服务、补丁、自动游玩控制器 |
+| `src/Loopstructor.AutoPlayer.Manager` | Host 复用的服务：游戏校验、插件安装、Editor Bridge、存档备份、更新编排 |
+| `src/Loopstructor.AutoPlayer.Host` | 无窗口 Host：JSON 行 RPC、会话与握手、日志、快照 |
+| `src/Loopstructor.AutoPlayer.Launcher` | 包根启动器 |
+| `src/Loopstructor.AutoPlayer.Updater` | 控制台更新器与事务安装 |
+| `src/Loopstructor.AutoPlayer.EditorBridge.Runtime` | Editor Bridge 运行时程序集（Editor 专用） |
+| `desktop/` | Electron 44 + Vue 3 + Vite + Pinia + Tailwind/daisyUI 界面 |
+| `resources/unity-package/com.loopstructor.qa-editor-bridge/` | Editor Bridge UPM 包源 |
+| `tests/` | .NET 测试 |
+| `scripts/` | bootstrap、build、test、package、增量包与发布校验脚本 |
+| `docs/` | 架构、安全、发布文档与 ADR |
 
-架构和数据流见 [docs/architecture.md](docs/architecture.md)。
+## 版本
 
-更换电脑或在新的 Codex 任务中继续开发前，先阅读 [docs/codex-handoff.md](docs/codex-handoff.md)。
-
-## GitHub 与自动更新
-
-push 和 pull request 会运行 .NET、Vue、TypeScript、Vitest 和 Electron Playwright 测试；推送 `v*` tag 会生成完整的 Windows x64 Release ZIP、对应 SHA-256 和 `autoplayer-update-manifest.json`，随后发布 GitHub Release。找到采用同一发布格式且可验证的上一正式版本时，工作流还会生成“上一版本 → 当前版本”的文件级增量 ZIP。`Loopstructor-2-QA-Tool-0.6.76-win-x64.zip` 用于手动下载、首次安装、跨格式升级和完整包回退，内部只有固定的 `Loopstructor-2-QA-Tool\` 顶层目录。
-
-从安装了 `v0.5.3` 开始，Updater 会在当前安装版本与清单中的 `fromVersion` 精确一致、当前文件校验通过且增量包小于完整包时，只下载发生变化的文件。它会在空 staging 目录中把本地未变文件和增量文件重建成完整新版，逐文件校验通过后再沿用原有事务安装与回滚。没有匹配增量、跳过版本或旧客户端时自动使用完整 ZIP。`v0.5.2 → v0.5.3` 仍需完整下载一次，因为已发布的 `v0.5.2` Updater 不识别增量清单；后续相邻版本才会使用增量更新。
-
-`v0.6.53` 新增 Host 侧玩家存档自动备份：按章节、关卡和日期命名，复制前后验证写入稳定，并按设置保留最近 1–100 个步骤。怪物 Buff 覆盖层移到模型下方，同类 Buff 聚合显示层数，持续时间和减速率等运行时数值保持可见。战车获取只显示初始/升级两个形态并使用游戏目录图标；自定义界面缩放不再被 Host 快照覆盖或跳页，标题栏版本提示可直接启动更新，Updater 与 Electron 共用统一机械配色。本版本以 `v0.6.52` 作为相邻增量更新基线。
-
-`v0.6.52` 将当前页面改为 renderer 单一所有者，Host 轮询快照不再覆盖用户导航；自动游玩页恢复动态模式/角色读取、运行配置、开始/暂停/继续/停止和时间线，并持续显示功能未完成警告。作弊在可信连接后由 Host 自动开启，界面不再提供重复的手动开关。本版本以 `v0.6.51` 作为相邻增量更新基线。
-
-`v0.6.51` 将 Manager 与作弊工具迁移为 Electron + Vue 统一窗口，使用分组齿轨侧栏、响应式 Grid、虚拟目录、统一 Tooltip/Toast 和 Vue 更新确认弹窗；全部图标来自随包离线 Iconify 集合。游戏/插件/作弊/更新能力迁入 `.NET 8 Host`，renderer 保持 sandbox、contextIsolation 与严格 IPC 白名单。自动游玩入口暂时禁用，但可停止升级前遗留会话。正式完整包为 221,968,660 字节（约 212 MiB），`v0.6.50 → v0.6.51` 增量包为 159,392,531 字节（约 152 MiB）。
-
-`v0.6.50` 修复多轨道站点分配与外环形状：游戏 `RailManager` 的第一条轨道内部 ID 从 `0` 开始，旧版误把它当成无效值，导致额外中继站绕过主环并被后建外环吸收。现在扩轨、特殊站点移动和完整重连都按最早仍存在的轨道优先；新外环只取组成独立闭环所需的一个始发站和两个中继站，剩余站点留给主环。新建和实测验收均要求简单、包围基地且角度/半径均衡的防御环，当前现场出现的细长三角外环会被判为待修复而不是合法完成。本版本以 `v0.6.49` 作为相邻增量更新基线。
-
-`v0.6.49` 修复奖励结算、弹射点库存部署与地图选择之间的抢跑：只有完整波次快照确认奖励、事件和道具预览全部退出后，才允许放置背包站点或重连闭环；未接入站点完成维护前不会继续读取下一地图节点。轨神事件改为读取游戏正在播放的 Spine `Appear` 轨道，动画真实完成后才显示 1 秒绿框并选择，不再把“选项已生成”误当成“动画已结束”。本版本以 `v0.6.48` 作为相邻增量更新基线。
-
-`v0.6.48` 修复开战前只满足“两个普通点”便停止部署的问题：自动游玩会逐个消费背包中的普通与可移动特殊中继站，直到库存为空或游戏实时规则明确没有合法格，最终闭环必须包含本次部署的全部站点。动力始发站继续逐格调用游戏真实放置校验，但不再人为向外预留一整圈；在最佳覆盖层内优先选择离基地最近的合法位置。本版本以 `v0.6.47` 作为相邻增量更新基线。
-
-`v0.6.47` 在实际安装更新前增加游戏进程安全门禁：若当前所选目录的 Skyspine 仍在运行，Manager 会显示与整体一致的机械风确认窗。选择“关闭游戏并更新”后只请求游戏正常退出并等待，确认退出后才启动 Updater；拒绝关闭或等待超时都会取消本次更新，不会强制终止游戏进程。本版本以 `v0.6.46` 作为相邻增量更新基线。
-
-`v0.6.46` 重新核对游戏 `1.390` 的 `MapPosManager`、`CheckCatapultIsValid` 和站点创建逻辑后，修复逐站贪心放置没有为后续禁放区域预留空间的问题。新版在第一次写入前读取当前运行时最小间距，为动力始发站预留一整条间距带；后续普通与特殊站点必须保持同一防御半径层并能组成均衡闭环，避免最终才报“无法组成防御圆环”。本版本以 `v0.6.45` 作为相邻增量更新基线。
-
-`v0.6.45` 修复开局轨道虽然通过游戏 `isLoop` 却在画面中塌缩成细长折线的问题：规划与提交后校验都要求真实线段形成包围基地、角度与半径分布均衡的防御圆环；背包里运行时识别到的可移动特殊中继站会在开波前逐个放置，并作为必须保留的轨道站点参与闭环。最终校验缺少真实站点或线段端点时一律拒绝放行。本版本以 `v0.6.44` 作为相邻增量更新基线。
-
-`v0.6.44` 修复背包已经持有普通弹射点却被开局轨迹误报为 0 的问题：开局准备会分别读取场上站点与背包道具，按稳定道具身份逐个放置两枚普通弹射点，再刷新背包身份并放置动力弹射点；普通点与动力点的 pending 写入也使用各自目标格进行只读对账。本版本以 `v0.6.43` 作为相邻增量更新基线。
-
-`v0.6.43` 适配独立战车、轨道动态容量和装修厂直接升级：自动游玩只使用游戏容量服务返回的运行战车、FIFO 等待队列与溢出回包，不再执行群组调度或战车合成；轨道扩建改为逐车独立速度吞吐估值。装修厂会优先选择真实未升级战车，验证三项附魔候选并优先同名个人附魔，升级后逐项确认原附魔完整保留。Manager 改为“优先拿战车”，快捷目录只展示“初始形态 / 升级形态”。本版本以 `v0.6.42` 作为相邻增量更新基线。
-
-`v0.6.42` 修复游戏 1.390 开始新游戏后停在开局轨神事件的问题：控制器会在对局核心对象初始化门禁前同时探测旧版 `WaveFunctionUI` 与新版普通事件界面，旧版事件选项完整生成后按精确实例高亮 1 秒、分帧点击并进行只读对账，不再错误地等待尚未创建的主站点和弹射点。本版本以 `v0.6.41` 作为相邻增量更新基线。
-
-`v0.6.41` 精简 Manager 的自动游玩配置区，删除模式下方重复说明并把角色、跳过剧情和决策优先排列到同一行；运行日志移入右侧仪表区，与运行遥测使用机械选项卡切换且默认显示日志。Manager 不再提供关闭启动更新检查的选项，每次正常启动都会自动检测更新；作弊工具的奖励跳过改为单击立即执行。本版本以 `v0.6.40` 作为相邻增量更新基线。
-
-`v0.6.40` 在作弊工具“战斗”页新增“跳过当前奖励弹窗”。它优先使用游戏原生跳过流程；遇到强制奖励（例如重复遗物无法领取）时，通过游戏原生 `UseCurrent` 队列推进机制放弃当前奖励，并在写入后验证弹窗关闭或队列确实前进，不会只隐藏界面。本版本以 `v0.6.39` 作为相邻增量更新基线。
-
-`v0.6.39` 修复游戏 1.392 新开局普通事件与对局初始化互相等待的问题：插件会在主基地和初始弹射点尚未生成、`queryState` 仍返回 pending 时，优先只读探测 `EventUI_Normal`，通过原生高亮和延迟点击完成选择后再恢复完整运行时门禁。其他防线、地图和战斗写操作仍须等待核心对象就绪。本版本以 `v0.6.38` 作为相邻增量更新基线。
-
-`v0.6.38` 修复地图新增弹射点被普通防线维护饿死的问题：未接入站点会建立持续的流程门禁，优先于合成和战车部署完成轨道接入；所有活动站点接入并通过实际简单闭环复核前，不再继续选图或开波。地图强制维护允许选择保持周向覆盖、不要求立即严格提升 N/T 的最佳合法接入方案，并在运行时暂不可用时退避重试。本版本以 `v0.6.37` 作为相邻增量更新基线。
-
-`v0.6.35` 使用统一拓扑与几何验证器判定轨道，拒绝重复边、断裂、多连通分量、站点度数异常、自交及未包围基地的伪闭环；布局规划以始发站为首点按极角生成顺序并用 2-opt 消除交叉。地图节点提交后会等待站点集合稳定，再对新增或未入轨中继站触发一次完整防线维护。战败改为正常的 `Completed + Defeat` 结算，下一次开始通过游戏原生“再来一局”重新进入流程。轨道变化时会低频保存带编号与异常边标记的截图证据，但不会用像素识别驱动操作。本版本以 `v0.6.34` 作为相邻增量更新基线。
-
-`v0.6.34` 将 Manager 的游戏日志严格绑定到当前 Skyspine 进程：后台等待时不再回放旧 `Player.log`，附着到既有进程时只显示新写入内容，由 Manager 启动新游戏时将上一局轮换为 `Player.previous.log`。这会避免安装或重启后把旧版进程累积的 WARN/ERROR 误显示为当前插件故障。本版本以 `v0.6.33` 作为相邻增量更新基线。
-
-`v0.6.33` 停止在自动游玩运行期间轮询开局角色与模式目录，并在地图打开动画期间暂停完整地图、波次状态查询，减少游戏主线程反射、序列化和日志写入造成的车列卡顿。随机模式附魔改为调用绿色边框对应卡片的原生选择方法，并对实际选中枚举进行校验；绿色描边改挂到根 Canvas 并持续跟随目标，避免被中间遮罩裁切。本版本以 `v0.6.32` 作为相邻增量更新基线。
-
-`v0.6.32` 修复画轨服务拒绝且未产生写入时被误判为已提交的问题，安全失败会重新读取状态并退避重试；新增从当前游戏动态读取可玩模式、已解锁角色和角色可用原因，普通模式可选择角色，并增加“优先拿遗物”决策。随机模式附魔选择统一使用当前可见 UI 候选快照，确保绿框、命令枚举和提交后结果一致。桌面端新增统一机械风悬浮提示、自定义界面倍率和 Manager 单实例唤醒；作弊工具状态改为通俗文案，并在自动游玩期间按区块禁用写操作、保留只读能力。本版本以 `v0.6.31` 作为相邻增量更新基线。
-
-`v0.6.26` 修复能量/特殊弹射点确认移动后被误判为取消失败并要求重启的问题；确认成功后的站点位置与优化收益分别对账，收益未达预测时保留游戏实际状态并继续游玩。Updater 只在事务期间建立隐藏回滚点，新版校验成功后立即删除，不再永久保留旧版本；更新后启动的 Manager 也会安全清理由旧版 Updater 生成的严格匹配备份目录。本版本以 `v0.6.25` 作为相邻增量更新基线。
-
-`v0.6.25` 修复地图节点提交后因旧 `readyNodes` 尚未清空而再次打开地图、重复选择节点的问题；只有尚未存在已选节点、待处理子关卡且当前不能开战时，才会打开地图并选择路线。本版本以 `v0.6.24` 作为相邻增量更新基线。
-
-`v0.6.24` 修复升星素材战车与合成附魔的原生选择绿框，描边统一为 2 像素机械信号绿且没有背景；选择地图节点前会先打开游戏原生地图，重新解析目标后显示 0.75 秒绿框再点击。
-
-`v0.6.23` 在自动游玩等待选择的 0.75 秒内，直接给游戏原有的下一步地图节点、战车、附魔和事件选项绘制绿色边框；点击前移除边框，并在目标变化、暂停、停止、故障、场景切换或会话释放时清理。本版本以 `v0.6.22` 作为相邻增量更新基线。
-
-`v0.6.22` 为 Manager 引入 CommunityToolkit.Mvvm，并将作弊工具的战车、道具、遗物页拆分为独立 WPF 组件；常驻运行状态改由统一 ViewModel 驱动，在保留现有命令和自动化名称的同时，为后续响应式页面重构建立稳定边界。本版本以 `v0.6.21` 作为相邻增量更新基线。
-
-`v0.6.21` 将道具页固定为消耗品与弹射点双列弹性目录，底部说明与清理操作始终停靠在可视区域；附魔搜索和“清空所选”也合并为同一行。本版本以 `v0.6.20` 作为相邻增量更新基线。
-
-`v0.6.20` 让作弊工具的战车、附魔、消耗品和弹射点目录随窗口高度共同伸缩，目录内部独立滚动，并移除战车选择、附魔提示和遗物搜索上方的重复标题。本版本以 `v0.6.19` 作为相邻增量更新基线。
-
-`v0.6.19` 包含作弊工具六个分页的连续机械齿轨导航、统一间距与表单基线、响应式道具双列布局和滚动条优化；并将 WPF 布局测试改为固定逻辑尺寸的离屏渲染，避免受 GitHub Runner 物理桌面尺寸影响。由于 `v0.6.18` 未成功发布产品资产，本版本以 `v0.6.17` 作为增量更新基线。
-
-`v0.6.18` 将作弊工具六个分页改为连续机械齿轨导航，统一页面间距、表单基线和战斗操作列；宽屏道具页使用响应式双列布局，并仅在内容真实溢出时显示细窄滚动条。该标签的 Release workflow 未完成，未发布产品资产。
-
-`v0.6.17` 将作弊工具的常驻运行状态合并到顶部“作弊运行控制”徽标，并移除占用整行空间的状态横幅；一次性命令结果和错误改为从窗口顶部中央滑入、停留 3 秒后按 FIFO 顺序逐条收起的机械风提示。本版本以 `v0.6.16` 作为相邻增量更新基线。
-
-`v0.6.16` 将作弊工具的战车类型按钮、战车名称和附魔名称统一接入当前游戏的简体中文本地化；目录初始化未完成时会回退到游戏原生本地化读取，附魔名称还会兼容羁绊名称字段。中文名与内部枚举名都可用于搜索。本版本以 `v0.6.15` 作为相邻增量更新基线。
-
-`v0.6.15` 将作弊工具的可获取战车名单改为读取游戏自身 `CheatVehiclePanelCfg.vehicleTypes`，再通过原生战车组件目录验证可生成性；组件表中的旧战车、实验战车和未配置 L4 不再自动进入目录。当前游戏配置对应 Shell、Link、Penetrate、Missile 四类各四个系列、每系列 L1-L3。本版本以 `v0.6.14` 作为相邻增量更新基线。
-
-`v0.6.14` 将战车和附魔目录改为读取当前游戏程序集的完整枚举，并分别通过游戏已注册战车组件、附魔详情和类型映射验证实际可用性；“本次装配的附魔”改为带层数徽标和延迟详情提示的图标摘要。本版本以 `v0.6.13` 作为相邻增量更新基线。
-
-`v0.6.13` 将内置公开更新源迁移到当时重命名后的 `yingyu4451/Loopstructor-2-AutoPlayer`，并自动迁移旧安装保存的 `yingyu4451/gui2` 坐标；自定义 fork 和环境变量覆盖保持不变。本版本以 `v0.6.12` 作为相邻增量更新基线。
-
-`v0.6.12` 将作弊工具的战车与附魔目录改为复用随机模式随机轮盘实际使用的固定池：战车读取 `GetRandomModeVehiclePool`，附魔读取 `GetRandomModeBasicFetterPool`，并沿用游戏的成就解锁补丁结果；获取与编辑操作使用同一池校验，不再直接展示完整枚举。本版本以 `v0.6.11` 作为相邻增量更新基线。
-
-`v0.6.11` 统一了 Manager、作弊工具和 Updater 的按钮禁用态：禁用按钮使用低亮煤黑背景、暗铜边框和灰铜文字，不再依赖系统默认浅色模板；战车类型与等级按钮也改为继承同一机械按钮模板。本版本以 `v0.6.10` 作为相邻增量更新基线。
-
-`v0.6.10` 将战车与附魔目录改为直接遍历当前游戏程序集的完整 `VehicleType` 和 `FetterEnum`，不再受官方作弊面板列表漏配影响；获取战车、添加附魔和编辑已有附魔使用同一完整枚举校验。显示资料缺失时保留枚举项并回退到枚举名。本版本以 `v0.6.9` 作为相邻增量更新基线。
-
-`v0.6.9` 将动画完整显示后的额外观察时间缩短为 0.75 秒。轨道插点已经形成合法闭环但收益核验未达到预期时，不再把可对账状态误判为必须重启；插件会解除本次结构事务、重新读取当前轨道并继续寻找下一项优化。本版本以 `v0.6.8` 作为相邻增量更新基线。
-
-`v0.6.8` 将作弊目录刷新移到窗口顶部的全局控制区；战车改用“类型筛选 → 系列卡片 → 等级按钮”的快速选择器，搜索仍可跨类型并保持稳定顺序。道具、弹射点和遗物卡片同步收紧留白、放大图标与名称，并分别使用唯一数量徽标或勾选状态，避免重复显示持有信息。本版本以 `v0.6.7` 作为相邻增量更新基线。
-
-`v0.6.7` 的遗物与道具目录改为直接覆盖游戏完整枚举，不再由奖励 SO 决定条目是否存在；因此可显示并获取“多给点”等新遗物，以及阴/阳、加速、发电始发等新站点。中文名、图标和描述仍复用游戏现有显示资料，但资料缺失不会再把枚举条目从目录中删除，而是回退枚举名。本版本以 `v0.6.6` 作为相邻增量更新基线。
-
-`v0.6.6` 将作弊工具拆分为战车、道具、遗物、战斗、对象属性和生成六个标签；战车按类型、系列和等级稳定排序，目录补入普通/能量弹射点并提供游戏原始说明的延时详情卡。Manager、作弊工具、Updater 与更新确认弹窗统一为贴边深铜机械外框。目录格式升级到 `v5`，作弊协议保持 `v7`；本版本以 `v0.6.5` 作为相邻增量更新基线。
-
-`v0.6.5` 更新作弊工具窗口与资源操作界面，并以 `v0.6.4` 作为相邻增量更新基线。
-
-`v0.6.4` 重构作弊工具资源与附魔流程：战车按枚举类型与等级顺序排列，附魔用左键加层、右键减层且取消产品上限；已选附魔在战车操作区单独汇总。消耗品和弹射点改为搜索图标后左键直接获取，并遵守游戏普通道具栏容量；遗物图标左键启用、右键关闭。新增删除全部消耗品、背包/场上弹射点、全部遗物及场上点击删除模式；游戏内战车卡片可紧凑换行显示全部附魔。所有搜索入口增加明确的放大镜提示，数值步进按钮的禁用态改为低亮机械色。作弊协议升级到 `v7`、目录格式升级到 `v4`。本版本以 `v0.6.3` 作为相邻增量更新基线。更新后需重新执行一次“安装 / 更新插件”并重启游戏。
-
-`v0.6.3` 改进轨道的四向包围、紧凑回路和弹射点吞吐率规划，并允许战斗中及波间持续重规划至没有正收益；作弊工具新增逐帧补齐全部遗物及进度、跳过和失败反馈，作弊协议升级到 `v6`。本版本以 `v0.6.2` 作为相邻增量更新基线。更新后需重新执行一次“安装 / 更新插件”并重启游戏。
-
-`v0.6.2` 将当前产品、插件和 Manager 的正式版本标识升级到 `0.6.2`，并以 `v0.6.1` 作为相邻增量更新基线。更新后需重新执行一次“安装 / 更新插件”并重启游戏。
-
-`v0.6.1` 修正产品、插件和 Manager 的正式版本标识，使更新器能够把本轮自动游玩与弹射点改进识别为 `v0.6.0` 之后的新版本。更新后需重新执行一次“安装 / 更新插件”并重启游戏。
-
-`v0.6.0` 重构自动游玩的奖励、事件、战斗、防线扩建与写入对账流程：选择前会等待动画完整显示并额外保留 1.25 秒录像时间；运行时查询和写入被拆分到不同帧；动力和普通弹射点按稳定背包身份一次确认，轨道插点与特殊点移动也使用一次性结构事务，未知结果绝不重发。Manager 新增普通事件剧情跳过和“优先拿三星车 / 优先拿弹射点”决策开关；自动游玩期间可同时开启怪物 ID 与 Buff 监视。隔离 QA 已在 clean 状态完成 28 波并进入第三章。更新后需重新执行一次“安装 / 更新插件”并重启游戏。
-
-`v0.5.9` 在作弊工具中增加怪物 Buff 覆盖层，可在游戏内用原生图标查看每只怪物的 Buff 与剩余持续时间。敌人与 Buff 数据以低频快照缓存，`OnGUI` 只负责绘制，避免覆盖层反复扫描场上对象。更新后需重新执行一次“安装 / 更新插件”并重启游戏。
-
-`v0.5.6` 将基础控制协议升级到 `v3`。更新 Manager 后需在游戏目录重新执行一次“安装 / 更新插件”并重启游戏，避免新旧速度语义混用。旧版 Manager 保存的默认 `3x` 会一次性迁移为 `1x` 常速；后续可在 Manager 中明确选择跟随游戏或 `1x / 2x / 3x`。
-
-安装更新时会打开独立的更新窗口，按“准备、下载、校验、安装、重启”显示阶段进度。下载阶段显示已下载大小、总大小和实时速度；解压与事务替换阶段显示安装进度，完成后会显示最终结果。开始替换文件后窗口会锁定关闭操作，避免破坏更新或回滚。
-
-自动更新只支持 `v0.6.68` 起的新发布目录：Updater 固定为 `manager\Loopstructor.AutoPlayer.Updater.exe`，用户入口固定为根部及 `manager\` 内的 `Loopstructor-2-QA-Tool.exe`，不再接受旧 `updater\` 目录、`Loopstructor 2.AutoPlayer\` 顶层目录或 `Loopstructor.AutoPlayer.Manager.exe` 入口。旧版必须手动下载并完整解压 `v0.6.68` 一次；之后相同格式的版本可继续自动更新。Manager 标题区永久显示 `Loopstructor 2 QA Tool` 和 `v<当前版本>`；实际版本及 schema 2 发布目录标记同时记录在 `autoplayer-release.json`。GitHub Actions artifact 解开后直接是扁平程序文件和根部 `Loopstructor-2-QA-Tool.exe`，不包含产品目录包装层或第二层产品 ZIP。
-
-默认发布与更新源为 [`yingyu4451/Loopstructor-2-QA-Tool`](https://github.com/yingyu4451/Loopstructor-2-QA-Tool)，Manager 界面不再显示仓库地址输入框，也无需手工填写。旧版本遗留的空白更新源或已保存的 `yingyu4451/Loopstructor-2-AutoPlayer`、`yingyu4451/gui2` 旧坐标会自动迁移为该默认值；开发测试 fork 时仍可用环境变量 `LOOPSTRUCTOR_AUTOPLAYER_GITHUB_OWNER` 和 `LOOPSTRUCTOR_AUTOPLAYER_GITHUB_REPOSITORY` 临时覆盖。
-
-从 `v0.1.4` 起，公开仓库且未提供 token 时，更新器会先访问 GitHub 网页端的 `releases/latest`，核对它跳转到同一仓库的精确版本 tag，再从该 tag 的 Release 资产地址下载清单和 ZIP。此路径不调用匿名 GitHub REST API，因此不受匿名 API 每个出口 IP 每小时 60 次的配额影响。
-
-提供 token（包括访问私有仓库）时，更新器才通过 GitHub REST API 查询 Release，并使用 API 返回的资产 URL。token 只发送给 `api.github.com`，跟随下载重定向到 GitHub Release CDN 时不会转发。不要把 token 写入源码、Manager 设置、发布包或日志。
-
-从 `v0.1.7` 起，AutoPlayer 插件、Manager、Launcher 和 Updater 自己生成的运行消息与错误说明均使用中文；GitHub 的 401、403 和 429 会显示对应状态码及中文处理建议。BepInEx、Unity、游戏本体和系统组件直接输出的原始日志仍保持原文，以免丢失第三方诊断信息。
-
-`v0.1.3` 在未提供 token 时仍使用匿名 REST API；如果它正显示 `403 (rate limit exceeded)`，可以等待 GitHub 配额恢复、仅在当前 Manager 进程环境中临时提供只读 token，或手动下载并安装 `v0.1.4` 一次。进入 `v0.1.4` 后，公开仓库的无 token 更新会改用上述网页 Release 路径。
+当前版本 0.6.77。版本记录见 [docs/release.md](docs/release.md#版本记录)，发布流程与检查表见同一文档。

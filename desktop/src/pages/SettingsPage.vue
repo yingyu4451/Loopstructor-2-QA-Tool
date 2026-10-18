@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, toRaw, watch } from 'vue'
 import type { ManagerSettings } from '../types'
-import { Check, Download, Github, MonitorCog, Palette, RefreshCw } from '../icons'
+import { Check, Download, GitBranch as Github, MonitorCog, Palette, RefreshCw } from '@lucide/vue'
 import { useAppStore } from '../stores/app'
+import { useUiStore } from '../stores/ui'
 import { skinOptions } from '../theme/skins'
 const store = useAppStore()
+const ui = useUiStore()
 const api = window.loopstructorDesktop
 const cloneSettings = (settings: ManagerSettings): ManagerSettings => ({
   ...structuredClone(toRaw(settings)),
@@ -26,6 +28,12 @@ async function save() {
   draft.value = cloneSettings(saved)
   await api.setZoom(zoom.value)
 }
+
+async function checkUpdates() {
+  const update = await ui.run(() => api.checkUpdates())
+  if (!update) return
+  ui.toast(update.message || (update.updateAvailable ? `发现新版本 v${update.latestVersion}。` : '当前已是最新版本。'), update.updateAvailable ? 'info' : 'success')
+}
 </script>
 
 <template>
@@ -46,7 +54,7 @@ async function save() {
         <div><span>最新版本</span><strong>{{ store.snapshot?.update?.latestVersion ? `v${store.snapshot.update.latestVersion}` : '尚未检查' }}</strong></div>
         <p>{{ store.snapshot?.update?.message || '启动后正在后台检查更新。' }}</p>
         <div class="action-bar">
-          <button class="btn btn-outline button secondary" @click="api.checkUpdates()"><RefreshCw :size="17" />检查更新</button>
+          <button class="btn btn-outline button secondary" @click="checkUpdates"><RefreshCw :size="17" />检查更新</button>
           <button class="btn btn-primary button primary" :disabled="!store.snapshot?.update?.updateAvailable" @click="store.installUpdate()"><Download :size="17" />安装更新</button>
         </div>
       </div>
@@ -72,3 +80,4 @@ async function save() {
     </section>
   </div>
 </template>
+

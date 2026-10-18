@@ -1,172 +1,130 @@
 # 安全与测试隔离
 
+本工具的写入能力只允许出现在两类明确状态之一：`ResidentPlayer`（Manager/Host 的常规会话，使用真实存档与平台行为）或 `IsolatedQa`（QA 脚本通过环境变量激活的隔离会话）。不存在“尽量隔离”的中间态；门禁不成立时插件保持只读，界面显示等待或不兼容。
+
 ## 基本原则
 
-AutoPlayer 是进程内灰盒自动游玩工具，不是完全黑盒输入测试。它有两种明确边界：玩家常驻模式允许手动启动后随时控制，直接使用玩家原存档与游戏原有平台行为；隔离 QA 模式用于可审计回归，不接触正常存档，并阻断当前已知的 Steam/IGP 成就、结算飞书上传和 Steam 重启入口。两种模式都不会自动开始操作，未知构建也不会盲目运行。
+- Fail-closed：任何门禁标志缺失、补丁安装失败或校验不一致，都进入只读状态，不降级、不猜测修复。
+- 写入可追溯：作弊写入会在 profile 留下标记，之后该 profile 的运行结果记为 `cheat-modified`。
+- 本机闭环：管道只接受本机连接，Editor 桥接只监听 `127.0.0.1`，令牌不进入界面、日志或产物。
+- 不改游戏二进制：通过 Harmony 在进程内挂接，不修改、不重签 `Assembly-CSharp.dll`。
 
-它不会修改磁盘上的 `Assembly-CSharp.dll`，但安装 BepInEx 会在游戏根目录增加 `winhttp.dll`、`doorstop_config.ini` 和 `BepInEx` 目录。测试“完全未注入的原始发布包”仍应另设一小套外部启动和渲染冒烟测试。
+## 激活模式与门禁
 
-Manager 安装后会为所选游戏创建当前 Windows 用户专用的玩家模式本机注册，绑定游戏根目录、协议、pipe、随机 token 和预期程序集哈希。因此手动启动游戏也能进入经过本机认证的待命状态，但不会自动开始游玩。隔离 QA 模式另行创建一次性激活上下文，并以进程环境或单次票据传入 QA profile、artifact、pipe、token 和预期程序集哈希。任何激活失败都不得开放控制；这些机制都不写入游戏程序集。
+| 标志 | ResidentPlayer | IsolatedQa |
+| --- | --- | --- |
+| `SaveIsolationApplied` | false | true |
+| `SaveIsolationVerified` | false | true |
+| `PlatformWritesBlocked` | false | true |
+| `GameArtifactsRedirected` | false | true |
 
-当前 BepInEx 与该 Unity Mono 构建组合在完整游戏路径包含非 ASCII 字符时会触发程序集 `CodeBase` 转换错误；这不是未注入游戏本体的路径限制。Manager 必须在安装和启动前拒绝该路径，并要求把测试包移到只含 ASCII 字符的目录。路径可以包含英文字母、数字和空格。
-
-## 失效即关闭门禁
-
-自动游玩只有在以下共同条件成立时才允许进入 Running：激活来自合法的玩家本机注册或一次性 QA 上下文；pipe 与 token 合法；工具状态目录未越界；当前游戏根目录、实际进程路径和 `Assembly-CSharp.dll` SHA-256 均匹配；产品身份、构建指纹和 `GuiGameAutomation.Runtime` 必需方法全部通过。
-
-模式门禁必须二选一且不能混用：
-
-- `ResidentPlayer`：`SaveIsolationApplied`、`SaveIsolationVerified`、`PlatformWritesBlocked` 和 `GameArtifactsRedirected` 必须全部为 false，确保玩家原存档和平台语义没有被 QA 补丁悄悄替换。
-- `IsolatedQa`：上述四项必须全部为 true，确保 QA 存档、平台写入和诊断产物隔离都已经安装并验证。
-
-任一条件失败都应显示明确原因并保持 Standby/Incompatible/Faulted，不能在两种模式之间静默降级。
+- 四个标志由插件启动时计算：补丁安装结果 + 二次校验结果。
+- 模式与标志必须完全匹配上表；混合状态（例如隔离已安装但未验证）一律不满足门禁。
+- 门禁结果通过 `hello` 上报。Host 只接受 `ResidentPlayer` 握手（即四个标志全为假），其他模式或标志组合一律拒绝建立可信连接；隔离 QA 不经过 Host，由 QA 脚本直连插件管道。
+- 不满足门禁时插件仍可上报状态，但拒绝所有写命令。
 
 ## 本机激活与 IPC
 
-- 玩家模式使用 `%LOCALAPPDATA%\LoopstructorAutoPlayer\control\installed-<root-id>.json` 中的稳定 pipe 和高熵 token，使同一用户手动启动的受信游戏能够被 Manager 发现；这不代表会自动开始游玩。
-- 玩家注册必须同时绑定规范化游戏根目录、协议和程序集指纹；卸载插件时应删除对应注册。不要把该文件提交、共享或复制到其他用户。
-- 隔离 QA 模式的 pipe 与 token 每次启动重新生成；票据最长有效期为 10 分钟，绑定游戏根目录，并在读取后立即删除，不能重放。
-- 每个 IPC 请求必须携带本次 token；请求 ID 只用于关联响应，不能替代认证。
-- Named Pipe 仅用于本机管理器与本次游戏进程。不要增加 TCP 监听或允许远程控制。
-- 日志和异常消息不得输出 token、完整票据或私有仓库凭据。
+- 数据根：`%LOCALAPPDATA%\LoopstructorAutoPlayer`。
+- 插件按优先级解析激活来源：
+  1. 进程环境变量（`LOOPSTRUCTOR_AUTOPLAYER_ENABLED=1` 及管道名、令牌等）→ `IsolatedQa`；
+  2. 本机控制注册 `control\installed-<game-id>.json` → `ResidentPlayer`（Manager/Host 启动的常规路径）；
+  3. 一次性启动票据 `tickets\launch-<game-id>.json` → `IsolatedQa`（兜底路径）。
+- 本机控制注册与启动票据都包含管道名（≤180 字符）、随机令牌（32–256 字符）、profile 根、产物根、期望的 `Assembly-CSharp.dll` SHA-256 与游戏根哈希；启动票据有效期 5 分钟、单次读取。
+- 每个请求携带令牌；令牌错误即断开。管道只接受本机连接；令牌与票据只通过进程环境、本机控制注册文件和管道传递，不写日志、不进入界面或产物。
+- 管道名、令牌、profile 根与产物根都经过校验：路径必须落在数据根对应子目录下，令牌长度与字符集受限。
+- Editor 实例登记在 `editor-instances\editor-<pid>.json`。
 
-## QA profile
+## 隔离 QA
 
-隔离 QA profile 必须位于：
+### 存档隔离
 
-```text
-%LOCALAPPDATA%\LoopstructorAutoPlayer\profiles\<game-id>\<qa-profile-id>
-```
+- 通过 Harmony 前缀重定向 `ActFramework_ByHZR.Save.SavePathUtility` 的存档根路径，使存档落到 `profiles\<game-id>\<profile>`。
+- 安装后做二次校验：反射读取 `SaveManager` 的实际存档路径，必须位于激活来源指定的 profile 根内；`SaveIsolationVerified` 只在二次校验通过后为 true。
+- `hello` 必须同时满足“已安装 + 已验证 + profile 与激活来源一致”，否则 Host 不建立可信连接；隔离 QA 由脚本侧自行校验 `hello`。
+- 隔离模式下的存档不属于游戏账号；切换 profile 不会影响真实存档，除非手动恢复。
 
-只有 `IsolatedQa` 会重定向游戏的存档路径契约。操作前应确认状态中同时显示：
+### 平台写入拦截
 
-- `SaveIsolationApplied = true`；
-- `SaveIsolationVerified = true`；
-- `IsolatedSaveRoot` 指向预期 QA profile；
-- 原始玩家存档目录没有新增或更新时间变化。
+四个入口全部安装成功才算 `PlatformWritesBlocked=true`：
 
-存档隔离是两阶段握手，而不是“补丁调用成功”即完成。插件先给 `SavePathUtility.GetCompanyAppDataPath` 及其内部实现安装 Harmony 前缀，再反射调用运行中的 `SaveManager.GetSaveFolderPath`，把实际解析路径与本次 profile 做规范化包含检查。Manager 的 `hello` 校验同时要求 `SaveIsolationApplied`、`SaveIsolationVerified` 和 profile 路径与启动票据一致；验证失败时拒绝控制。玩家模式不执行这两个阶段，并会拒绝任何意外出现的隔离标志。
+| 类型 | 方法 |
+| --- | --- |
+| `ActFramework_ByHZR.Achievements.Unit.SteamAchievementController` | `UnlockAchievement` |
+| `ActFramework_ByHZR.MainLoop.Version.PlatformAchievementBridge` | `ReportIGPAchievement` |
+| `MetroTD.UISystem.SettlementDataTotalManager` | `TryAutoSendResultOnce` |
+| `Steamworks.SteamAPI` | `RestartAppIfNecessary` |
 
-不要把已有玩家目录复制为 profile 根路径，也不要用符号链接把 QA profile 指回真实存档。需要测试旧档升级时，应复制一份脱敏存档到新的 QA profile，保留原始样本只读备份。
+- 前三个拦截成就与结算上报；`RestartAppIfNecessary` 被替换为返回 `false`，防止游戏因 AppID 判断重启进程。
+- 两种启动方式都通过进程环境变量注入 `SteamAppId` / `SteamGameId` = `3841840`（Steam 开发会话变量，避免 Steam 客户端替换所选构建）；不写 `steam_appid.txt`。
+- `ResidentPlayer` 不安装上述任何补丁，成就、结算与平台行为按真实环境执行。
 
-“继续游戏”只会继续本次隔离 QA profile 中已经存在的存档。该路径不会运行新局默认防线流程，也不会重建轨道、重新投放独立战车或移动站点，因此会保留存档中的既有布局。若需要可重复的新局布局，应使用新的空 QA profile，而不是在继续存档上强制重置。
+### 产物重定向
 
-隔离补丁目前覆盖游戏的 `SavePathUtility.GetCompanyAppDataPath` 契约。若新版游戏新增 PlayerPrefs、注册表、其他绝对路径或云存档写入，必须扩展并重新验证隔离门禁，不能假定它们自动受到保护。
+以下游戏写入被改写到产物根（`artifacts\<game-id>\<session>`）：
+
+- 调试日志目录：`GameDebugLogs\`（通过 `DefaultDebugLoggerHandler` / 日志对象的 `LogFilePath` 改写）。
+- 本地化启动日志：`LocalizationStartup.log`。
+- 结算数据：`GameSettlementData\`（`SettlementDataSaveManager`）。
+- 对象使用数据：`ObjectUseData\`（`ObjectPoolHandler` 的 CSV 导出）。
+
+四类全部重定向成功才置 `GameArtifactsRedirected=true`；缺少任一类说明游戏版本与契约不匹配，插件保持只读。
+
+## ResidentPlayer
+
+- 不安装存档隔离、平台写入拦截和产物重定向补丁；使用真实存档、真实成就与真实结算上报。
+- 同样由 Host 注入 `SteamAppId` / `SteamGameId` 环境变量后直接启动游戏（不经 Steam 客户端）。
+- 作弊写入直接修改真实存档，失败不可回滚；写入前请自行确认存档已备份。
+- 用于验证接近线上环境的实际行为；任何写入都会污染该 profile 的证据，运行结果记为 `cheat-modified`。
 
 ## 作弊模式
 
-作弊能力随可信 Manager 会话提供，但启用仍是独立的显式动作：
-
-- 不需要在启动前选择特殊作弊会话。通过握手的玩家模式或隔离 QA 进程都携带作弊能力，实际功能仍需在独立作弊工具窗口中手动开启；
-- 玩家模式直接修改当前玩家存档，工具不会自动备份或回滚；隔离 QA 模式只修改当前测试 profile。两种模式的写命令执行前都会在工具状态目录原子创建持久作弊标记；标记失败时拒绝写入；
-- 玩家模式只有在 QA 存档、平台和产物补丁全部未启用时才能开启作弊；隔离 QA 模式只有在三类门禁全部验证后才能开启。作弊协议不匹配或未手动启用时，写命令全部拒绝；
-- 仅携带或实际开启作弊能力都不阻止自动游玩。自动游玩运行或暂停期间，插件只允许启用/关闭作弊模式、查询目录/战车/敌人，以及切换敌人 ID 和 Buff 覆盖层；其余作弊命令在插件端拒绝，Manager 同时禁用相应写控件；
-- 敌人 ID 和 Buff 覆盖层只改变本地诊断显示，不创建作弊存档标记，也不设置 `CheatUsed`。其他已授权作弊写尝试仍会先创建持久标记并设置 `CheatUsed`，后续自动游玩结果标为 `cheat-modified`；只有自动化故障或无法判断是否发生部分写入时才设置 `NeedsProcessRestart`；
-- 自动游玩开始时可以保留已启用的敌人 ID/Buff 监视，但基地无敌或地图节点自由跳转仍在开启时，插件必须拒绝 `start` 并要求用户显式关闭；不能假定一次无回执的清理已经成功；
-- 场景切换会关闭基地无敌、敌人 ID 显示、怪物位置捕获、已保存生成点、场上弹射点点击删除和地图跳关等瞬态功能。Manager 连接或心跳租约丢失时，插件会自动关闭作弊模式和全部瞬态功能，不能留下无人控制的持续修改；
-- 作弊操作写入本次 artifact 下的审计记录；不得把 token、票据或私有仓库凭据写入审计文件。
-
-高风险动作额外失效即关闭：结束波次只接受正在进行的普通非 Boss 波次；模板锁定、没有活动波次或 Boss 波一律拒绝。地图跳关只临时开放当前进度之后的节点，当前进度层及历史层继续按游戏原生规则隐藏；活动波次、运行节点、待选子关卡、陈旧阶段请求、跨阶段和失效目标一律拒绝；执行失败时恢复原阶段和路径，恢复失败则自动关闭该功能。生成怪物只接受当前游戏配置中具有有效预制体的普通敌人白名单，Boss 和特殊波单位不能生成，并继续执行数量、坐标和对象有效性限制；批量生成在指定半径内保持间距，每个对象还必须通过敌方阵营、敌方碰撞层、战斗系统和可受击状态验证，否则立即回收。清除敌人只清除当前已经生成的对象，不改变波次后续生成计划，避免把“清屏”误当成正常完成波次。
-
-作弊工具支持获取或删除带任意数量、任意 `int` 层数自选附魔的战车、编辑已有战车附魔（`0` 级移除目标项）、分别获取或清空消耗品和弹射点、单删/清空场上弹射点或开启精确碰撞命中的点击删除、基地无敌、结束波次、清除敌人、修改车辆或敌人、显示敌人 ID，以及获取、删除、一键补齐或逐帧删除全部遗物。遗物批任务互斥并逐帧执行、逐项验证，避免单帧集中实例化或卸载。消耗品与弹射点目录来自同一 `AllDisposableRewards` 唯一集合，并按是否直接运行 `CreateFreeStation...` 创建站点互斥分类；自动使用后才奖励站点的道具仍归消耗品。所有选择器同时显示中文名、枚举名和图标，并可按中文名、枚举名或稳定 ID 搜索；对象战车还显示已有附魔图标。怪物生成点可在捕获状态下用左 Alt 加鼠标左键反复添加，游戏内显示编号十字与坐标，工具中可单删或清空。生成默认复用当前波次 `CurrentAILevel` 及游戏正式难度倍率链，显式自定义等级才覆盖；每点按半径分散，生成后还要通过阵营、碰撞、战斗和可受击校验。玩家模式使用这些能力前应备份存档；任何带作弊标记的结果都不得与干净回归结果混合统计。
-
-## Steam 与 IGP 写入
-
-只有隔离 QA 会话会阻断当前已知成就写入入口：
-
-```text
-ActFramework_ByHZR.Achievements.Unit.SteamAchievementController.UnlockAchievement
-ActFramework_ByHZR.MainLoop.Version.PlatformAchievementBridge.ReportIGPAchievement
-MetroTD.UISystem.SettlementDataTotalManager.TryAutoSendResultOnce
-Steamworks.SteamAPI.RestartAppIfNecessary
-```
-
-`PlatformWritesBlocked` 只有在上述四个入口全部找到并成功安装补丁时才为 true；少一个都视为隔离 QA 门禁失败。玩家模式不安装这些补丁，`PlatformWritesBlocked` 必须为 false。该保证只覆盖已经识别并成功补丁的入口，不代表 Steam Cloud、统计、排行榜、购买、遥测或第三方 SDK 的所有网络写入均被阻断。
-
-即使已知写入全部被拦截，Steam 在线状态、游戏时长、Overlay、客户端启动记录以及第三方 SDK 的连接行为仍可能留下平台侧痕迹。要求“零平台痕迹”时，应使用不含平台 SDK 的测试包；做不到时至少使用离线环境和专用测试账号，不能依赖本补丁保护正式账号。
-
-游戏更新后若类型或方法签名改变，应把构建标记为不兼容，更新补丁和测试后再恢复自动运行。
-
-激活会话还会把 `GameSettlementData`、`ObjectUseData`、本地化启动日志和已注册的游戏调试日志重定向到本次 artifact。`GameArtifactsRedirected` 未通过时自动运行保持不兼容，避免清空或污染游戏目录中人工测试留下的诊断文件。
-
-Manager 仅在隔离 QA 启动的子进程中设置 `SteamAppId=3841840` 与 `SteamGameId=3841840`，并让 `RestartAppIfNecessary` 返回 false；它不会创建 `steam_appid.txt` 或修改永久环境。玩家模式不注入 AppID，也不拦截平台行为。Steam API 初始化与许可证校验仍照常执行，工具不会伪造许可或绕过 `SteamAPI_Init`。
+- 只对可信连接开放；命令必须命中白名单（`CheatCommands.All`），未知命令直接拒绝。
+- 连接建立后 Host 会自动开启作弊模式；只要插件未报告已启用，就每 5 秒重试一次。
+- 自动游玩运行期间只允许只读观察命令（查询、覆盖层开关、状态读取）；写入类命令返回拒绝。
+- 连接中断、心跳丢失或令牌失效时，插件关闭作弊模式。
+- 写入类命令执行前在 profile 根原子创建标记 `.loopstructor-autoplayer-cheat-tainted.json`；标记存在时，该 profile 后续运行结果统一为 `cheat-modified`。
+- 高风险操作（结束波次、地图节点跳过、刷怪、清怪、基地无敌）先校验当前游戏状态（波次、目标、预制体、开关前置条件等），条件不满足时返回失败，不尽力执行。
+- 控制命令按请求 ID 去重：相同 ID 携带不同命令会被拒绝，网络/超时重试不会重复执行同一次写入。
 
 ## 对游戏文件的影响
 
-- 不修改、重签名或替换 `Assembly-CSharp.dll`。
-- 读取 `Assembly-CSharp.dll`、Build GUID、Unity 版本等信息用于兼容性判定。
-- Harmony 只修改当前进程中的方法执行路径；进程退出后失效。
-- 安装器只能管理自己清单中的文件。若游戏已有其他 BepInEx 插件，不得用“删除整个 BepInEx 目录”的方式卸载。
-- 更新或卸载必须在游戏和管理器相关进程退出后执行。
+- 不修改、不重签 `Assembly-CSharp.dll`；只读取它计算 SHA-256，并读取构建 GUID 和 Unity 版本用于身份校验。
+- Harmony 补丁只存在于游戏进程内存，退出即消失。
+- 插件安装器只管理自己清单内的文件（`BepInEx\plugins\Loopstructor.AutoPlayer\`、BepInEx 配置项）；不删除整个 `BepInEx` 目录，不触碰其他插件。
+- 安装、卸载、更新都要求相关进程已退出；运行中只允许禁用/启用这类可逆操作。
 
 ## 运行中保护
 
-- 自动玩家通过 `GuiGameAutomation.Runtime` 调用游戏正常流程，不移动真实鼠标、不发送系统键盘事件，因此可在后台测试。
-- 后台运行不代表可以忽略图形设备或窗口生命周期；最小化、失焦和设备重置仍应纳入回归用例。
-- 连续失败和停滞检测会停止动作。不得通过无限提高阈值来掩盖新版不兼容。
-- Faulted 后先保存状态、日志和截图。普通战败、超时和只读失败保留同进程重试能力；只有 `NeedsProcessRestart=true` 时才结束并重启游戏进程。不要自动删除失败现场。
-- `pause` 只暂停自动决策，游戏本身是否继续计时由游戏状态决定；需要冻结游戏时应使用游戏明确支持的暂停流程。
+- 自动游玩通过游戏内 API 操作，不注入真实鼠标键盘事件；自动游玩本身不改变前台窗口（QA 脚本截图前会尝试前置游戏窗口，未前置时写出提示文件）。
+- 连续失败、长时间无进展或状态无法确认时停止自动游玩并记录原因。
+- `Faulted` 时先保留存档状态、日志与截图证据，再决定是否停止。
+- 只有 `NeedsProcessRestart` 场景要求结束游戏进程；暂停只暂停决策，不改变游戏时间或进程状态。
 
 ## 游戏动作与污染处理
 
-- 新局默认防线只在通过普通/随机模式提交后执行。无回路、无运行或等待战车等“干净但尚未就绪”的失败可以继续轮询，不计为连续命令失败；继续已有隔离存档不会执行该流程。
-- 默认防线会把子命令结果嵌套在返回结构中。检查器只沿当前写命令的有效结果包查找 `statePolluted = true` 或 `needsReset = true`，并跳过 `before`、`previous`、`old*`、`history` 等历史快照。动力站点步骤曾提交但后续失败时，必须验证最终轨道、运行战车、FIFO 等待顺序及合法回包身份：已回到干净检查点可以重试；无法确认完整回滚才按 Unsafe 处理、停止动作并要求全新游戏进程。只读查询失败不属于状态污染。
-- “状态被污染”描述的是命令报告的游戏运行态不再可证明一致，不是报告文件或游戏存档损坏。战败、动画等待超时、无可用选项和普通查询失败都不得仅凭失败本身升级为污染。
-- 前端写操作仅在游戏全局模块和当前场景 Main 均完成初始化、且就绪状态跨一个轮询周期保持稳定后发出。进入 `NewGameScene` 后若仍可选择路线或子关卡，必须先完成路线流程，再准备默认防线。
-- 路线决策只接受 `canPlayerSelect = true` 的候选；该值由节点当前的 ready/可用状态共同决定。候选为空或全部不可选时必须等待，不能让 `FirstOrDefault` 把“无结果”解释成 `readyIndex = 0`。
-- `selectMapNode` 的命令成功还必须带回已提交的 `chooseNode` 或 `pendingSubLevelNode`。插件会再次检查该后置条件；只有调用返回成功、但没有产生节点状态变化时，仍按失败处理，不能每个 Tick 重复点击同一节点。
-- 普通事件跳过只允许点击当前 `EventUI_Normal` 的真实 Skip 按钮；轨神事件不进入该路径。目标型战斗道具只能使用当前 MCP 查询中 `conditionPass=true` 且身份稳定的候选，弹射点扩建资源禁止交给战斗道具策略。
-- 独立战车投放、轨道插点、普通/动力点放置、特殊点移动和装修厂升级属于身份锁定写事务。命令一旦发出，即使返回 Pending、查询暂时失败、用户请求暂停或停止，也只能继续只读对账；不得重发写命令或清空事务身份。只有确认同一战车已运行或进入 FIFO 队列、目标身份与轨道结构符合预期，或装修厂阶段及附魔变化已收敛后才解除门禁。容量不足属于确定性拒绝，不重试；容量收缩导致的回包属于合法结果。
+- 开局默认防御准备只在正常/随机模式的新运行中执行；继续已有存档时从场上现有防线继续，不重建开局防御。
+- `statePolluted` / `needsReset` 只根据当前写操作的结果信封判定，忽略上一轮、历史轮和旧对象的结果。
+- 前端写操作只在全局模块与场景 `Main` 稳定后发送；路由选择只考虑 `canPlayerSelect=true` 的节点；普通事件跳过只认真实的 `EventUI_Normal` 跳过按钮。
+- 载具部署、轨道插入、弹射点放置、工坊升级等独立写操作按对象身份锁定，只读对账，失败不重发。
 
 ## 证据与隐私
 
-artifact 目录可能包含：游戏截图、存档路径、构建版本、程序集哈希、当前路线、奖励和错误信息。上传 CI 或 GitHub Issue 前应检查是否包含账号名、绝对路径或未公开内容。
-
-建议的保留策略：
-
-- 成功运行只保留摘要和关键指标；
-- 失败运行保留完整状态、日志和截图；
-- token 与启动票据永不归档；
-- QA profile 按测试批次清理，清理前确认路径位于工具的 `profiles` 根目录。
+- 产物根包含截图、日志、`game-errors.log`、结算数据和路径信息；只保存在本机，不上传。
+- 令牌、票据、管道名不写入产物、日志或界面。
+- Editor 会话产物单独放在 `artifacts\editor\<project-id>`，不与 Player 产物混放。
 
 ## 每次运行检查表
 
-运行前：
+1. 游戏根路径为 ASCII，`Assembly-CSharp.dll` 指纹与预期一致。
+2. 激活来源明确：Manager 会话为 `ResidentPlayer`（已接受真实存档风险）；隔离 QA 用独立 profile 运行 `scripts/run-autoplay-qa.ps1`。
+3. 插件状态为已启用，控制器/键盘/鼠标未被本工具接管。
+4. 自动游玩开始前确认作弊开关所需状态；运行中不要手动操作游戏。
+5. 停止后检查时间线、`game-errors.log` 与产物目录，再决定是否恢复存档。
 
-- 确认选择的是打包游戏，不是 Unity 工程目录；
-- 记录 `Assembly-CSharp.dll` SHA-256，并确认构建在兼容清单中；
-- 玩家模式先备份重要存档；隔离 QA 模式创建新的 profile 或明确选择可丢弃的旧 profile；
-- 隔离 QA 模式确认 Steam/IGP 使用 QA 账号或离线环境；
-- 确认证据磁盘空间充足。
-- 需要作弊时不必单独选择启动会话；玩家模式确认接受修改当前存档，隔离 QA 模式确认 profile 可丢弃。
+## 已知限制
 
-握手后：
-
-- 检查产品身份、指纹和 runtime contract 全部通过；
-- 玩家模式检查四个 QA 隔离标志均为 false；隔离 QA 模式检查它们均为 true；
-- 确认真实 PID、进程路径、程序集指纹和运行时契约均通过后再发送 `start`；
-- 自动游玩期间需要观察怪物时，可直接打开作弊工具并手动启用监视，再开启敌人 ID 或 Buff；此时资源、属性、波次和生成等写操作保持锁定。
-
-运行后：
-
-- 停止自动玩家并正常退出游戏；
-- 隔离 QA 模式检查真实存档和平台账号没有测试写入；玩家模式检查实际存档变化符合预期；
-- 归档失败证据并记录游戏构建哈希；
-- 尝试过作弊写操作后，后续结果会保持 `cheat-modified`；需要干净测试证据时使用新的隔离 QA profile 与进程；
-- 需要卸载时只删除工具拥有的文件。
-
-## 已知测试真实性限制
-
-BepInEx、Harmony 和反射调用都会改变进程内环境，因此本工具可以验证大量玩法逻辑与长时间稳定性，但不能单独证明以下内容：
-
-- 原始正式包在完全无注入环境下启动正常；
-- 真实鼠标、键盘、手柄、焦点切换和输入映射正常；
-- 启动器、覆盖层、反作弊或平台客户端集成正常；
-- 所有动画与 UI 点击区域可由玩家实际完成。
-
-当前构建还有两个已知环境/游戏观察项，不应被自动玩家隐藏：
-
-- 普通模式与随机模式均已完成 2 波启动、1 波完成的跨波验证。随机转盘离场后，游戏仍会从 `RandomMode_TurnTableManager.StopDecorateAnimation` 的延迟回调记录非致命 `Animator.Play` 空引用；该异常未被 Harmony 屏蔽，需由游戏侧继续修复。
-- 本机/账号对 Steam AppID `3841840` 的 `SteamAPI_Init` 许可校验失败；涉及 Steam 初始化的结果只能在有许可环境或无平台测试包中复验。
-
-这些项目应由独立黑盒冒烟测试补充。
+- BepInEx 注入后无法证明游戏以“未注入原始状态”启动；需要该前提的测试不能用本工具完成。
+- 通过游戏内 API 操作，不能证明真实输入路径、反作弊或覆盖层兼容性。
+- `RandomMode_TurnTableManager.StopDecorateAnimation` 在部分转盘离场时会打印 `Animator.Play` 空引用；为游戏侧非致命日志，不影响自动游玩结果。
+- 本机无 AppID 3841840 的授权，`SteamAPI_Init` 会失败并打印日志；隔离 QA 通过环境变量与 `RestartAppIfNecessary` 补丁规避重启，不代表 Steam 功能可用。

@@ -1,5 +1,5 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { mount } from '@vue/test-utils'
+import { mountWithTooltip } from './helpers/mount'
 import { beforeEach, describe, expect, it } from 'vitest'
 import VehiclesPage from '../src/pages/VehiclesPage.vue'
 import { useAppStore } from '../src/stores/app'
@@ -18,10 +18,9 @@ describe('vehicle catalog presentation', () => {
       enchantments: [],
     }
 
-    const wrapper = mount(VehiclesPage, {
+    const wrapper = mountWithTooltip(VehiclesPage, {
       global: {
         stubs: { CatalogCard: true, VirtualCatalogGrid: true },
-        directives: { tooltip: () => undefined },
       },
     })
 

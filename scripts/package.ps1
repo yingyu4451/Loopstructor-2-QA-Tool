@@ -483,7 +483,6 @@ foreach ($requiredManagerFile in @(
     }
 }
 
-$bundledManagerExecutable = Join-Path $managerOutput 'Loopstructor-2-QA-Tool.exe'
 $bundledUpdaterExecutable = Join-Path $managerOutput 'Loopstructor.AutoPlayer.Updater.exe'
 
 $launcherFiles = @(Get-ChildItem -LiteralPath $launcherOutput -Recurse -File -Force)
@@ -508,7 +507,9 @@ $excludedRuntimePatterns = @(
     'HarmonyXInterop*',
     'Mono.Cecil*',
     'MonoMod.*',
-    'UnityEngine*'
+    'UnityEngine*',
+    '*.pdb',
+    '*.xml'
 )
 
 Get-ChildItem -LiteralPath $pluginOutput -File | Where-Object {

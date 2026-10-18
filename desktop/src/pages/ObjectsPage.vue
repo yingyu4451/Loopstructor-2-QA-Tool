@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { RefreshCw, TrainFront, Bug, Save, Trash2 } from '../icons'
+import { Bug, RefreshCw, Save, TrainFront, Trash2 } from '@lucide/vue'
 import { useAppStore } from '../stores/app'
 
 const store = useAppStore()
@@ -98,3 +98,4 @@ async function setEnchantment() {
     </section>
   </div>
 </template>
+

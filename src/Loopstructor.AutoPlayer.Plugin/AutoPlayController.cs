@@ -7197,6 +7197,22 @@ internal sealed class AutoPlayController
         }
     }
 
+    internal JObject InvokeNativeCommand(string command, JObject? arguments = null)
+    {
+        try
+        {
+            return _bridge.InvokeNativeCommand(command, arguments);
+        }
+        catch (Exception exception)
+        {
+            return new JObject
+            {
+                ["success"] = false,
+                ["message"] = "调用游戏原生命令失败：" + exception.GetBaseException().Message
+            };
+        }
+    }
+
     private bool IssueGuardedDefenseMutation(
         AutomationAction action,
         string mutationIdentity,

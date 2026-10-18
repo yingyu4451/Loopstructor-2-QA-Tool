@@ -12,6 +12,7 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: { parser: tseslint.parser },
       globals: {
+        __APP_VERSION__: 'readonly',
         console: 'readonly', crypto: 'readonly', document: 'readonly', HTMLElement: 'readonly',
         MouseEvent: 'readonly', ResizeObserver: 'readonly', structuredClone: 'readonly', window: 'readonly',
       },

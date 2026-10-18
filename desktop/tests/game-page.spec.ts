@@ -1,5 +1,5 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { mount } from '@vue/test-utils'
+import { mountWithTooltip } from './helpers/mount'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import GamePage from '../src/pages/GamePage.vue'
 import { useAppStore } from '../src/stores/app'
@@ -21,7 +21,7 @@ describe('game page controls', () => {
       logs: [],
     }
 
-    const wrapper = mount(GamePage)
+    const wrapper = mountWithTooltip(GamePage)
     const heading = wrapper.get('.game-location .section-heading')
 
     expect(wrapper.find('.page-heading').exists()).toBe(false)
@@ -49,7 +49,7 @@ describe('game page controls', () => {
       logs: [],
     }
 
-    const wrapper = mount(GamePage)
+    const wrapper = mountWithTooltip(GamePage)
 
     expect(wrapper.get('.editor-section').text()).toContain('D:\\Unity Project\\Loopstructor2')
     expect(wrapper.get('.editor-section').text()).toContain('2022.3.62f3c1')

@@ -54,11 +54,17 @@ function Get-LocalDotNet {
     }
 
     Set-DotNetEnvironment -DotNetRoot $dotNetRoot
-    $actualVersion = (& $dotNet --version).Trim()
+    $versionOutput = @(& $dotNet --version)
     if ($LASTEXITCODE -ne 0) {
         throw "Unable to execute the local .NET SDK at $dotNet."
     }
 
+    $actualVersion = [string]($versionOutput | Select-Object -Last 1)
+    if ([string]::IsNullOrWhiteSpace($actualVersion)) {
+        throw "The local .NET SDK at $dotNet did not report a version."
+    }
+
+    $actualVersion = $actualVersion.Trim()
     $expectedVersion = Get-ExpectedSdkVersion
     if ($actualVersion -ne $expectedVersion) {
         throw "Local .NET SDK version '$actualVersion' does not match the pinned version '$expectedVersion'."

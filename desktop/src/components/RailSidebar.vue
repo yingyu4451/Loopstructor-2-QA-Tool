@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import {
-  Gamepad2, Bot, TrainFront, PackageOpen, Gem, Swords, ScanSearch, BugPlay,
-  Activity, Settings, ChevronLeft, ChevronRight, ArchiveClock,
-} from '../icons'
+  Activity, Bot, BugPlay, ChevronLeft, ChevronRight, Gamepad2, Gem, History as ArchiveClock,
+  PackageOpen, ScanSearch, Settings, Swords, TrainFront,
+} from '@lucide/vue'
 import type { Component } from 'vue'
 import type { RouteKey } from '../types'
 import { useAppStore } from '../stores/app'
 
 const store = useAppStore()
-const api = window.loopstructorDesktop
 const groups: Array<{ label: string; items: Array<{ key: RouteKey; label: string; icon: Component }> }> = [
   { label: '系统', items: [
     { key: 'game', label: '游戏与插件', icon: Gamepad2 },
@@ -29,8 +28,10 @@ const groups: Array<{ label: string; items: Array<{ key: RouteKey; label: string
 
 async function toggle() {
   if (!store.snapshot) return
-  store.snapshot.settings.sidebarCollapsed = !store.snapshot.settings.sidebarCollapsed
-  await api.saveSettings(store.snapshot.settings)
+  const previous = store.snapshot.settings.sidebarCollapsed
+  store.snapshot.settings.sidebarCollapsed = !previous
+  const saved = await store.saveSettings(store.snapshot.settings, false)
+  if (!saved && store.snapshot) store.snapshot.settings.sidebarCollapsed = previous
 }
 </script>
 

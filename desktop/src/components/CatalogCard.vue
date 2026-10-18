@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ImageOff, Check } from '../icons'
+import { Check, ImageOff } from '@lucide/vue'
 import { computed } from 'vue'
 import type { CatalogItem } from '../types'
 
@@ -45,3 +45,4 @@ const detail = computed(() => [
     <span v-if="selected" class="selected-badge"><Check :size="13" /></span>
   </button>
 </template>
+

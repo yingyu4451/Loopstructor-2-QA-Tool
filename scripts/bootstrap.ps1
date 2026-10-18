@@ -88,8 +88,14 @@ try {
     Expand-Archive -LiteralPath $archivePath -DestinationPath $stagingRoot
 
     $stagedDotNet = Join-Path $stagingRoot 'dotnet.exe'
-    $stagedVersion = (& $stagedDotNet --version).Trim()
-    if ($LASTEXITCODE -ne 0 -or $stagedVersion -ne $sdkVersion) {
+    $stagedOutput = @(& $stagedDotNet --version)
+    if ($LASTEXITCODE -ne 0) {
+        throw "The extracted .NET SDK at $stagedDotNet could not be executed."
+    }
+
+    $stagedVersion = [string]($stagedOutput | Select-Object -Last 1)
+    $stagedVersion = $stagedVersion.Trim()
+    if ($stagedVersion -ne $sdkVersion) {
         throw "The extracted SDK reported '$stagedVersion' instead of '$sdkVersion'."
     }
 

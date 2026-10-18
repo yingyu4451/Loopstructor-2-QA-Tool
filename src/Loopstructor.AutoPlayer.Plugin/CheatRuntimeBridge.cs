@@ -361,6 +361,12 @@ internal sealed class CheatRuntimeBridge
     public IReadOnlyList<string> MissingMembers => _missingMembers;
     public IReadOnlyList<string> Capabilities => IsAvailable ? CheatCommands.All : Array.Empty<string>();
 
+    /// <summary>
+    /// 由控制器注入的原生命令派发器；用于把已验证的游戏 MCP 命令直接提交给运行时。
+    /// 未注入时，依赖原生通道的作弊命令会如实返回不可用，而不是静默无效。
+    /// </summary>
+    internal Func<string, JObject?, JObject>? NativeCommandInvoker { get; set; }
+
     public void Initialize(string artifactRoot, Action<string>? warningLogger = null)
     {
         _artifactRoot = Path.GetFullPath(artifactRoot);
@@ -1418,132 +1424,49 @@ internal sealed class CheatRuntimeBridge
     public CheatExecutionResult SkipRewardPopup()
     {
         EnsureAvailable();
-        Type? rewardPanelType = FindType("MetroTD.RewardSystem.RewardUIPanel");
-        if (rewardPanelType == null)
+        Func<string, JObject?, JObject>? invoker = NativeCommandInvoker;
+        if (invoker == null)
         {
             return CheatExecutionResult.Fail(
-                "当前游戏版本没有可识别的奖励面板。",
-                "REWARD_PANEL_API_MISSING");
+                "当前没有可用的原生奖励跳过通道；游戏已移除旧版奖励队列，本次未跳过。",
+                "REWARD_SKIP_UNAVAILABLE");
         }
 
-        object? panel = TryGetSingleton(rewardPanelType);
-        object? currentItem = GetMember(panel, "m_currentQueueItem");
-        bool panelActive = panel != null
-                           && (GetMember(panel, "IsActive") is bool active ? active : GetBool(panel, "m_enter"));
-        if (panel == null || !panelActive || currentItem == null)
-        {
-            return CheatExecutionResult.Fail(
-                "当前没有正在显示且可以跳过的奖励弹窗。",
-                "REWARD_POPUP_NOT_OPEN");
-        }
-
-        object? itemType = GetMember(currentItem, "itemType");
-        string itemTypeName = itemType?.ToString() ?? "Unknown";
-        bool mandatory = GetBool(currentItem, "isMandatory");
-        int remainingSelections = Math.Max(1, GetInt(currentItem, "remainingSelectionCount"));
-        int pendingBefore = GetCollectionCount(GetMember(panel, "m_currentRewardQueneItems"));
-        bool mutationStarted = false;
-
+        JObject result;
         try
         {
-            if (!mandatory)
-            {
-                MethodInfo? skip = FindMethod(rewardPanelType, "SkipHandle");
-                if (skip == null)
-                {
-                    return CheatExecutionResult.Fail(
-                        "当前游戏版本缺少奖励弹窗的原生跳过入口。",
-                        "REWARD_SKIP_API_MISSING");
-                }
-
-                mutationStarted = true;
-                skip.Invoke(panel, null);
-            }
-            else
-            {
-                MethodInfo? useCurrent = FindMethodByParameterCount(rewardPanelType, "UseCurrent", 1);
-                if (useCurrent == null)
-                {
-                    return CheatExecutionResult.Fail(
-                        "当前游戏版本缺少奖励队列的安全推进入口。",
-                        "REWARD_ADVANCE_API_MISSING");
-                }
-
-                mutationStarted = true;
-                if (remainingSelections > 1)
-                {
-                    SetMemberValue(currentItem, "remainingSelectionCount", 1);
-                }
-                useCurrent.Invoke(panel, new object?[] { null });
-
-                DispatchRewardJump(itemType);
-                RequestGameSave(nameof(SkipRewardPopup));
-            }
-
-            MethodInfo? updateImmediately = FindMethod(rewardPanelType, "UpdateImmediately");
-            if (updateImmediately == null)
-            {
-                return CheatExecutionResult.Partial(
-                    "当前奖励已标记为跳过，但游戏缺少立即推进队列的入口；请等待下一帧确认弹窗是否关闭。",
-                    new JObject
-                    {
-                        ["itemType"] = itemTypeName,
-                        ["mandatory"] = mandatory,
-                        ["remainingSelections"] = remainingSelections
-                    });
-            }
-
-            updateImmediately.Invoke(panel, null);
-            object? currentAfter = GetMember(panel, "m_currentQueueItem");
-            bool activeAfter = GetMember(panel, "IsActive") is bool afterActive
-                ? afterActive
-                : GetBool(panel, "m_enter");
-            int pendingAfter = GetCollectionCount(GetMember(panel, "m_currentRewardQueneItems"));
-            bool advanced = !activeAfter
-                            || !ReferenceEquals(currentItem, currentAfter)
-                            || pendingAfter < pendingBefore;
-            JObject data = new()
-            {
-                ["itemType"] = itemTypeName,
-                ["mandatory"] = mandatory,
-                ["remainingSelections"] = remainingSelections,
-                ["pendingBefore"] = pendingBefore,
-                ["pendingAfter"] = pendingAfter,
-                ["panelClosed"] = !activeAfter,
-                ["queueAdvanced"] = advanced
-            };
-            if (!advanced)
-            {
-                return CheatExecutionResult.Partial(
-                    "游戏没有确认奖励队列已经前进；为避免重复操作，未继续发送跳过命令。",
-                    data);
-            }
-
-            return CheatExecutionResult.Changed(
-                activeAfter ? "已放弃当前奖励，并推进到下一项奖励。" : "已放弃当前奖励并关闭奖励弹窗。",
-                data);
+            result = invoker("skipReward", null);
         }
         catch (Exception exception)
         {
-            Exception error = Unwrap(exception);
-            return mutationStarted
-                ? CheatExecutionResult.Partial(
-                    "奖励跳过流程已经开始，但后续确认失败：" + error.Message,
-                    new JObject
-                    {
-                        ["itemType"] = itemTypeName,
-                        ["mandatory"] = mandatory,
-                        ["remainingSelections"] = remainingSelections
-                    })
-                : CheatExecutionResult.Fail("跳过奖励弹窗失败：" + error.Message, "REWARD_SKIP_FAILED");
+            return CheatExecutionResult.Fail(
+                "跳过奖励弹窗失败：" + Unwrap(exception).Message,
+                "REWARD_SKIP_FAILED");
         }
-    }
 
-    private static void DispatchRewardJump(object? itemType)
-    {
-        if (itemType == null) return;
-        Type? eventType = FindType("MetroTD.RewardSystem.RewardJumpEventHandler");
-        FindMethod(eventType, "Throw", itemType.GetType())?.Invoke(null, new[] { itemType });
+        bool success = result["success"]?.Value<bool>() == true;
+        string message = result["message"]?.Value<string>() ?? string.Empty;
+        JObject data = new()
+        {
+            ["nativeCommand"] = "skipReward",
+            ["nativeMessage"] = message
+        };
+        if (result["data"] is JObject nativeData)
+        {
+            data["nativeData"] = nativeData.DeepClone();
+        }
+
+        if (!success)
+        {
+            return CheatExecutionResult.Fail(
+                string.IsNullOrWhiteSpace(message) ? "游戏拒绝了本次奖励跳过请求。" : message,
+                "REWARD_SKIP_REJECTED",
+                data);
+        }
+
+        return CheatExecutionResult.Changed(
+            string.IsNullOrWhiteSpace(message) ? "已请求游戏原生奖励跳过。" : message,
+            data);
     }
 
     public JObject QueryVehicles()
@@ -3729,12 +3652,6 @@ internal sealed class CheatRuntimeBridge
             parameters,
             null);
 
-    private static MethodInfo? FindMethodByParameterCount(Type? type, string name, int parameterCount) =>
-        type?.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.FlattenHierarchy)
-            .FirstOrDefault(method =>
-                string.Equals(method.Name, name, StringComparison.Ordinal)
-                && method.GetParameters().Length == parameterCount);
-
     private static object ParseEnum(Type type, string value, string displayName)
     {
         try
@@ -4952,8 +4869,6 @@ internal sealed class CheatRuntimeBridge
     }
 
     private static bool GetBool(object target, string name) => GetMember(target, name) is bool value && value;
-
-    private static int GetCollectionCount(object? source) => source is ICollection collection ? collection.Count : 0;
 
     private static int GetDictionaryListCount(object? source, object key)
     {

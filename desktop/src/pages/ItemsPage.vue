@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Search, Trash2, PackageOpen, MapPin } from '../icons'
+import { MapPin, PackageOpen, Search, Trash2 } from '@lucide/vue'
 import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
 import type { CatalogItem } from '../types'
@@ -70,3 +70,4 @@ async function setFieldDeleteMode(enabled: boolean) {
     </section>
   </div>
 </template>
+

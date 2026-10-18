@@ -283,6 +283,7 @@ function registerUpdaterIpc(distributionRoot: string, managerDirectory: string):
     })
     updaterProcess.on('error', (error) => {
       updaterFinished = true
+      updaterProcess = undefined
       window?.webContents.send('updater:event', { event: 'error', payload: { message: error.message } })
     })
     updaterProcess.on('exit', (code, signal) => {

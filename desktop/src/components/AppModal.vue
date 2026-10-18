@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { X } from '../icons'
+import { X } from '@lucide/vue'
 import { useUiStore } from '../stores/ui'
 import managerLogo from '../../../assets/branding/manager-logo-256.png'
 const ui = useUiStore()
@@ -20,3 +20,4 @@ const ui = useUiStore()
     </section>
   </div>
 </template>
+

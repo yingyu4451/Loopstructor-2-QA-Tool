@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, toRaw, watch } from 'vue'
-import { Activity, Bot, OctagonX, Pause, Play, RefreshCw, ShieldAlert } from '../icons'
+import { Activity, Bot, OctagonX, Pause, Play, RefreshCw, ShieldAlert } from '@lucide/vue'
 import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
 import type { ManagerSettings } from '../types'
@@ -69,7 +69,8 @@ async function refreshSetup() {
 
 async function start() {
   if (!draft.value) return
-  await store.saveSettings(draft.value, false)
+  const saved = await store.saveSettings(draft.value, false)
+  if (!saved) return
   await store.startAutomation()
 }
 
@@ -134,3 +135,4 @@ onMounted(refreshSetup)
     </div>
   </div>
 </template>
+

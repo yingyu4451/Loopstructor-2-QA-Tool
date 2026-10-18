@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, toRaw, watch } from 'vue'
-import { ArchiveClock, BackupRestore, FolderOpen, RefreshCw, Save } from '../icons'
+import { FolderOpen, History as ArchiveClock, RefreshCw, RotateCcw as BackupRestore, Save } from '@lucide/vue'
 import type { ManagerSettings, SaveBackupEntry } from '../types'
 import { useAppStore } from '../stores/app'
+import { useUiStore } from '../stores/ui'
 
 const store = useAppStore()
+const ui = useUiStore()
 const api = window.loopstructorDesktop
 const cloneSettings = (settings: ManagerSettings): ManagerSettings => ({
   ...structuredClone(toRaw(settings)),
@@ -33,6 +35,10 @@ async function saveSettings() {
   dirty.value = false
   draft.value = cloneSettings(saved)
   await store.refreshSaveBackups()
+}
+
+async function openBackupDirectory() {
+  await ui.run(() => api.openSaveBackups())
 }
 
 function formatDate(value: string) {
@@ -77,7 +83,7 @@ async function restore(backup: SaveBackupEntry) {
           </div>
           <div class="backup-actions">
             <button class="btn btn-primary btn-sm button primary compact" :disabled="!dirty" @click="saveSettings">保存设置</button>
-            <button class="btn btn-outline btn-sm button secondary compact" @click="api.openSaveBackups()"><FolderOpen :size="16" />打开目录</button>
+            <button class="btn btn-outline btn-sm button secondary compact" @click="openBackupDirectory"><FolderOpen :size="16" />打开目录</button>
           </div>
         </div>
       </div>
@@ -109,3 +115,4 @@ async function restore(backup: SaveBackupEntry) {
     </section>
   </div>
 </template>
+

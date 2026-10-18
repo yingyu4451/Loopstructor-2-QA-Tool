@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { mount } from '@vue/test-utils'
+import { mountWithTooltip } from './helpers/mount'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import managerPackage from '../package.json'
 import TitleBar from '../src/components/TitleBar.vue'
 import { useAppStore } from '../src/stores/app'
 import type { DesktopApi, HostSnapshot } from '../src/types'
@@ -18,11 +19,16 @@ describe('title bar update action', () => {
     const store = useAppStore()
     store.snapshot = snapshot()
     const install = vi.spyOn(store, 'installUpdate').mockResolvedValue(undefined)
-    const wrapper = mount(TitleBar)
+    const wrapper = mountWithTooltip(TitleBar)
 
     await wrapper.get('button[aria-label="安装可用更新"]').trigger('click')
 
     expect(install).toHaveBeenCalledOnce()
+  })
+
+  it('shows the packaged product version while the host snapshot is missing', () => {
+    const wrapper = mountWithTooltip(TitleBar)
+    expect(wrapper.find('.titlebar-brand span').text()).toBe(`v${managerPackage.version}`)
   })
 })
 

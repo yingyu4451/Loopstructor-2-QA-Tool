@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted } from 'vue'
-import { FolderOpen, ShieldCheck, PlugZap, Plug, Trash2, Play, RefreshCw, MonitorCog } from '../icons'
+import { FolderOpen, MonitorCog, Play, PlugZap, RefreshCw, ShieldCheck, Trash2, Unplug as Plug } from '@lucide/vue'
 import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
 
@@ -113,3 +113,4 @@ onBeforeUnmount(() => {
     </section>
   </div>
 </template>
+

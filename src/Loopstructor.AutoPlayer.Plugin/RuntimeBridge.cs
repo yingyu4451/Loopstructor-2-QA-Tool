@@ -663,6 +663,9 @@ internal sealed class RuntimeBridge
         return AdaptRuntimeResult(result);
     }
 
+    internal JObject InvokeNativeCommand(string command, JObject? arguments = null) =>
+        InvokeNative(command, arguments, IsMutatingCommand(command), out _);
+
     private static JToken ToJsonToken(object? value) => value switch
     {
         null => JValue.CreateNull(),
@@ -856,12 +859,12 @@ internal sealed class RuntimeBridge
                 "chooseRewardOption",
                 "轻量奖励选择反射契约不可用；本次未点击，并已阻止回落到原生 MCP 写命令。");
 
+    // 游戏 1.237 已移除奖励选择队列与放弃选项，轻量跳过通道不再存在；
+    // 这里如实报告不可用，绝不回落到原生写命令。
     private static JObject InvokeLightweightRewardSkip(JObject? arguments) =>
-        RewardUiRuntimeFallback.TrySkipCurrentOpportunity(arguments, out JObject result)
-            ? result
-            : LightweightContractUnavailable(
-                "skipReward",
-                "轻量奖励跳过反射契约不可用；本次未跳过，并已阻止回落到原生 MCP 写命令。");
+        LightweightContractUnavailable(
+            "skipReward",
+            "当前游戏版本已移除奖励队列与放弃选项；本次未跳过，请逐项领取或点击全部领取。");
 
     private static JObject InvokeLightweightWaveFunctionQuery(JObject? arguments)
     {

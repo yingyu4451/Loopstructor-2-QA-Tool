@@ -172,24 +172,6 @@ public enum UiScaleMode
     Custom
 }
 
-internal sealed class AutomationModeOption
-{
-    public AutomationGameMode Mode { get; init; }
-    public string DisplayName { get; init; } = string.Empty;
-    public bool Available { get; init; }
-    public string Reason { get; init; } = string.Empty;
-    public string Label => Available ? DisplayName : DisplayName + " · 不可用";
-}
-
-internal sealed class AutomationCharacterOption
-{
-    public int CfgIndex { get; init; }
-    public int RuntimeIndex { get; init; }
-    public int DifficultyIndex { get; init; }
-    public int SuperModuleIndex { get; init; }
-    public string DisplayName { get; init; } = string.Empty;
-}
-
 public sealed class GameInstallValidation
 {
     public bool IsValid => Errors.Count == 0;
