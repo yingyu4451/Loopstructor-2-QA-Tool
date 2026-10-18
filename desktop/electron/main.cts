@@ -43,10 +43,25 @@ function showExistingWindow(): void {
   window.focus()
 }
 
+function logUpdateHandoff(stage: string): void {
+  try {
+    const logPath = path.join(app.getPath('userData'), 'update-handoff.log')
+    fs.mkdirSync(path.dirname(logPath), { recursive: true })
+    fs.appendFileSync(logPath, `${new Date().toISOString()} pid=${process.pid} ${stage}\n`, 'utf8')
+  } catch {
+    // Diagnostics must never block the update hand-off.
+  }
+}
+
 function scheduleManagerExitForUpdate(): void {
   if (updateExitScheduled) return
   updateExitScheduled = true
+  logUpdateHandoff('updateStarted received; hiding Manager window and quitting')
   window?.hide()
+  setTimeout(() => {
+    logUpdateHandoff('app.quit() did not exit within 8s; forcing app.exit(0) so the updater can continue')
+    app.exit(0)
+  }, 8000)
   setTimeout(() => app.quit(), 200)
 }
 
@@ -421,13 +436,21 @@ app.on('before-quit', (event) => {
   if (quitAfterHostShutdown || !host) return
   event.preventDefault()
   if (hostShutdown) return
+  if (updateExitScheduled) logUpdateHandoff('before-quit received; stopping .NET Host before exit')
   const activeHost = host
   hostShutdown = activeHost.stop()
     .catch(error => console.error('等待 .NET Host 退出失败。', error))
     .finally(() => {
       host = undefined
       quitAfterHostShutdown = true
+      if (updateExitScheduled) logUpdateHandoff('Host stopped; quitting after update hand-off')
       app.quit()
+      if (updateExitScheduled) {
+        setTimeout(() => {
+          logUpdateHandoff('post-handoff app.quit() did not exit within 2s; forcing app.exit(0)')
+          app.exit(0)
+        }, 2000)
+      }
     })
 })
 app.on('window-all-closed', () => app.quit())

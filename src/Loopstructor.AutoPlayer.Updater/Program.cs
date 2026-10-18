@@ -412,7 +412,9 @@ internal static class Program
                     88,
                     message,
                     canCancel: true),
-                cancellationToken);
+                cancellationToken,
+                options.DesktopProcessId,
+                TimeSpan.FromSeconds(20));
 
             if (tryBeginCommit is not null && !tryBeginCommit())
             {

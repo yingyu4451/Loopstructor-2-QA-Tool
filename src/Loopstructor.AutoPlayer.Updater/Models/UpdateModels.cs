@@ -19,8 +19,9 @@ public sealed class UpdateCommandOptions
     public string CurrentVersion { get; private set; } = "0.0.0";
     public string TargetRoot { get; private set; } = string.Empty;
     public string ConfigPath { get; private set; } = string.Empty;
-    public int WaitTimeoutSeconds { get; private set; } = 600;
+    public int WaitTimeoutSeconds { get; private set; } = 180;
     public IList<int> WaitProcessIds { get; } = new List<int>();
+    public int? DesktopProcessId { get; private set; }
 
     public static UpdateCommandOptions Parse(IReadOnlyList<string> args)
     {
@@ -77,6 +78,19 @@ public sealed class UpdateCommandOptions
                     if (processId != Environment.ProcessId && !result.WaitProcessIds.Contains(processId))
                     {
                         result.WaitProcessIds.Add(processId);
+                    }
+
+                    break;
+                case "--desktop-pid":
+                    string desktopProcessValue = NextValue(args, ref index, current);
+                    if (!int.TryParse(desktopProcessValue, out int desktopProcessId) || desktopProcessId <= 0)
+                    {
+                        throw new ArgumentException("Manager 进程 ID 无效：" + desktopProcessValue);
+                    }
+
+                    if (desktopProcessId != Environment.ProcessId)
+                    {
+                        result.DesktopProcessId = desktopProcessId;
                     }
 
                     break;

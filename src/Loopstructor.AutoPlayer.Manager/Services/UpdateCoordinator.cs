@@ -169,6 +169,8 @@ public sealed class UpdateCoordinator
         startInfo.ArgumentList.Add(Environment.ProcessId.ToString());
         if (desktopProcessId is > 0 && desktopProcessId != Environment.ProcessId)
         {
+            startInfo.ArgumentList.Add("--desktop-pid");
+            startInfo.ArgumentList.Add(desktopProcessId.Value.ToString());
             startInfo.ArgumentList.Add("--wait-pid");
             startInfo.ArgumentList.Add(desktopProcessId.Value.ToString());
         }

@@ -37,7 +37,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.78
+./scripts/package.ps1 -Version 0.6.79
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -47,8 +47,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.78-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.78-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.79-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.79-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -63,15 +63,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.78",
+  "version": "0.6.79",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.78-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.79-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.77",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.77-to-0.6.78-win-x64.delta.zip",
+      "fromVersion": "0.6.78",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.78-to-0.6.79-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -134,8 +134,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.78
-git push origin v0.6.78
+git tag v0.6.79
+git push origin v0.6.79
 ```
 
 ## 升级 BepInEx
@@ -165,6 +165,16 @@ git push origin v0.6.78
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.79
+
+- 修复 Manager 在更新交接阶段偶发不退出、更新窗口长时间停在“等待进程退出”的问题：
+  - Manager 收到 `updateStarted` 后隐藏窗口并退出；若 8 秒内仍未退出，强制 `app.exit(0)`。Host 停止后的最终退出再加 2 秒兜底，交接各阶段写入 `%APPDATA%\loopstructor-autoplayer-desktop\update-handoff.log` 便于诊断。
+  - 更新器等待逻辑改为轮询：每 5 秒报告仍在运行的 PID 与已等待/剩余时间；默认等待上限从 600 秒降为 180 秒；超时信息直接列出仍存活的 PID 与处理建议。
+  - Host 通过 `--desktop-pid` 显式传入 Manager PID；更新器在 Manager 20 秒仍未退出时主动结束该进程并继续安装，避免无响应的 Manager 永久阻塞更新。
+- 新增 `ProcessWaiterTests`、`UpdaterCommandOptionsTests` 覆盖已退出进程跳过、轮询进度、超时信息与强制结束无响应 Manager 等场景；测试数 645 → 652。
+- 本版只调整 Manager/Updater 的更新交接逻辑，游戏内插件运行时契约与 0.6.78 相同。
+- 已知限制：`0.6.78 → 0.6.79` 这次更新仍由 0.6.78 自带的更新器执行。若更新窗口停在“等待进程退出”，手动结束 `Loopstructor-2-QA-Tool` 进程即可让更新继续完成；0.6.79 起该场景会自动处理。
 
 ### 0.6.78
 
