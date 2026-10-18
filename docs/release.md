@@ -161,7 +161,7 @@ git push origin v0.6.77
 ### 0.6.77
 
 - .NET 依赖升级：Newtonsoft.Json 13.0.3 → 13.0.4、Mono.Cecil 0.11.4 → 0.11.6、xunit 2.9.2 → 2.9.3、xunit.runner.visualstudio 2.8.2 → 4.0.1、Microsoft.NET.Test.Sdk 17.11.1 → 18.11.0。BepInEx.Core 5.4.21、UnityEngine.Modules 2022.3.62、BepInEx.Analyzers 1.0.8 保持不变（Unity 2022.3 兼容上限）。
-- 桌面端依赖整体升级（Electron、Vue、Vite、Pinia、Tailwind、daisyUI、Playwright 等），`pnpm audit` 高危与中危清零，锁文件同步。
+- 桌面端依赖整体升级（Electron、Vue、Vite、Pinia、Tailwind、daisyUI、Playwright 等），`pnpm audit` 高危清零；仅剩 1 个 electron-builder 传递依赖的中危项（sprintf-js，advisory 要求的修复版本 1.1.4 尚未发布），该链路只参与本地打包工具，不进入发布产物。锁文件同步。
 - 图标体系移除 Iconify：删除 `@iconify/vue`、`@iconify-icons/mdi` 依赖与 `desktop/src/icons.ts`，全部改用 `@lucide/vue` 1.59.0 按需导入（不走已废弃的 `lucide-vue-next`），无运行时图标告警。
 - Updater 可靠性修复（均有回归测试）：清理目录的最终重试不再逃逸异常，使“新版已安装但临时回滚目录未清理”的提示可达；安装应用失败后不再遗留 `.LoopstructorAutoPlayer-staging-*` 临时目录（最大约 2 GiB）；进程在事务中途被终止后，崩溃恢复会清理遗留 staging 目录。测试数 627 → 630，全部通过。
 - 游戏运行时契约修复（对照 Skyspine 1.385 游戏源码审计）：奖励弹窗跳过改为委托原生 `skipReward` 命令并把游戏侧“奖励跳过流程已移除”的提示如实返回，不再静默返回 `REWARD_POPUP_NOT_OPEN`；奖励轻量契约移除游戏中已删除的队列成员后，查询/选择/领取重新可用，跳过保持明确不可用；`independentVehicleMode` 不再返回误导性的 `false`，改为 `null` + 不可用原因；平台写入隔离补丁改为按参数类型解析目标方法，未来出现重载不再抛 `AmbiguousMatchException` 而跳过补丁。
