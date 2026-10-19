@@ -1,12 +1,22 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Eye, FastForward, Gift, Map, Shield, Skull, Sparkles } from '../icons'
+import { Eye, FastForward, Gift, Keyboard, Map, Shield, Skull, Sparkles } from '../icons'
 import { useAppStore } from '../stores/app'
 const store = useAppStore()
 
 const state = computed(() => store.cheatState ?? {})
+const hotkeysEnabled = computed(() => store.snapshot?.settings.gameHotkeysEnabled === true)
+const hotkeysLive = computed(() => store.cheatState?.hotkeysEnabled === true)
+const hotkeyStateLabel = computed(() => {
+  if (!store.cheatEnabled) return '等待作弊连接'
+  if (hotkeysLive.value) return '游戏中已生效'
+  return hotkeysEnabled.value ? '正在下发到游戏' : '未启用'
+})
 async function toggle(command: string, value: boolean) {
   if (await store.command(command, { enabled: value })) await store.refreshState()
+}
+async function toggleHotkeys(value: boolean) {
+  await store.setGameHotkeys(value)
 }
 </script>
 
@@ -32,6 +42,16 @@ async function toggle(command: string, value: boolean) {
         <button class="btn command-button" :disabled="store.writeLocked" @click="store.command('cheat.endWave')"><FastForward :size="20" /><span><strong>结束当前波次</strong><small>推进到本波结算</small></span></button>
         <button class="btn btn-error command-button danger-command" :disabled="store.writeLocked" @click="store.command('cheat.clearEnemies')"><Skull :size="20" /><span><strong>清除所有敌人</strong><small>立即清理当前场景</small></span></button>
         <button class="btn command-button" :disabled="store.writeLocked" @click="store.command('cheat.skipRewardPopup')"><Gift :size="20" /><span><strong>跳过当前奖励</strong><small>放弃奖励并解除弹窗阻断</small></span></button>
+      </div>
+    </section>
+    <section class="card battle-section mechanical-section" :class="{ mutationLocked: store.writeLocked }">
+      <header class="section-heading"><div><h2>游戏内快捷键</h2><p>不用切回工具，在游戏窗口内直接按键；行为与开发者模式的 F / F1 一致。</p></div></header>
+      <div class="battle-action-grid">
+        <label class="action-toggle"><Keyboard :size="19" /><span><strong>启用 F / F1</strong><small>F 清除当前所有怪物；F1 结束当前波次</small></span><input class="checkbox checkbox-success" name="game-hotkeys" type="checkbox" :checked="hotkeysEnabled" :disabled="store.writeLocked" @change="toggleHotkeys(($event.target as HTMLInputElement).checked)" /></label>
+        <div class="hotkey-state">
+          <span class="status-badge" :class="hotkeysLive ? 'online' : (hotkeysEnabled ? 'warning' : '')">{{ hotkeyStateLabel }}</span>
+          <small>快捷键只在工具与游戏保持连接时生效。</small>
+        </div>
       </div>
     </section>
   </div>

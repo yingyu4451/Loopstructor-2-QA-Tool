@@ -52,6 +52,23 @@ describe('desktop application store', () => {
     expect(saveSettings).toHaveBeenCalledOnce()
   })
 
+  it('persists the game hotkey preference and refreshes plugin state', async () => {
+    const saveSettings = vi.fn(async (settings) => settings)
+    const cheatCommand = vi.fn(async () => ({ success: true, message: '', data: { enabled: true, hotkeysEnabled: true } }))
+    window.loopstructorDesktop = { saveSettings, cheatCommand } as unknown as DesktopApi
+    const store = useAppStore()
+    store.applySnapshot(snapshot())
+
+    const saved = await store.setGameHotkeys(true)
+
+    expect(saved?.gameHotkeysEnabled).toBe(true)
+    expect(saveSettings).toHaveBeenCalledOnce()
+    expect((saveSettings.mock.calls[0][0] as { gameHotkeysEnabled?: boolean }).gameHotkeysEnabled).toBe(true)
+    expect(store.snapshot?.settings.gameHotkeysEnabled).toBe(true)
+    expect(store.cheatState?.hotkeysEnabled).toBe(true)
+    expect(useUiStore().activeToast?.message ?? '').toContain('快捷键')
+  })
+
   it('loads cheat catalogs silently when entering a cheat page', async () => {
     const saveSettings = vi.fn(async (settings) => settings)
     const cheatCommand = vi.fn(async (command: string) => command === 'cheat.queryCatalog'

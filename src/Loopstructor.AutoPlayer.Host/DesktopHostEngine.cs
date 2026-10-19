@@ -57,6 +57,9 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
     private bool _pollConnectedLastTime;
     private DateTime _nextAutomaticCheatEnableUtc;
     private string _lastAutomaticCheatEnableError = string.Empty;
+    private bool _cheatHotkeysApplied;
+    private bool _cheatHotkeysDesired;
+    private string _lastHotkeyApplyError = string.Empty;
     private string _connectionLabel = "等待游戏连接";
     private string _connectionReason = string.Empty;
     private Task? _pollTask;
@@ -176,6 +179,8 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         _settings = incoming;
         _settingsStore.Save(_settings);
         await ObserveSaveBackupsAsync(null);
+        _cheatHotkeysApplied = false;
+        await ApplyGameHotkeysAsync();
         await EmitSnapshotAsync();
         return Serialize(_settings);
     }
@@ -907,6 +912,7 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         if (response.Status != null) _status = response.Status;
         await ObserveSaveBackupsAsync(_status);
         await EnsureDefaultCheatEnabledAsync();
+        await ApplyGameHotkeysAsync();
         await EmitSnapshotAsync();
     }
 
@@ -954,6 +960,64 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         _pluginStatus = _game == null ? null : _installer.GetStatus(_game.GameRoot);
     }
 
+    /// <summary>
+    /// Mirrors the persisted "game hotkeys" preference into the plugin. The command is only
+    /// meaningful once cheat mode is enabled, and older plugins reject it explicitly, so a
+    /// rejection is logged once and retried after the next settings save or reconnect.
+    /// </summary>
+    private async Task ApplyGameHotkeysAsync()
+    {
+        if (!_trusted || _session == null)
+        {
+            _cheatHotkeysApplied = false;
+            return;
+        }
+
+        if (_status?.CheatModeEnabled != true && _hello?.CheatModeEnabled != true)
+        {
+            _cheatHotkeysApplied = false;
+            return;
+        }
+
+        bool desired = _settings.GameHotkeysEnabled;
+        if (_cheatHotkeysApplied && _cheatHotkeysDesired == desired) return;
+
+        PipeCallResult call = await _pipeClient.SendCheatAsync(
+            _session,
+            CheatCommands.SetHotkeysEnabled,
+            new JObject { ["enabled"] = desired },
+            _lifetime);
+        if (!call.TransportSuccess)
+        {
+            _cheatHotkeysApplied = false;
+            _connectionLabel = "等待插件响应";
+            _connectionReason = call.Error;
+            return;
+        }
+
+        ControlResponse response = call.Response!;
+        if (response.Status != null) _status = response.Status;
+        _cheatHotkeysDesired = desired;
+        _cheatHotkeysApplied = true;
+        if (response.Success)
+        {
+            _lastHotkeyApplyError = string.Empty;
+            AddLog(
+                "cheat",
+                desired
+                    ? "游戏内快捷键已启用：F 清除场上敌人，F1 结束当前波次。"
+                    : "游戏内快捷键已停用。",
+                emit: false);
+            return;
+        }
+
+        if (!string.Equals(_lastHotkeyApplyError, response.Message, StringComparison.Ordinal))
+        {
+            _lastHotkeyApplyError = response.Message;
+            AddLog("warn", "游戏内快捷键设置未生效：" + response.Message, emit: false);
+        }
+    }
+
     private void PrepareInstalledSession(bool selectProfile, bool replaceExisting = true)
     {
         if (_game == null) return;
@@ -974,6 +1038,9 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         _pollConnectedLastTime = false;
         _nextAutomaticCheatEnableUtc = default;
         _lastAutomaticCheatEnableError = string.Empty;
+        _cheatHotkeysApplied = false;
+        _cheatHotkeysDesired = false;
+        _lastHotkeyApplyError = string.Empty;
         _logTail.Reset(session.LogPath, startAtEnd: !includeExistingLog);
         _gameErrorTail.Reset(GameErrorLogPath(session), startAtEnd: !includeExistingLog);
     }
@@ -1058,6 +1125,9 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         _pollConnectedLastTime = false;
         _nextAutomaticCheatEnableUtc = default;
         _lastAutomaticCheatEnableError = string.Empty;
+        _cheatHotkeysApplied = false;
+        _cheatHotkeysDesired = false;
+        _lastHotkeyApplyError = string.Empty;
         _connectionLabel = "等待游戏连接";
         _connectionReason = string.Empty;
     }
@@ -1074,6 +1144,7 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
     {
         _trusted = false;
         _hello = null;
+        _cheatHotkeysApplied = false;
         if (_session != null) _session.ProcessInstanceId = string.Empty;
     }
 

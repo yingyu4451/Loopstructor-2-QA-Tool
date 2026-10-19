@@ -406,6 +406,7 @@ public static class CheatCommands
     public const string ClearSpawnPoints = "cheat.clearSpawnPoints";
     public const string SpawnEnemy = "cheat.spawnEnemy";
     public const string SetMapSkipEnabled = "cheat.setMapSkipEnabled";
+    public const string SetHotkeysEnabled = "cheat.setHotkeysEnabled";
 
     public static IReadOnlyList<string> All { get; } = new[]
     {
@@ -443,7 +444,8 @@ public static class CheatCommands
         RemoveSpawnPoint,
         ClearSpawnPoints,
         SpawnEnemy,
-        SetMapSkipEnabled
+        SetMapSkipEnabled,
+        SetHotkeysEnabled
     };
 
     public static IReadOnlyList<string> Mutations { get; } = new[]
@@ -472,7 +474,8 @@ public static class CheatCommands
         RemoveRelic,
         RemoveAllRelics,
         SpawnEnemy,
-        SetMapSkipEnabled
+        SetMapSkipEnabled,
+        SetHotkeysEnabled
     };
 
     public static IReadOnlyList<string> AutoPlayObservationCommands { get; } = new[]

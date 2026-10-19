@@ -37,7 +37,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.83
+./scripts/package.ps1 -Version 0.6.84
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -47,8 +47,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.83-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.83-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.84-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.84-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -63,15 +63,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.83",
+  "version": "0.6.84",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.83-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.84-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.82",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.82-to-0.6.83-win-x64.delta.zip",
+      "fromVersion": "0.6.83",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.83-to-0.6.84-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -135,8 +135,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.83
-git push origin v0.6.83
+git tag v0.6.84
+git push origin v0.6.84
 ```
 
 ## 升级 BepInEx
@@ -167,6 +167,14 @@ git push origin v0.6.83
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.84
+
+- 新增游戏内快捷键：在「战斗」页的「游戏内快捷键」卡片开启后，不用切回工具，在游戏窗口内按 `F` 清除场上所有怪物、`F1` 结束当前波次，行为与游戏开发者模式的同名按键一致（分别对应 `AgentCreator.ClearAllEnemy` / `WaveDurationController.WaveOver`）。
+- 插件 `CheatController` 通过反射轮询 Unity Input System 的 `Keyboard.fKey` / `f1Key`（不新增程序集引用，找不到输入系统时按 2 秒节流重试）；快捷键只在作弊模式已启用、工具与游戏保持连接、且自动游玩未运行时响应，触发的动作复用现有作弊命令执行管线，因此同样标记作弊存档、写入 `cheat-actions.jsonl` 审计并遵守自动游玩写锁。
+- 新增设置项 `gameHotkeysEnabled`（默认关闭，随 Manager 设置持久化）：Host 在自动开启作弊模式后、会话重连后以及保存设置后把开关下发给插件；插件状态新增 `hotkeysEnabled` / `hotkeysAvailable`，战斗页徽标显示「游戏中已生效 / 正在下发到游戏 / 等待作弊连接 / 未启用」。
+- Core `CheatCommands` 新增 `cheat.setHotkeysEnabled`（`All` 36 项 / `Mutations` 26 项），Plugin 与 Editor Bridge 分发分支同步；插件反射读取失败只记录告警，不影响其他作弊功能。
+- 目标游戏版本 Skyspine `1.423_Beta`（`Assembly-CSharp.dll` 4113 类，存在 `Unity.InputSystem.dll`）；.NET 测试保持 657 项、桌面单元测试 27 项，Release 构建 0 警告。
 
 ### 0.6.83
 

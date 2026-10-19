@@ -128,6 +128,7 @@ public sealed class ManagerSettings
     public string ActiveRoute { get; set; } = "game";
     public bool SidebarCollapsed { get; set; }
     public string SkinId { get; set; } = "skyspine";
+    public bool GameHotkeysEnabled { get; set; }
     public string GitHubOwner { get; set; } = DefaultGitHubOwner;
     public string GitHubRepository { get; set; } = DefaultGitHubRepository;
 

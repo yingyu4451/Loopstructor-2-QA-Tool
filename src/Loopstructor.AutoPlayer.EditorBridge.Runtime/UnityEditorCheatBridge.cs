@@ -190,6 +190,9 @@ internal sealed class EditorCheatRuntime : IDisposable
                 CheatCommands.SetMapSkipEnabled => CheatExecutionResult.Fail(
                     "Editor Bridge 不注入 Harmony，地图自由跳转仅在 Player 插件模式可用。",
                     "EDITOR_PATCH_UNAVAILABLE"),
+                CheatCommands.SetHotkeysEnabled => CheatExecutionResult.Fail(
+                    "游戏内快捷键只在 Player 插件模式可用，Editor 运行控制不注册游戏按键。",
+                    "EDITOR_HOTKEY_UNAVAILABLE"),
                 _ => CheatExecutionResult.Fail("未知的作弊命令：" + command, "UNKNOWN_CHEAT_COMMAND")
             };
             return EditorCheatResponse.From(result);

@@ -18,9 +18,12 @@ internal sealed class CheatController : IDisposable
     private readonly ActivationContext _activation;
     private readonly ManualLogSource _log;
     private readonly CheatRuntimeBridge _runtime = new();
+    private readonly GameHotkeyReader _hotkeys = new();
     private readonly bool _baseContractAccepted;
     private int _sceneHandle;
     private long _lastManagerHeartbeatUtcTicks;
+    private int _hotkeySequence;
+    private string _hotkeyResolutionError = string.Empty;
 
     public CheatController(
         AutoPlayController autoPlay,
@@ -44,6 +47,7 @@ internal sealed class CheatController : IDisposable
 
     public bool IsAvailable => _activation.CheatModeAllowed && _baseContractAccepted && _runtime.IsAvailable;
     public bool Enabled { get; private set; }
+    public bool HotkeysEnabled { get; private set; }
 
     public void NotifyManagerHeartbeat() =>
         Interlocked.Exchange(ref _lastManagerHeartbeatUtcTicks, DateTime.UtcNow.Ticks);
@@ -93,6 +97,13 @@ internal sealed class CheatController : IDisposable
 
             MapSkipPatch.Tick();
             _runtime.TickEnemyOverlays();
+        }
+
+        // The game's developer-mode keys stay active only while the tool explicitly enabled
+        // them and no automation session owns the input stream.
+        if (Enabled && HotkeysEnabled && !_autoPlay.IsAutoPlayActive)
+        {
+            PollHotkeys();
         }
     }
 
@@ -183,6 +194,11 @@ internal sealed class CheatController : IDisposable
             return CheatExecutionResult.Ok("已读取作弊模式状态。", BuildStateData());
         }
 
+        if (string.Equals(command, CheatCommands.SetHotkeysEnabled, StringComparison.OrdinalIgnoreCase))
+        {
+            return SetHotkeysEnabled(arguments.Value<bool?>("enabled") == true);
+        }
+
         if (!Enabled)
         {
             return CheatExecutionResult.Fail("作弊模式尚未启用。请先在作弊工具顶部显式开启。", "CHEAT_MODE_DISABLED");
@@ -258,6 +274,7 @@ internal sealed class CheatController : IDisposable
         VehicleEnchantmentDisplayPatch.SetEnabled(enabled);
         if (!enabled)
         {
+            HotkeysEnabled = false;
             _runtime.CancelGrantAllRelics("作弊模式已关闭，一键获取所有遗物任务已取消。");
             _runtime.CancelRemoveAllRelics("作弊模式已关闭，删除所有遗物任务已取消。");
             ResetTransientFeatures();
@@ -267,12 +284,101 @@ internal sealed class CheatController : IDisposable
         return CheatExecutionResult.Ok(message, BuildStateData());
     }
 
+    private CheatExecutionResult SetHotkeysEnabled(bool enabled)
+    {
+        if (enabled && !IsAvailable)
+        {
+            return CheatExecutionResult.Fail(BuildAvailabilityReason(), "CHEAT_UNAVAILABLE");
+        }
+
+        HotkeysEnabled = enabled;
+        _hotkeyResolutionError = string.Empty;
+
+        if (!enabled)
+        {
+            return CheatExecutionResult.Changed(
+                "游戏内快捷键已关闭。",
+                new JObject { ["hotkeysEnabled"] = false, ["hotkeysAvailable"] = _hotkeys.IsReady });
+        }
+
+        bool resolved = _hotkeys.TryResolve(out string reason);
+        if (!resolved)
+        {
+            _hotkeyResolutionError = reason;
+            _log.LogWarning("游戏内快捷键已开启，但游戏输入系统尚未就绪：" + reason);
+        }
+
+        string message = resolved
+            ? "游戏内快捷键已开启：F 清除场上敌人，F1 结束当前波次。"
+            : "游戏内快捷键已开启，但游戏输入系统尚未就绪，进入战斗后会自动重试：" + reason;
+        return CheatExecutionResult.Changed(
+            message,
+            new JObject { ["hotkeysEnabled"] = true, ["hotkeysAvailable"] = resolved });
+    }
+
+    private void PollHotkeys()
+    {
+        if (!_hotkeys.TryResolve(out string reason))
+        {
+            if (!string.Equals(_hotkeyResolutionError, reason, StringComparison.Ordinal))
+            {
+                _hotkeyResolutionError = reason;
+                _log.LogWarning("游戏内快捷键暂不可用：" + reason);
+            }
+
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(_hotkeyResolutionError))
+        {
+            _hotkeyResolutionError = string.Empty;
+            _log.LogInfo("游戏内快捷键已就绪：F 清除场上敌人，F1 结束当前波次。");
+        }
+
+        if (_hotkeys.WasPressedThisFrame(GameHotkey.SkipWave))
+        {
+            TriggerHotkey(CheatCommands.EndWave, "F1");
+        }
+
+        if (_hotkeys.WasPressedThisFrame(GameHotkey.ClearEnemies))
+        {
+            TriggerHotkey(CheatCommands.ClearEnemies, "F");
+        }
+    }
+
+    private void TriggerHotkey(string command, string keyName)
+    {
+        string requestId = "hotkey-" + Interlocked.Increment(ref _hotkeySequence).ToString("D6");
+        try
+        {
+            CheatExecutionResult result = Execute(requestId, command, new JObject
+            {
+                ["source"] = "gameHotkey",
+                ["key"] = keyName
+            });
+            if (result.Success)
+            {
+                _log.LogInfo("游戏内快捷键 " + keyName + "：" + result.Message);
+            }
+            else
+            {
+                _log.LogDebug("游戏内快捷键 " + keyName + " 未生效：" + result.Message);
+            }
+        }
+        catch (Exception exception)
+        {
+            _log.LogWarning(
+                "游戏内快捷键 " + keyName + " 执行失败：" + CheatRuntimeBridge.Unwrap(exception).Message);
+        }
+    }
+
     private void DisableAndReset(string? logMessage)
     {
         _runtime.CancelGrantAllRelics("作弊控制已中断，一键获取所有遗物任务已取消。");
         _runtime.CancelRemoveAllRelics("作弊控制已中断，删除所有遗物任务已取消。");
         ResetTransientFeatures();
         Enabled = false;
+        HotkeysEnabled = false;
         _autoPlay.TrySetCheatMode(false, out _);
         if (!string.IsNullOrWhiteSpace(logMessage)) _log.LogWarning(logMessage);
     }
@@ -368,6 +474,8 @@ internal sealed class CheatController : IDisposable
             ["spawnPointCapture"] = _runtime.SpawnPointCaptureData(),
             ["fieldCatapultDeleteMode"] = _runtime.FieldCatapultDeleteMode,
             ["protocolVersion"] = Protocol.CheatCurrentVersion,
+            ["hotkeysEnabled"] = HotkeysEnabled,
+            ["hotkeysAvailable"] = _hotkeys.IsReady,
             ["availabilityReason"] = BuildAvailabilityReason(),
             ["capabilities"] = JArray.FromObject(_runtime.Capabilities),
             ["ownedVehicles"] = new JArray(),

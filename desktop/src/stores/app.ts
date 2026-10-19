@@ -85,6 +85,18 @@ export const useAppStore = defineStore('app', {
       }
       return saved
     },
+    async setGameHotkeys(enabled: boolean) {
+      const ui = useUiStore()
+      if (!this.snapshot) return undefined
+      const saved = await this.saveSettings({ ...this.snapshot.settings, gameHotkeysEnabled: enabled }, false)
+      if (saved) {
+        ui.toast(
+          enabled ? '已开启游戏内快捷键：F 清除当前所有怪物，F1 结束当前波次。' : '已关闭游戏内快捷键。',
+          'success')
+        if (this.connected) await this.refreshState(false)
+      }
+      return saved
+    },
     async selectGame() {
       const ui = useUiStore()
       const validation = await ui.run(() => window.loopstructorDesktop.selectGameDirectory())

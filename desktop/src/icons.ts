@@ -50,6 +50,7 @@ import githubIcon from '@iconify-icons/mdi/github'
 import archiveClockIcon from '@iconify-icons/mdi/archive-clock'
 import backupRestoreIcon from '@iconify-icons/mdi/backup-restore'
 import paletteIcon from '@iconify-icons/mdi/palette-outline'
+import keyboardIcon from '@iconify-icons/mdi/keyboard'
 
 function iconComponent(name: string, icon: IconifyIcon) {
   return defineComponent({
@@ -114,3 +115,4 @@ export const Github = iconComponent('GitHubIcon', githubIcon)
 export const ArchiveClock = iconComponent('ArchiveClockIcon', archiveClockIcon)
 export const BackupRestore = iconComponent('BackupRestoreIcon', backupRestoreIcon)
 export const Palette = iconComponent('PaletteIcon', paletteIcon)
+export const Keyboard = iconComponent('KeyboardIcon', keyboardIcon)

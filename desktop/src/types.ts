@@ -21,6 +21,7 @@ export interface ManagerSettings {
   activeRoute: RouteKey
   sidebarCollapsed: boolean
   skinId?: SkinId
+  gameHotkeysEnabled?: boolean
   gitHubOwner: string
   gitHubRepository: string
 }
