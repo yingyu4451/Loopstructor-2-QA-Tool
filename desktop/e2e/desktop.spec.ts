@@ -65,7 +65,6 @@ test('unified desktop is sandboxed and responsive across every route', async () 
     await expect(page.getByText('自动备份存档', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: '打开目录', exact: true })).toBeVisible()
     await page.getByRole('button', { name: '界面与更新', exact: true }).click()
-    await page.getByRole('radio', { name: '天穹机械终端' }).click()
     await page.getByRole('button', { name: '应用界面设置', exact: true }).click()
     await expect(page.locator('.app-shell')).toHaveAttribute('data-skin', 'skyspine')
     await page.getByRole('radio', { name: /自定义/ }).check()
@@ -400,7 +399,7 @@ test('reuses the Electron runtime for the updater mode', async () => {
   }
 })
 
-test('skyspine interaction states preserve material, focus, and chrome spacing', async () => {
+test('flat copper panel keeps interaction, focus, and spacing states', async () => {
   const dataRoot = mkdtempSync(resolve(tmpdir(), 'loopstructor-electron-states-e2e-'))
   mkdirSync(screenshotRoot, { recursive: true })
   const app = await electron.launch({
@@ -420,125 +419,156 @@ test('skyspine interaction states preserve material, focus, and chrome spacing',
     await expect(page.getByText('Loopstructor 2 QA Tool', { exact: true })).toBeVisible()
     await expect(page.locator('.titlebar-status')).not.toContainText('正在启动 Host', { timeout: 15_000 })
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1280, 860))
-    await page.waitForTimeout(250)
+    // Let the first Host snapshot land: a late snapshot re-render swaps DOM nodes
+    // and silently drops the CSS :hover state in the middle of an assertion.
+    await page.waitForTimeout(900)
 
     const activeNav = page.locator('.nav-item.active')
-    // Electron may inherit the previous window's pointer position over this item.
     await page.locator('.brand-logo').hover()
-    await expect.poll(() => activeNav.evaluate(element => getComputedStyle(element).filter))
-      .not.toContain('brightness')
     const navBefore = await activeNav.evaluate(element => ({
-      face: getComputedStyle(element, '::before').backgroundImage,
-      filter: getComputedStyle(element).filter,
+      background: getComputedStyle(element).backgroundColor,
       shadow: getComputedStyle(element).boxShadow,
-    }))
-    await activeNav.hover()
-    await page.waitForTimeout(180)
-    const navHover = await activeNav.evaluate(element => ({
       face: getComputedStyle(element, '::before').backgroundImage,
       filter: getComputedStyle(element).filter,
-      cog: getComputedStyle(element.querySelector('.rail-cog')!).backgroundImage,
     }))
-    expect(navBefore.face).not.toBe('none')
-    expect(navBefore.shadow).not.toContain('inset')
-    expect(navHover.face).not.toBe('none')
-    expect(navHover.cog).toContain('gear-')
-    expect(navHover.filter).not.toBe(navBefore.filter)
+    expect(navBefore.background).toBe('rgb(44, 36, 27)')
+    expect(navBefore.shadow).toContain('inset')
+    expect(navBefore.face).toBe('none')
+    expect(navBefore.filter).toBe('none')
+    await expect(page.locator('.nav-item.active .rail-cog')).toHaveCount(0)
+    await expect.poll(async () => {
+      await activeNav.hover()
+      return activeNav.evaluate(element => ({
+        background: getComputedStyle(element).backgroundColor,
+        face: getComputedStyle(element, '::before').backgroundImage,
+        filter: getComputedStyle(element).filter,
+      }))
+    }, { timeout: 8_000, message: '导航项 hover 状态应稳定出现' }).toMatchObject({
+      background: 'rgb(55, 40, 24)',
+      face: 'none',
+      filter: 'none',
+    })
     await page.screenshot({ path: resolve(screenshotRoot, '1280x860-state-nav-hover.png'), animations: 'disabled' })
 
     const secondary = page.getByRole('button', { name: '刷新连接', exact: true })
-    const secondaryBefore = await secondary.evaluate(element => getComputedStyle(element, '::before').backgroundImage)
-    await secondary.hover()
-    const secondaryHover = await secondary.evaluate(element => ({
+    const secondaryBefore = await secondary.evaluate(element => ({
+      background: getComputedStyle(element).backgroundColor,
       face: getComputedStyle(element, '::before').backgroundImage,
-      filter: getComputedStyle(element).filter,
     }))
-    expect(secondaryBefore).not.toBe('none')
-    expect(secondaryHover.face).not.toBe('none')
-    expect(secondaryHover.filter).toContain('brightness')
+    expect(secondaryBefore.background).toBe('rgb(51, 38, 28)')
+    expect(secondaryBefore.face).toBe('none')
+    await expect.poll(async () => {
+      await secondary.hover()
+      return secondary.evaluate(element => getComputedStyle(element).backgroundColor)
+    }, { message: '次要按钮 hover 背景应完成过渡' }).toBe('rgb(61, 45, 31)')
     await secondary.focus()
-    expect(await secondary.evaluate(element => getComputedStyle(element).boxShadow)).not.toBe('none')
+    const focusedSecondary = await secondary.evaluate(element => ({
+      outlineStyle: getComputedStyle(element).outlineStyle,
+      outlineWidth: getComputedStyle(element).outlineWidth,
+    }))
+    // Chromium reports zoomed lengths fractionally when the page zoom factor is
+    // fractional (125% system DPI here), so length assertions normalize by zoom.
+    const zoom = await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0]!.webContents.getZoomFactor())
+    const cssLength = (value: string) => Number.parseFloat(value) * zoom
 
-    const assertDarkPrimaryButtons = async () => {
+    expect(focusedSecondary.outlineStyle).toBe('solid')
+    // Chromium snaps border/outline widths to whole device pixels, so a 2px ring
+    // is reported as 1.6px or 2.4px when the display DPR is fractional (1.25).
+    expect(Math.abs(Number.parseFloat(focusedSecondary.outlineWidth) - 2)).toBeLessThan(0.5)
+
+    const assertFlatPrimaryButtons = async () => {
       const primaryButtons = page.locator('.button.primary:not(:disabled)')
       expect(await primaryButtons.count()).toBeGreaterThan(0)
       for (let index = 0; index < await primaryButtons.count(); index += 1) {
         const palette = await primaryButtons.nth(index).evaluate(element => ({
           color: getComputedStyle(element).color,
-          edge: getComputedStyle(element).getPropertyValue('--button-edge').trim(),
-          top: getComputedStyle(element).getPropertyValue('--button-top').trim(),
-          mid: getComputedStyle(element).getPropertyValue('--button-mid').trim(),
-          bottom: getComputedStyle(element).getPropertyValue('--button-bottom').trim(),
+          background: getComputedStyle(element).backgroundColor,
+          border: getComputedStyle(element).borderTopColor,
           face: getComputedStyle(element, '::before').backgroundImage,
         }))
         expect(palette).toMatchObject({
           color: 'rgb(255, 227, 162)',
-          edge: '#d69a45',
-          top: '#6a3d1d',
-          mid: '#3a2111',
-          bottom: '#1d1009',
+          background: 'rgb(90, 58, 31)',
+          border: 'rgb(214, 154, 69)',
         })
-        expect(palette.face).not.toBe('none')
+        expect(palette.face).toBe('none')
       }
     }
 
-    await assertDarkPrimaryButtons()
+    await assertFlatPrimaryButtons()
     const directoryButton = page.getByRole('button', { name: '选择目录', exact: true })
     const directoryRest = await directoryButton.evaluate(element => ({
       color: getComputedStyle(element).color,
-      edge: getComputedStyle(element).getPropertyValue('--button-edge').trim(),
-      face: getComputedStyle(element, '::before').backgroundImage,
+      background: getComputedStyle(element).backgroundColor,
+      border: getComputedStyle(element).borderTopColor,
     }))
-    expect(directoryRest.color).toBe('rgb(255, 227, 162)')
-    expect(directoryRest.edge).toBe('#d69a45')
-    expect(directoryRest.face).not.toBe('none')
-    await directoryButton.hover()
-    await expect.poll(
-      () => directoryButton.evaluate(element => getComputedStyle(element).color),
-      { message: '选择目录按钮的 hover 颜色应完成过渡' },
-    ).toBe('rgb(255, 240, 198)')
+    expect(directoryRest).toMatchObject({
+      color: 'rgb(255, 227, 162)',
+      background: 'rgb(90, 58, 31)',
+      border: 'rgb(214, 154, 69)',
+    })
+    await expect.poll(async () => {
+      await directoryButton.hover()
+      return directoryButton.evaluate(element => getComputedStyle(element).color)
+    }, { message: '选择目录按钮的 hover 颜色应完成过渡' }).toBe('rgb(255, 240, 198)')
 
     const disabledLaunch = page.getByRole('button', { name: '启动游戏', exact: true })
     await expect(disabledLaunch).toBeDisabled()
     const disabledMaterial = await disabledLaunch.evaluate(element => ({
       face: getComputedStyle(element, '::before').backgroundImage,
       background: getComputedStyle(element).backgroundColor,
-      shadow: getComputedStyle(element).boxShadow,
+      border: getComputedStyle(element).borderTopColor,
     }))
-    expect(disabledMaterial.face).not.toBe('none')
+    expect(disabledMaterial.face).toBe('none')
     expect(disabledMaterial.background).not.toBe('rgba(0, 0, 0, 0)')
-    expect(disabledMaterial.shadow).not.toBe('none')
+    expect(disabledMaterial.border).not.toBe('rgba(0, 0, 0, 0)')
     await page.screenshot({ path: resolve(screenshotRoot, '1280x860-state-button-focus-disabled.png'), animations: 'disabled' })
 
-    const chromeSpacing = await page.evaluate(() => {
-      const pageHost = document.querySelector<HTMLElement>('.page-host')!.getBoundingClientRect()
-      const heading = document.querySelector<HTMLElement>('.page-host > *')!.getBoundingClientRect()
+    const spacing = await page.evaluate(() => {
+      const pageHost = document.querySelector<HTMLElement>('.page-host')!
+      const hostBounds = pageHost.getBoundingClientRect()
+      const heading = pageHost.querySelector<HTMLElement>(':scope > *')!.getBoundingClientRect()
+      const hostStyles = getComputedStyle(pageHost)
       const chrome = getComputedStyle(document.querySelector<HTMLElement>('.content-shell')!, '::before')
-      return { contained: pageHost.top <= heading.top, chromeZ: Number(chrome.zIndex), chromeMask: chrome.maskImage || chrome.webkitMaskImage }
+      return {
+        paddingLeft: hostStyles.paddingLeft,
+        paddingTop: hostStyles.paddingTop,
+        contained: hostBounds.top <= heading.top && hostBounds.left <= heading.left,
+        chromeDisplay: chrome.display,
+      }
     })
-    expect(chromeSpacing.contained).toBe(true)
-    expect(chromeSpacing.chromeZ).toBeGreaterThan(2)
-    expect(chromeSpacing.chromeMask).not.toBe('none')
+    // UI scale can be a fractional system DPI factor (1.25 here); Chromium then
+    // reports zoomed lengths fractionally, so length assertions stay tolerance-based.
+    expect(Math.abs(cssLength(spacing.paddingLeft) - 22)).toBeLessThan(0.2)
+    expect(Math.abs(cssLength(spacing.paddingTop) - 18)).toBeLessThan(0.2)
+    expect(spacing.contained).toBe(true)
+    expect(spacing.chromeDisplay).toBe('none')
 
     await page.getByRole('button', { name: '界面与更新', exact: true }).click()
-    await assertDarkPrimaryButtons()
-    const selectedSkin = page.getByRole('radio', { name: '天穹机械终端' })
-    await selectedSkin.hover()
-    expect(await selectedSkin.evaluate(element => getComputedStyle(element, '::before').backgroundImage)).not.toBe('none')
-    expect(await selectedSkin.evaluate(element => getComputedStyle(element).getPropertyValue('--skin-edge').trim())).toBe('#a0f36f')
-    expect(await selectedSkin.evaluate(element => getComputedStyle(element, '::before').boxShadow)).not.toContain('7px 0px')
+    await assertFlatPrimaryButtons()
+    await expect(page.getByRole('radio', { name: '天穹机械终端' })).toHaveCount(0)
+    await expect(page.getByText('皮肤', { exact: true })).toHaveCount(0)
     await page.screenshot({ path: resolve(screenshotRoot, '1280x860-state-selected-hover.png'), animations: 'disabled' })
 
     await page.getByRole('button', { name: '战车', exact: true }).click()
     const activeTab = page.locator('.type-switcher button.active')
-    await activeTab.hover()
-    expect(await activeTab.evaluate(element => getComputedStyle(element).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)')
+    await expect.poll(async () => {
+      await activeTab.hover()
+      return activeTab.evaluate(element => getComputedStyle(element).backgroundColor)
+    }).toBe('rgb(44, 36, 27)')
     await expect(page.locator('.cheat-control-bar')).toHaveCount(0)
     await page.screenshot({ path: resolve(screenshotRoot, '1280x860-state-tab-hover.png'), animations: 'disabled' })
 
     const closeButton = page.getByRole('button', { name: '关闭', exact: true })
-    await closeButton.hover()
-    expect(await closeButton.evaluate(element => getComputedStyle(element).backgroundImage)).toContain('gear-')
+    const closeRest = await closeButton.evaluate(element => ({
+      image: getComputedStyle(element).backgroundImage,
+    }))
+    expect(closeRest.image).toBe('none')
+    await expect.poll(async () => {
+      await closeButton.hover()
+      return closeButton.evaluate(element => getComputedStyle(element).backgroundColor)
+    }).toBe('rgb(143, 47, 38)')
   } finally {
     await app.close()
     rmSync(dataRoot, { recursive: true, force: true })
