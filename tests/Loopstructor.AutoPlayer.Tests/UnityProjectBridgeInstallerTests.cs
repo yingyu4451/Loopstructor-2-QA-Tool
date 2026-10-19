@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using Loopstructor.AutoPlayer.Manager.Services;
 
 namespace Loopstructor.AutoPlayer.Tests;
@@ -67,6 +68,27 @@ public sealed class UnityProjectBridgeInstallerTests
         Assert.False(install.Success);
         Assert.False(uninstall.Success);
         Assert.True(File.Exists(Path.Combine(packageRoot, "package.json")));
+    }
+
+    [Fact]
+    public void Install_RepairsUnityMetaFilesWithInvalidGuidsAndReportsTheCount()
+    {
+        using TemporaryDirectory temporary = new();
+        string distributionRoot = Path.Combine(temporary.Root, "distribution");
+        string projectRoot = Path.Combine(temporary.Root, "Loopstructor2");
+        CreateDistribution(distributionRoot);
+        CreateUnityProject(projectRoot);
+        string brokenMeta = Path.Combine(projectRoot, "Assets", "策划配置", "开发记录", "20260916-181000_Codex_A08-010-014.md.meta");
+        WriteText(brokenMeta, "fileFormatVersion: 2\nguid: 99db159e53ca4b6b8e346883205dab2b9\nTextScriptImporter:\n");
+        UnityProjectBridgeInstaller installer = new(CreateLayout(distributionRoot));
+
+        var installed = installer.Install(projectRoot);
+
+        Assert.True(installed.Success, installed.Message);
+        Assert.Equal(
+            "Editor 连接组件已安装。重新聚焦 Unity，等待脚本编译完成。 已修复 1 个 Unity 会报错的无效 .meta GUID。",
+            installed.Message);
+        Assert.Matches("(?m)^guid: [0-9a-f]{32}\r?$", File.ReadAllText(brokenMeta));
     }
 
     private static void CreateDistribution(string root)

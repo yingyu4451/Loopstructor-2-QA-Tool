@@ -31,6 +31,7 @@
     <Compile Include="..\Loopstructor.AutoPlayer.Manager\Services\PipeControlClient.cs" Link="Manager\Services\PipeControlClient.cs" />
     <Compile Include="..\Loopstructor.AutoPlayer.Manager\Services\SaveBackupService.cs" Link="Manager\Services\SaveBackupService.cs" />
     <Compile Include="..\Loopstructor.AutoPlayer.Manager\Services\UpdateCoordinator.cs" Link="Manager\Services\UpdateCoordinator.cs" />
+    <Compile Include="..\Loopstructor.AutoPlayer.Manager\Services\UnityAssetMetaGuidRepairer.cs" Link="Manager\Services\UnityAssetMetaGuidRepairer.cs" />
     <Compile Include="..\Loopstructor.AutoPlayer.Manager\Services\UnityProjectBridgeInstaller.cs" Link="Manager\Services\UnityProjectBridgeInstaller.cs" />
   </ItemGroup>
   <ItemGroup>

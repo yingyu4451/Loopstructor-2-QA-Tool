@@ -37,7 +37,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.81
+./scripts/package.ps1 -Version 0.6.82
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -47,8 +47,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.81-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.81-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.82-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.82-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -63,15 +63,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.81",
+  "version": "0.6.82",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.81-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.82-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.80",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.80-to-0.6.81-win-x64.delta.zip",
+      "fromVersion": "0.6.81",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.81-to-0.6.82-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -135,8 +135,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.81
-git push origin v0.6.81
+git tag v0.6.82
+git push origin v0.6.82
 ```
 
 ## 升级 BepInEx
@@ -167,6 +167,14 @@ git push origin v0.6.81
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.82
+
+- 消除 Manager 注入 Unity Editor 连接组件后 Console 反复出现的两条 `.meta` 报错（`The .meta file ... does not have a valid GUID and its corresponding Asset file will be ignored.`）：这两条错误由工程内 GUID 非法的资源 `.meta` 引起，每次 AssetDatabase 全量刷新（切出/切回 Unity）都会重新打印，与连接组件本身无关。
+- 新增 `UnityAssetMetaGuidRepairer`（`src/Loopstructor.AutoPlayer.Manager/Services/UnityAssetMetaGuidRepairer.cs`）：安装/更新连接组件成功后扫描工程 `Assets`、`Packages` 下的 `*.meta`，把非 32 位十六进制的 `guid:`（含缺失 guid 行）替换为新的合法 GUID，保留原编码（UTF-8 BOM）、其余内容与文件原子写；逐文件失败计入 `FailedCount` 而不阻塞安装，跳过 reparse point 与 UTF-16 文件。
+- 安装/更新结果消息追加修复数量，Manager 直接以 toast 显示，例如「已修复 N 个 Unity 会报错的无效 .meta GUID。」；工程本身无坏 `.meta` 时消息与之前完全一致。
+- 新增测试：`UnityAssetMetaGuidRepairerTests`（只改非法 GUID、保留 BOM 与内容、缺失 guid 行时插入、幂等）与 `UnityProjectBridgeInstallerTests` 的安装自愈用例；解决方案测试 653 → 657，桌面单元测试保持 26，Release 构建 0 警告。
+- 本版不改变游戏内插件运行时契约与作弊命令。
 
 ### 0.6.81
 

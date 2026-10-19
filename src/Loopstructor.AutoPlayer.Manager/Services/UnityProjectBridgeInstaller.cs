@@ -70,13 +70,19 @@ public sealed class UnityProjectBridgeInstaller
             if (updating) Directory.Move(packageRoot, backupRoot);
             Directory.Move(stagingRoot, packageRoot);
             TryDeleteDirectory(backupRoot);
+            UnityAssetMetaGuidRepairResult repaired = RepairUnityAssetMetaGuids(inspection.Path);
             UnityProjectInspection installed = Inspect(inspection.Path);
+            string message = updating
+                ? "Editor 连接组件已更新。重新聚焦 Unity，等待脚本编译完成。"
+                : "Editor 连接组件已安装。重新聚焦 Unity，等待脚本编译完成。";
+            if (repaired.RepairedCount > 0)
+                message += $" 已修复 {repaired.RepairedCount} 个 Unity 会报错的无效 .meta GUID。";
+            if (repaired.FailedCount > 0)
+                message += $" 另有 {repaired.FailedCount} 个 .meta 无法修复。";
             return new EditorBridgeOperationResult
             {
                 Success = true,
-                Message = updating
-                    ? "Editor 连接组件已更新。重新聚焦 Unity，等待脚本编译完成。"
-                    : "Editor 连接组件已安装。重新聚焦 Unity，等待脚本编译完成。",
+                Message = message,
                 Inspection = installed
             };
         }
@@ -118,6 +124,19 @@ public sealed class UnityProjectBridgeInstaller
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             return EditorBridgeOperationResult.Fail("无法卸载 Editor Bridge。详细信息：" + exception.Message);
+        }
+    }
+
+    private static UnityAssetMetaGuidRepairResult RepairUnityAssetMetaGuids(string projectRoot)
+    {
+        try
+        {
+            return UnityAssetMetaGuidRepairer.Repair(projectRoot);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            // 工程内 .meta 扫描失败不应阻塞连接组件安装；单文件级别的失败由 Repair 自己累计到 FailedCount。
+            return new UnityAssetMetaGuidRepairResult();
         }
     }
 
