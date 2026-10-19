@@ -37,7 +37,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.82
+./scripts/package.ps1 -Version 0.6.83
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -47,8 +47,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.82-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.82-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.83-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.83-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -63,15 +63,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.82",
+  "version": "0.6.83",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.82-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.83-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.81",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.81-to-0.6.82-win-x64.delta.zip",
+      "fromVersion": "0.6.82",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.82-to-0.6.83-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -135,8 +135,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.82
-git push origin v0.6.82
+git tag v0.6.83
+git push origin v0.6.83
 ```
 
 ## 升级 BepInEx
@@ -167,6 +167,13 @@ git push origin v0.6.82
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.83
+
+- 重做 Manager 界面：删除右侧机械背景（`station.png`）、铜管边框（`console-frame.png`）、齿轮传动轴与全部 `clip-path` 切角，改为扁平化仪表盘布局；重写页面边距与间距（标题栏 52px、侧栏 232px、内容区内边距 20px 24px、卡片内边距 16px、圆角 10–12px）。
+- 配色沿用 0.6.82 的煤矿／铜／黄铜体系：交互强调色使用黄铜，在线与成功信号保持绿色，危险操作保持暗红；不使用冷蓝灰主题。
+- 删除 5 张机械贴图与 `Skyspine Data` 字体（约 2.4 MB 源资源），移除唯一皮肤的皮肤选择入口与 `theme/skins.ts`，避免「选了也没用」的设置项。
+- 桌面单元测试保持 26 项、.NET 测试保持 657 项，Release 构建 0 警告；本版只改 Manager 界面视觉与静态资源，不改变游戏内插件运行时契约与作弊命令。
 
 ### 0.6.82
 

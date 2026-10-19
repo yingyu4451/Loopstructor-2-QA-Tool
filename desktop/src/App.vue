@@ -17,7 +17,6 @@ import SpawnPage from './pages/SpawnPage.vue'
 import DiagnosticsPage from './pages/DiagnosticsPage.vue'
 import SettingsPage from './pages/SettingsPage.vue'
 import UpdaterPage from './pages/UpdaterPage.vue'
-import stationArt from './assets/skins/skyspine/station.png'
 import { useAppStore } from './stores/app'
 import { useUiStore } from './stores/ui'
 
@@ -48,12 +47,6 @@ async function animatePage(): Promise<void> {
     duration: 0.24,
     ease: 'power2.out',
     clearProps: 'transform',
-  })
-  gsap.to('.title-cog, .nav-item.active .rail-cog', {
-    rotation: '+=45',
-    duration: 0.34,
-    stagger: 0.035,
-    ease: 'power2.out',
   })
 }
 
@@ -86,7 +79,6 @@ onBeforeUnmount(() => {
     <div v-else class="app-body grid min-h-0" :class="{ 'sidebar-collapsed': store.settings?.sidebarCollapsed }">
       <RailSidebar />
       <main class="content-shell relative min-h-0 min-w-0 overflow-hidden">
-        <img :src="stationArt" alt="" width="256" height="256" class="workspace-station" aria-hidden="true" />
         <div class="page-host h-full min-h-0 min-w-0 overflow-hidden">
           <component :is="activePage" />
         </div>

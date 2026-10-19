@@ -17,11 +17,6 @@ function systemMenu(event: MouseEvent) {
 
 <template>
   <header class="titlebar" @contextmenu.prevent="systemMenu">
-    <div class="title-drive" aria-hidden="true">
-      <span class="title-cog cog-large" />
-      <span class="title-cog cog-small" />
-      <span class="drive-shaft" />
-    </div>
     <div class="titlebar-brand">
       <img :src="managerLogo" alt="" width="42" height="42" class="brand-logo" fetchpriority="high" />
       <div>
@@ -30,7 +25,6 @@ function systemMenu(event: MouseEvent) {
       </div>
     </div>
     <div class="titlebar-status">
-      <span class="plaque-bolt" aria-hidden="true" />
       <span class="signal-dot" :class="connectionClass" />
       <span class="status-copy">{{ props.updaterMode ? '更新事务' : (store.snapshot?.connection.label ?? '正在启动 Host') }}</span>
       <button
@@ -42,7 +36,6 @@ function systemMenu(event: MouseEvent) {
       >
         <Download :size="14" /> v{{ store.snapshot.update.latestVersion }} 可用
       </button>
-      <span class="plaque-bolt" aria-hidden="true" />
     </div>
     <div class="window-controls">
       <button v-tooltip="'最小化'" aria-label="最小化" @click="api.minimize()"><Minus :size="18" /></button>
