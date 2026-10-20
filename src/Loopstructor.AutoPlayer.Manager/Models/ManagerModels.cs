@@ -151,9 +151,9 @@ public sealed class ManagerSettings
         foreach (string value in PersistentCheats ?? new List<string>())
         {
             if (string.IsNullOrWhiteSpace(value)) continue;
-            string option = PersistentCheatOptions.FirstOrDefault(candidate =>
+            string? option = PersistentCheatOptions.FirstOrDefault(candidate =>
                 string.Equals(candidate, value.Trim(), StringComparison.OrdinalIgnoreCase));
-            if (option != null) selected.Add(option);
+            if (option is not null) selected.Add(option);
         }
 
         PersistentCheats = PersistentCheatOptions.Where(selected.Contains).ToList();

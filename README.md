@@ -35,8 +35,8 @@ Loopstructor-2-QA-Tool.exe (Launcher)
 | 依赖 | 版本 |
 | --- | --- |
 | Node.js | 24 |
-| pnpm | 11.19.0（`desktop/package.json` 的 `packageManager` 固定） |
-| .NET SDK | 8.0.423（`global.json` 固定，由 `scripts/bootstrap.ps1` 安装到仓库 `.dotnet`） |
+| pnpm | 11.28.5（`desktop/package.json` 的 `packageManager` 固定） |
+| .NET SDK | 8.0.426（`global.json` 固定，由 `scripts/bootstrap.ps1` 安装到仓库 `.dotnet`） |
 | 7-Zip | 打包时需要（`package.ps1` 自动探测，可用 `-SevenZipPath` 指定） |
 
 ## 从源码构建
@@ -45,13 +45,13 @@ Loopstructor-2-QA-Tool.exe (Launcher)
 ./scripts/bootstrap.ps1
 ./scripts/build.ps1 -Configuration Release
 ./scripts/test.ps1 -Configuration Release -NoRestore -NoBuild
-./scripts/package.ps1 -Version 0.6.85
+./scripts/package.ps1 -Version 0.6.86
 ```
 
 - `build.ps1` 构建解决方案与 `desktop`，输出在各项目 `bin`/`dist` 目录。
 - `test.ps1` 依次运行：解决方案测试（TRX 输出到 `artifacts\TestResults`）、`Verification` 控制台校验、`pnpm typecheck`、`pnpm lint`、`pnpm test`。
 - `desktop` 的 Playwright E2E 由 `pnpm test:e2e` 单独运行（CI 会执行；本地需要可交互的桌面会话）。
-- `package.ps1` 需要 Node/pnpm 与 7-Zip，输出到 `artifacts\release\`：`Loopstructor-2-QA-Tool-0.6.85-win-x64.zip`、对应的 `.sha256` 和 `autoplayer-update-manifest.json`。`-SkipBuild` 可复用已有构建产物。
+- `package.ps1` 需要 Node/pnpm 与 7-Zip，输出到 `artifacts\release\`：`Loopstructor-2-QA-Tool-0.6.86-win-x64.zip`、对应的 `.sha256` 和 `autoplayer-update-manifest.json`。`-SkipBuild` 可复用已有构建产物。
 - 加 `-SkipBuild` 前必须先完成一次对应版本号的 Release 构建，否则包内二进制版本校验会失败。
 
 ## 使用发布包
@@ -183,4 +183,4 @@ Plugin 端日志由 Host 合并显示；游戏处于非 Development Build 时不
 
 ## 版本
 
-当前版本 0.6.85。版本记录见 [docs/release.md](docs/release.md#版本记录)，发布流程与检查表见同一文档。
+当前版本 0.6.86。版本记录见 [docs/release.md](docs/release.md#版本记录)，发布流程与检查表见同一文档。

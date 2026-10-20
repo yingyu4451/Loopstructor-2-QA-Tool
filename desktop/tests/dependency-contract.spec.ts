@@ -29,7 +29,7 @@ describe('desktop dependency contract', () => {
     const packageJson = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'))
     expect(Object.keys(packageJson.dependencies).sort())
       .toEqual(['@iconify-icons/mdi', '@iconify/vue', 'gsap', 'pinia', 'vue'])
-    expect(packageJson.dependencies['@iconify/vue']).toBe('5.0.3')
+    expect(packageJson.dependencies['@iconify/vue']).toBe('5.0.4')
     expect(packageJson.dependencies['@iconify-icons/mdi']).toBe('2.0.0')
     expect(packageJson.dependencies['@lucide/vue']).toBeUndefined()
     expect(packageJson.devDependencies['@lucide/vue']).toBeUndefined()

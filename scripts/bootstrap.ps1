@@ -18,13 +18,13 @@ $dotNetExecutable = Join-Path $dotNetRoot 'dotnet.exe'
 $toolsRoot = Join-Path $repositoryRoot '.tools'
 
 $sdkVersion = [string]((Get-Content -LiteralPath $globalJsonPath -Raw | ConvertFrom-Json).sdk.version)
-if ($sdkVersion -ne '8.0.423') {
-    throw "bootstrap.ps1 expects SDK 8.0.423, but global.json requests '$sdkVersion'. Update both pins together."
+if ($sdkVersion -ne '8.0.426') {
+    throw "bootstrap.ps1 expects SDK 8.0.426, but global.json requests '$sdkVersion'. Update both pins together."
 }
 
 $archiveName = "dotnet-sdk-$sdkVersion-win-x64.zip"
 $archiveUrl = "https://builds.dotnet.microsoft.com/dotnet/Sdk/$sdkVersion/$archiveName"
-$archiveSha512 = '063fcc35c136277e6fd767c66579f3b92db22a078a7f0c7177b6af1edb2c9afae1613f6cfdc01acf7421773d9ac77f0ef73a7fd8b37f469e7e3505e5c1361ba0'
+$archiveSha512 = '10261657109f1c62126f106a9ac966739b025b5f6b4a9f88ab7c6e73cacce9aec771895daa3267b8da933a83c32ee91bf458dc6704e1ddcd9bcf0d5edd036abb'
 $archivePath = Join-Path $toolsRoot $archiveName
 
 function Get-InstalledSdkVersion {

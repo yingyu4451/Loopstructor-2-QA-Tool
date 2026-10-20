@@ -4,7 +4,7 @@
 
 | 依赖 | 版本 | 来源 |
 | --- | --- | --- |
-| .NET SDK | 8.0.423 | `global.json`（精确版本，禁止前滚），`scripts/bootstrap.ps1` 安装到仓库 `.dotnet` |
+| .NET SDK | 8.0.426 | `global.json`（精确版本，禁止前滚），`scripts/bootstrap.ps1` 安装到仓库 `.dotnet` |
 | BepInEx 运行时 | 5.4.23.5 win-x64 | `Directory.Build.props` 的下载地址与 SHA-256：`82f9878551030f54657792c0740d9d51a09500eeae1fba21106b0c441e6732c4` |
 | BepInEx.Core | 5.4.21 | 插件 NuGet 引用 |
 | UnityEngine.Modules | 2022.3.62 | 插件与 Editor Bridge 运行时引用 |
@@ -14,10 +14,10 @@
 | Editor Bridge | UPM 包，Unity 2022.3，依赖 `com.unity.nuget.newtonsoft-json` 3.2.1 | `resources/unity-package/com.loopstructor.qa-editor-bridge` |
 | Electron | 44.9.0 | `desktop/package.json`（精确版本） |
 | Node.js | 24 | 构建与 CI（Electron 44.9 内置 Node 24.22） |
-| pnpm | 11.19.0 | `desktop/package.json` 的 `packageManager` |
-| Vue / Vite / TypeScript | 3.5.44 / 8.3.4 / 5.9.3 | `desktop/package.json`（TypeScript 7 因 typescript-eslint 与 vue-tsc 尚不支持而未升级） |
+| pnpm | 11.28.5 | `desktop/package.json` 的 `packageManager` |
+| Vue / Vite / TypeScript / typescript-eslint | 3.5.44 / 8.3.4 / 5.9.3 / 8.72.0 | `desktop/package.json`（TypeScript 7 因 typescript-eslint 与 vue-tsc 尚不支持而未升级） |
 | Tailwind / daisyUI | 4.3.3 / 5.7.50 | `desktop/package.json` |
-| 界面图标 | @iconify/vue 5.0.3 + @iconify-icons/mdi 2.0.0 | `desktop/package.json` 与 `desktop/src/icons.ts`（离线图标数据静态导入，无 Iconify API 请求；不使用 lucide） |
+| 界面图标 | @iconify/vue 5.0.4 + @iconify-icons/mdi 2.0.0 | `desktop/package.json` 与 `desktop/src/icons.ts`（离线图标数据静态导入，无 Iconify API 请求；不使用 lucide） |
 | 发布 RID | win-x64 | Host、Updater、Launcher 发布 |
 
 ## 本地构建和测试
@@ -37,7 +37,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.85
+./scripts/package.ps1 -Version 0.6.86
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -47,8 +47,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.85-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.85-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.86-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.86-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -63,15 +63,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.85",
+  "version": "0.6.86",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.85-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.86-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.84",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.84-to-0.6.85-win-x64.delta.zip",
+      "fromVersion": "0.6.85",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.85-to-0.6.86-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -92,7 +92,7 @@ autoplayer-update-manifest.json
 
 - 触发：所有分支 push、pull_request、手动 dispatch。
 - 运行环境：`windows-2022`，超时 45 分钟，`contents: read`。
-- 步骤：checkout → 安装 pnpm 11.19.0 → Node 24（缓存 pnpm）→ `pnpm install --frozen-lockfile` → 缓存固定 .NET SDK 与 NuGet 包 → `bootstrap.ps1` → `build.ps1 -Configuration Release` → `test.ps1 -Configuration Release -NoRestore -NoBuild` → `pnpm test:e2e` → 校验全部 `scripts/*.ps1` 可解析且语义版本比较正确 → 上传 TRX 测试结果（保留 14 天）。
+- 步骤：checkout → 安装 pnpm 11.28.5 → Node 24（缓存 pnpm）→ `pnpm install --frozen-lockfile` → 缓存固定 .NET SDK 与 NuGet 包 → `bootstrap.ps1` → `build.ps1 -Configuration Release` → `test.ps1 -Configuration Release -NoRestore -NoBuild` → `pnpm test:e2e` → 校验全部 `scripts/*.ps1` 可解析且语义版本比较正确 → 上传 TRX 测试结果（保留 14 天）。
 
 ### Release（`.github/workflows/release.yml`）
 
@@ -135,8 +135,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.85
-git push origin v0.6.85
+git tag v0.6.86
+git push origin v0.6.86
 ```
 
 ## 升级 BepInEx
@@ -167,6 +167,13 @@ git push origin v0.6.85
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.86
+
+- 依赖升级（安全与兼容性范围内）：`@iconify/vue` 5.0.3 → 5.0.4、`typescript-eslint` 8.71.2 → 8.72.0、pnpm `packageManager` 11.19.0 → 11.28.5（`desktop/pnpm-lock.yaml` 同步，CI 与 Release workflow 的 `pnpm/action-setup` 版本一并更新）。
+- .NET SDK 由 8.0.423 升到 8.0.426（.NET 8 维护线最新版本，2026-10-13 发布，含缺陷与安全修复）：`global.json`、`scripts/bootstrap.ps1` 的固定版本与安装包 SHA-512 同步更新，README 与本文档的固定依赖表同步。
+- 暂不升级项：TypeScript 7.0.2（`typescript-eslint` 8.72 的 peer 仍要求 `typescript <6.1.0`，`vue-tsc` 也尚未支持）、`@types/node` 26.x（本机与 CI 的 Node 运行时为 24，类型包主版本应保持一致）；游戏侧 `UnityEngine.Modules` 2022.3.62 与 `Newtonsoft.Json` 13.0.2 属游戏运行时对齐项，保持不动。
+- 无功能、协议与界面变化；.NET 测试 658 项、桌面单元测试 29 项、Playwright E2E 4 项，Release 构建 0 警告。
 
 ### 0.6.85
 
