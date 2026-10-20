@@ -37,7 +37,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.84
+./scripts/package.ps1 -Version 0.6.85
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -47,8 +47,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.84-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.84-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.85-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.85-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -63,15 +63,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.84",
+  "version": "0.6.85",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.84-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.85-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.83",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.83-to-0.6.84-win-x64.delta.zip",
+      "fromVersion": "0.6.84",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.84-to-0.6.85-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -135,8 +135,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.84
-git push origin v0.6.84
+git tag v0.6.85
+git push origin v0.6.85
 ```
 
 ## 升级 BepInEx
@@ -168,6 +168,13 @@ git push origin v0.6.84
 
 ## 版本记录
 
+### 0.6.85
+
+- 新增「获取池」双池切换：战车、消耗品、遗物目录可在「全部池」（枚举全集）与「游戏配置池」之间切换。游戏配置池与游戏开发者作弊面板同源——战车取 `CheatVehiclePanelCfg.vehicleTypes`，消耗品取 `RewardManager.AllDisposableRewards`，遗物取 `RewardManager.AllSuperModuleRewards`（列表为空时先反射调用 `UpdateAllRewards()`）；某类别读取失败时回退全部池，并在插件返回的 `poolWarnings` 中说明。
+- Core `CheatCommands` 新增 `cheat.setCatalogPoolMode`（`All` 37 项 / `Mutations` 27 项），插件 `QueryCatalog` 的 `catalogVersion` 升到 6 并返回 `poolMode` / `poolWarnings`；`StartGrantAllRelics` 在游戏配置池下只启用配置中的遗物；Editor Bridge 对该命令返回 `EDITOR_POOL_MODE_UNAVAILABLE`，Editor 运行控制沿用全部池。
+- Manager 设置新增 `catalogPoolMode`（默认 `all`）与 `persistentCheats`；「战斗」页新增「常驻启动」卡片，可保存基地无敌、地图自由跳转、显示敌人 ID、显示 Buff 四项，连接游戏并启用作弊后由 Host 自动下发未恢复项，失败按项节流重试。
+- 战车、道具、遗物页加入「全部池 / 游戏配置池」两段开关与生效状态徽标；切换会随 Manager 设置持久化，并在连接时下发给插件。
+- .NET 测试 658 项、桌面单元测试 29 项，Release 构建 0 警告；目标游戏 Skyspine `1.423_Beta`（`CheatVehiclePanelCfg`、`RewardManager` 字段已核对）。
 ### 0.6.84
 
 - 新增游戏内快捷键：在「战斗」页的「游戏内快捷键」卡片开启后，不用切回工具，在游戏窗口内按 `F` 清除场上所有怪物、`F1` 结束当前波次，行为与游戏开发者模式的同名按键一致（分别对应 `AgentCreator.ClearAllEnemy` / `WaveDurationController.WaveOver`）。

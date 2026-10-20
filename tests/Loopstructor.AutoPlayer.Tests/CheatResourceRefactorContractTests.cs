@@ -10,7 +10,7 @@ public sealed class CheatResourceRefactorContractTests
     private const string DisplayPatchType = "Loopstructor.AutoPlayer.Plugin.VehicleEnchantmentDisplayPatch";
 
     [Fact]
-    public void CatalogV5_EnumeratesEveryVehicleTypeWithRuntimeComponent_AndRuntimeCompleteFetterEnum()
+    public void CatalogV6_EnumeratesEveryVehicleTypeWithRuntimeComponent_AndRuntimeCompleteFetterEnum()
     {
         using AssemblyDefinition assembly = ReadPlugin();
         TypeDefinition bridge = RequireType(assembly, BridgeType);
@@ -20,7 +20,7 @@ public sealed class CheatResourceRefactorContractTests
         MethodDefinition vehicleValues = RequireMethod(bridge, "AllVehicleValues");
         MethodDefinition enchantmentValues = RequireMethod(bridge, "AllEnchantmentValues");
 
-        Assert.Contains(5, LoadedInts(catalog));
+        Assert.Contains(6, LoadedInts(catalog));
         Assert.Contains(Calls(catalog), IsCall(BridgeType, "AllVehicleValues"));
         Assert.Contains(Calls(catalog), IsCall(BridgeType, "AllEnchantmentValues"));
         Assert.Contains(Calls(catalog), IsCall(BridgeType, "InvalidateRuntimeCatalogCache"));

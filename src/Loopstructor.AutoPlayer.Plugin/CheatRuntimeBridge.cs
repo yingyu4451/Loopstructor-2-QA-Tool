@@ -288,6 +288,10 @@ internal sealed class CheatRuntimeBridge
     private readonly Dictionary<string, int> _vehicleFamilyOrders = new(StringComparer.Ordinal);
     private IReadOnlyList<object>? _availableEnchantmentValues;
     private IReadOnlyList<object> _unavailableEnchantmentValues = Array.Empty<object>();
+    private string _catalogPoolMode = CheatCatalogPoolModes.All;
+    private IReadOnlyList<object>? _configuredVehicleValues;
+    private IReadOnlyList<object>? _configuredDisposableValues;
+    private IReadOnlyList<object>? _configuredRelicValues;
 
     private Type? _vehicleManagerType;
     private Type? _vehicleDataManagerType;
@@ -366,6 +370,9 @@ internal sealed class CheatRuntimeBridge
     /// 未注入时，依赖原生通道的作弊命令会如实返回不可用，而不是静默无效。
     /// </summary>
     internal Func<string, JObject?, JObject>? NativeCommandInvoker { get; set; }
+
+    /// <summary>当前作弊目录的获取池模式（全部池或游戏配置池）。</summary>
+    public string CatalogPoolMode => _catalogPoolMode;
 
     public void Initialize(string artifactRoot, Action<string>? warningLogger = null)
     {
@@ -456,6 +463,33 @@ internal sealed class CheatRuntimeBridge
         }
     }
 
+    public CheatExecutionResult SetCatalogPoolMode(string? mode)
+    {
+        EnsureAvailable();
+        if (!CheatCatalogPoolModes.IsValid(mode))
+        {
+            return CheatExecutionResult.Fail(
+                "无法识别的获取池模式：" + (mode ?? string.Empty) + "。",
+                "INVALID_POOL_MODE");
+        }
+
+        string normalized = CheatCatalogPoolModes.Normalize(mode);
+        _catalogPoolMode = normalized;
+        InvalidateRuntimeCatalogCache();
+        bool configured = string.Equals(normalized, CheatCatalogPoolModes.Configured, StringComparison.Ordinal);
+        string message = configured
+            ? "获取池已切换为游戏配置池：战车取自带作弊面板配置，消耗品与遗物取自奖励配置。"
+            : "获取池已切换为全部池：所有目录项目均可获取。";
+        return CheatExecutionResult.Changed(message, new JObject { ["poolMode"] = normalized });
+    }
+
+    /// <summary>关闭作弊模式时把获取池恢复为默认的全部池。</summary>
+    public void ResetCatalogPoolMode()
+    {
+        _catalogPoolMode = CheatCatalogPoolModes.All;
+        InvalidateRuntimeCatalogCache();
+    }
+
     public JObject QueryCatalog()
     {
         EnsureAvailable();
@@ -468,10 +502,20 @@ internal sealed class CheatRuntimeBridge
         IReadOnlyList<object> catapultPoints = allDisposables.Where(IsCatapultPoint).ToList();
         IReadOnlyList<object> disposables = allDisposables.Where(value => !IsCatapultPoint(value)).ToList();
         IReadOnlyList<object> relics = AllEnumValues(_superModuleType!);
+        List<string> poolWarnings = new();
+        if (IsConfiguredPoolMode)
+        {
+            vehicles = FilterToConfiguredPool(vehicles, ConfiguredVehicleValues(poolWarnings), "战车", poolWarnings);
+            disposables = FilterToConfiguredPool(disposables, ConfiguredDisposableValues(poolWarnings), "消耗品", poolWarnings);
+            relics = FilterToConfiguredPool(relics, ConfiguredRelicValues(poolWarnings), "遗物", poolWarnings);
+        }
+
         return new JObject
         {
-            ["catalogVersion"] = 5,
+            ["catalogVersion"] = 6,
             ["locale"] = "zh",
+            ["poolMode"] = _catalogPoolMode,
+            ["poolWarnings"] = new JArray(poolWarnings),
             ["vehicles"] = CatalogItems(vehicles, BuildVehicleCatalogItem),
             ["enchantments"] = CatalogItems(enchantments, BuildEnchantmentCatalogItem),
             ["disposables"] = CatalogItems(disposables, BuildDisposableCatalogItem),
@@ -1189,6 +1233,16 @@ internal sealed class CheatRuntimeBridge
         }
 
         IReadOnlyList<object> configured = AllEnumValues(_superModuleType!);
+        if (IsConfiguredPoolMode)
+        {
+            List<string> poolWarnings = new();
+            configured = FilterToConfiguredPool(configured, ConfiguredRelicValues(poolWarnings), "遗物", poolWarnings);
+            foreach (string warning in poolWarnings)
+            {
+                _warningLogger?.Invoke("一键获取所有遗物：" + warning);
+            }
+        }
+
         if (configured.Count == 0)
         {
             return CheatExecutionResult.Fail(
@@ -3872,7 +3926,203 @@ internal sealed class CheatRuntimeBridge
         _vehicleFamilyOrders.Clear();
         _availableEnchantmentValues = null;
         _unavailableEnchantmentValues = Array.Empty<object>();
+        _configuredVehicleValues = null;
+        _configuredDisposableValues = null;
+        _configuredRelicValues = null;
     }
+
+    private bool IsConfiguredPoolMode =>
+        string.Equals(_catalogPoolMode, CheatCatalogPoolModes.Configured, StringComparison.Ordinal);
+
+    private IReadOnlyList<object> FilterToConfiguredPool(
+        IReadOnlyList<object> allValues,
+        IReadOnlyList<object>? configuredValues,
+        string category,
+        List<string> warnings)
+    {
+        if (configuredValues == null) return allValues;
+        if (configuredValues.Count == 0)
+        {
+            warnings.Add(category + "在游戏配置池中没有任何条目，已回退到全部池。");
+            return allValues;
+        }
+
+        HashSet<long> allowed = new();
+        foreach (object value in configuredValues)
+        {
+            allowed.Add(Convert.ToInt64(value, CultureInfo.InvariantCulture));
+        }
+
+        IReadOnlyList<object> filtered = allValues
+            .Where(value => allowed.Contains(Convert.ToInt64(value, CultureInfo.InvariantCulture)))
+            .ToArray();
+        if (filtered.Count == 0)
+        {
+            warnings.Add(category + "的配置池项目与可获取目录没有交集，已回退到全部池。");
+            return allValues;
+        }
+
+        return filtered;
+    }
+
+    private IReadOnlyList<object>? ConfiguredVehicleValues(List<string> warnings)
+    {
+        if (_configuredVehicleValues != null) return _configuredVehicleValues;
+        Type? configType = FindType("MetroTD.CheatSystem.UI.CheatVehiclePanelCfg");
+        if (configType == null)
+        {
+            warnings.Add("当前游戏版本缺少开发者作弊面板战车配置，战车已回退到全部池。");
+            return null;
+        }
+
+        object? config = FindLoadedObject(configType);
+        if (config == null)
+        {
+            warnings.Add("开发者作弊面板战车配置尚未加载，战车已回退到全部池。");
+            return null;
+        }
+
+        if (GetMember(config, "vehicleTypes") is not IEnumerable vehicleTypes)
+        {
+            warnings.Add("开发者作弊面板战车配置没有战车列表，战车已回退到全部池。");
+            return null;
+        }
+
+        List<object> values = new();
+        foreach (object? item in vehicleTypes)
+        {
+            if (item == null || item.GetType() != _vehicleType) continue;
+            if (IsNoneEnumValue(item)) continue;
+            values.Add(item);
+        }
+
+        IReadOnlyList<object> distinct = DistinctEnumValues(values);
+        if (distinct.Count == 0)
+        {
+            warnings.Add("开发者作弊面板战车配置为空，战车已回退到全部池。");
+            return null;
+        }
+
+        _configuredVehicleValues = distinct;
+        return distinct;
+    }
+
+    private IReadOnlyList<object>? ConfiguredDisposableValues(List<string> warnings)
+    {
+        if (_configuredDisposableValues != null) return _configuredDisposableValues;
+        IReadOnlyList<object>? rewards = ReadRewardPool(
+            "AllDisposableRewards",
+            "disposableEnum",
+            _disposableType,
+            "消耗品",
+            warnings);
+        if (rewards == null) return null;
+        _configuredDisposableValues = rewards;
+        return rewards;
+    }
+
+    private IReadOnlyList<object>? ConfiguredRelicValues(List<string> warnings)
+    {
+        if (_configuredRelicValues != null) return _configuredRelicValues;
+        IReadOnlyList<object>? rewards = ReadRewardPool(
+            "AllSuperModuleRewards",
+            "superModuleEnum",
+            _superModuleType,
+            "遗物",
+            warnings);
+        if (rewards == null) return null;
+        _configuredRelicValues = rewards;
+        return rewards;
+    }
+
+    /// <summary>
+    /// 读取游戏奖励配置里列出的奖励类型。奖励列表由 RewardManager 在进入对局后填充，
+    /// 首次读取为空时先要求它刷新一次，再退回全部池并给出告警。
+    /// </summary>
+    private IReadOnlyList<object>? ReadRewardPool(
+        string listMember,
+        string enumMember,
+        Type? enumType,
+        string category,
+        List<string> warnings)
+    {
+        Type? rewardManagerType = FindType("MetroTD.RewardSystem.RewardManager");
+        if (rewardManagerType == null || enumType == null)
+        {
+            warnings.Add("当前游戏版本缺少奖励配置入口，" + category + "已回退到全部池。");
+            return null;
+        }
+
+        object? manager = TryGetSingleton(rewardManagerType);
+        if (manager == null)
+        {
+            warnings.Add("奖励配置尚未初始化，" + category + "已回退到全部池。");
+            return null;
+        }
+
+        object? rewards = GetMember(manager, listMember);
+        if (rewards == null)
+        {
+            MethodInfo? updateAll = FindMethod(manager.GetType(), "UpdateAllRewards");
+            if (updateAll == null)
+            {
+                warnings.Add("奖励配置缺少刷新入口，" + category + "已回退到全部池。");
+                return null;
+            }
+
+            try
+            {
+                updateAll.Invoke(manager, null);
+            }
+            catch (Exception exception)
+            {
+                warnings.Add("刷新奖励配置失败（" + Unwrap(exception).Message + "），" + category + "已回退到全部池。");
+                return null;
+            }
+
+            rewards = GetMember(manager, listMember);
+        }
+
+        if (rewards is not IEnumerable rewardItems)
+        {
+            warnings.Add("奖励配置没有可读的" + category + "列表，已回退到全部池。");
+            return null;
+        }
+
+        List<object> values = new();
+        foreach (object? reward in rewardItems)
+        {
+            object? value = GetMember(reward, enumMember);
+            if (value == null || value.GetType() != enumType) continue;
+            if (IsNoneEnumValue(value)) continue;
+            values.Add(value);
+        }
+
+        IReadOnlyList<object> distinct = DistinctEnumValues(values);
+        if (distinct.Count == 0)
+        {
+            warnings.Add("奖励配置里没有可获取的" + category + "，已回退到全部池。");
+            return null;
+        }
+
+        return distinct;
+    }
+
+    private static object? FindLoadedObject(Type type)
+    {
+        try
+        {
+            UnityEngine.Object[] matches = Resources.FindObjectsOfTypeAll(type);
+            return matches.Length > 0 ? matches[0] : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    private static bool IsNoneEnumValue(object value) =>
+        string.Equals(value.ToString(), "None", StringComparison.OrdinalIgnoreCase);
 
     private static IReadOnlyList<object> FilterRuntimeVehicleValues(
         IEnumerable<object> configuredValues,

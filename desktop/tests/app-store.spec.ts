@@ -69,6 +69,40 @@ describe('desktop application store', () => {
     expect(useUiStore().activeToast?.message ?? '').toContain('快捷键')
   })
 
+  it('persists the catalog pool preference and refreshes the cheat catalog', async () => {
+    const saveSettings = vi.fn(async (settings) => settings)
+    const cheatCommand = vi.fn(async (command: string) => command === 'cheat.queryCatalog'
+      ? { success: true, message: '', data: { poolMode: 'configured' } }
+      : { success: true, message: '', data: { enabled: true } })
+    window.loopstructorDesktop = { saveSettings, cheatCommand } as unknown as DesktopApi
+    const store = useAppStore()
+    store.applySnapshot(snapshot())
+
+    const saved = await store.setCatalogPoolMode('configured')
+
+    expect(saved?.catalogPoolMode).toBe('configured')
+    expect((saveSettings.mock.calls[0][0] as { catalogPoolMode?: string }).catalogPoolMode).toBe('configured')
+    expect(cheatCommand.mock.calls.map(call => call[0])).toEqual(['cheat.queryCatalog', 'cheat.queryState'])
+    expect(store.catalog?.poolMode).toBe('configured')
+    expect(useUiStore().activeToast?.message ?? '').toContain('游戏配置池')
+  })
+
+  it('persists persistent cheat toggles in display order', async () => {
+    const saveSettings = vi.fn(async (settings) => settings)
+    window.loopstructorDesktop = { saveSettings } as unknown as DesktopApi
+    const store = useAppStore()
+    store.applySnapshot(snapshot())
+
+    await store.setPersistentCheat('enemyBuffsVisible', true)
+    await store.setPersistentCheat('baseGodMode', true)
+    await store.setPersistentCheat('mapSkipEnabled', true)
+    await store.setPersistentCheat('baseGodMode', false)
+
+    const last = saveSettings.mock.calls.at(-1)![0] as { persistentCheats?: string[] }
+    expect(last.persistentCheats).toEqual(['mapSkipEnabled', 'enemyBuffsVisible'])
+    expect(store.snapshot?.settings.persistentCheats).toEqual(['mapSkipEnabled', 'enemyBuffsVisible'])
+  })
+
   it('loads cheat catalogs silently when entering a cheat page', async () => {
     const saveSettings = vi.fn(async (settings) => settings)
     const cheatCommand = vi.fn(async (command: string) => command === 'cheat.queryCatalog'

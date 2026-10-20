@@ -129,8 +129,36 @@ public sealed class ManagerSettings
     public bool SidebarCollapsed { get; set; }
     public string SkinId { get; set; } = "skyspine";
     public bool GameHotkeysEnabled { get; set; }
+    /// <summary>作弊目录的获取池模式：all（全部池）或 configured（游戏配置池）。</summary>
+    public string CatalogPoolMode { get; set; } = CheatCatalogPoolModes.All;
+    /// <summary>连接游戏并启用作弊后自动恢复的常驻作弊项（baseGodMode/mapSkipEnabled/enemyIdsVisible/enemyBuffsVisible）。</summary>
+    public List<string> PersistentCheats { get; set; } = new();
     public string GitHubOwner { get; set; } = DefaultGitHubOwner;
     public string GitHubRepository { get; set; } = DefaultGitHubRepository;
+
+    /// <summary>可持久化的常驻作弊项，顺序即界面展示顺序。</summary>
+    public static IReadOnlyList<string> PersistentCheatOptions { get; } = new[]
+    {
+        "baseGodMode",
+        "mapSkipEnabled",
+        "enemyIdsVisible",
+        "enemyBuffsVisible"
+    };
+
+    public IReadOnlyList<string> NormalizePersistentCheats()
+    {
+        HashSet<string> selected = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string value in PersistentCheats ?? new List<string>())
+        {
+            if (string.IsNullOrWhiteSpace(value)) continue;
+            string option = PersistentCheatOptions.FirstOrDefault(candidate =>
+                string.Equals(candidate, value.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (option != null) selected.Add(option);
+        }
+
+        PersistentCheats = PersistentCheatOptions.Where(selected.Contains).ToList();
+        return PersistentCheats;
+    }
 
     public void NormalizeUpdateSource()
     {
@@ -150,6 +178,8 @@ public sealed class ManagerSettings
         MaximumSaveBackups = Math.Clamp(MaximumSaveBackups, 1, 100);
         ActiveRoute = NormalizeRoute(ActiveRoute);
         SkinId = NormalizeSkin(SkinId);
+        CatalogPoolMode = CheatCatalogPoolModes.Normalize(CatalogPoolMode);
+        NormalizePersistentCheats();
     }
 
     private static string NormalizeCoordinate(string? value, string defaultValue) =>

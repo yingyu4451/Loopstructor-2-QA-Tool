@@ -282,6 +282,45 @@ public sealed class ManagerSettingsStoreTests
     }
 
     [Fact]
+    public void Save_NormalizesCatalogPoolModeAndPersistentCheats()
+    {
+        string root = CreateTemporaryDirectory();
+        try
+        {
+            string settingsPath = Path.Combine(root, "settings.json");
+            ManagerSettingsStore store = new(settingsPath);
+            ManagerSettings settings = new()
+            {
+                CatalogPoolMode = "CONFIGURED",
+                PersistentCheats = new List<string>
+                {
+                    "mapSkipEnabled",
+                    "unknown-option",
+                    "BASEgodmode",
+                    "enemyIdsVisible",
+                    "enemyIdsVisible"
+                }
+            };
+
+            store.Save(settings);
+            ManagerSettings reloaded = store.Load(out string warning);
+
+            Assert.Empty(warning);
+            Assert.Equal(CheatCatalogPoolModes.Configured, reloaded.CatalogPoolMode);
+            Assert.Equal(
+                new[] { "baseGodMode", "mapSkipEnabled", "enemyIdsVisible" },
+                reloaded.PersistentCheats);
+            reloaded.CatalogPoolMode = "unsupported";
+            store.Save(reloaded);
+            Assert.Equal(CheatCatalogPoolModes.All, store.Load(out _).CatalogPoolMode);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Load_LegacyStartupUpdatePreference_IsIgnoredAndNotSavedAgain()
     {
         string root = CreateTemporaryDirectory();

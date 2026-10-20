@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, toRaw, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ArchiveClock, BackupRestore, FolderOpen, RefreshCw, Save } from '../icons'
 import type { ManagerSettings, SaveBackupEntry } from '../types'
 import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
+import { cloneSettings as cloneManagerSettings } from '../settings-clone'
 
 const store = useAppStore()
 const ui = useUiStore()
 const api = window.loopstructorDesktop
 const cloneSettings = (settings: ManagerSettings): ManagerSettings => ({
-  ...structuredClone(toRaw(settings)),
+  ...cloneManagerSettings(settings),
   automaticSaveBackupEnabled: settings.automaticSaveBackupEnabled ?? true,
   maximumSaveBackups: settings.maximumSaveBackups ?? 20,
 })

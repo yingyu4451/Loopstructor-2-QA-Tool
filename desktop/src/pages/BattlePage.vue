@@ -2,8 +2,17 @@
 import { computed } from 'vue'
 import { Eye, FastForward, Gift, Keyboard, Map, Shield, Skull, Sparkles } from '../icons'
 import { useAppStore } from '../stores/app'
+import type { PersistentCheatOption } from '../types'
 const store = useAppStore()
 
+const persistentOptions = [
+  { key: 'baseGodMode', label: '基地无敌', description: '自动阻止基地受到伤害', icon: Shield },
+  { key: 'mapSkipEnabled', label: '地图自由跳转', description: '自动允许选择后续地图节点', icon: Map },
+  { key: 'enemyIdsVisible', label: '显示敌人 ID', description: '自动显示怪物运行时 ID', icon: Eye },
+  { key: 'enemyBuffsVisible', label: '显示 Buff', description: '自动显示 Buff 图标与持续时间', icon: Sparkles },
+] as const
+const persistent = computed(() => new Set<PersistentCheatOption>((store.settings?.persistentCheats ?? []) as PersistentCheatOption[]))
+const persistentSavedCount = computed(() => persistentOptions.filter((option) => persistent.value.has(option.key)).length)
 const state = computed(() => store.cheatState ?? {})
 const hotkeysEnabled = computed(() => store.snapshot?.settings.gameHotkeysEnabled === true)
 const hotkeysLive = computed(() => store.cheatState?.hotkeysEnabled === true)
@@ -12,11 +21,31 @@ const hotkeyStateLabel = computed(() => {
   if (hotkeysLive.value) return '游戏中已生效'
   return hotkeysEnabled.value ? '正在下发到游戏' : '未启用'
 })
+function liveCheatActive(key: PersistentCheatOption): boolean {
+  if (key === 'baseGodMode') return state.value.baseGodMode === true
+  if (key === 'mapSkipEnabled') return state.value.mapSkipEnabled === true
+  if (key === 'enemyIdsVisible') return state.value.enemyIdsVisible === true
+  return state.value.enemyBuffsVisible === true
+}
+const persistentLiveCount = computed(() => persistentOptions.filter((option) => persistent.value.has(option.key) && liveCheatActive(option.key)).length)
+const persistentStateLabel = computed(() => {
+  if (!store.cheatEnabled) return '等待游戏连接'
+  if (persistentSavedCount.value === 0) return '未启用'
+  return persistentLiveCount.value === persistentSavedCount.value ? '游戏中已恢复' : '正在恢复'
+})
+const persistentStateClass = computed(() => {
+  if (!store.cheatEnabled || persistentSavedCount.value === 0) return ''
+  return persistentLiveCount.value === persistentSavedCount.value ? 'online' : 'warning'
+})
 async function toggle(command: string, value: boolean) {
   if (await store.command(command, { enabled: value })) await store.refreshState()
 }
 async function toggleHotkeys(value: boolean) {
   await store.setGameHotkeys(value)
+}
+async function togglePersistent(option: PersistentCheatOption, value: boolean) {
+  const saved = await store.setPersistentCheat(option, value)
+  if (saved && store.connected) await store.refreshState(false)
 }
 </script>
 
@@ -51,6 +80,20 @@ async function toggleHotkeys(value: boolean) {
         <div class="hotkey-state">
           <span class="status-badge" :class="hotkeysLive ? 'online' : (hotkeysEnabled ? 'warning' : '')">{{ hotkeyStateLabel }}</span>
           <small>快捷键只在工具与游戏保持连接时生效。</small>
+        </div>
+      </div>
+    </section>
+    <section class="card battle-section mechanical-section" :class="{ mutationLocked: store.writeLocked }">
+      <header class="section-heading"><div><h2>常驻启动</h2><p>连接游戏并启用作弊后自动打开这些功能；改动会立刻保存。</p></div></header>
+      <div class="battle-action-grid">
+        <label v-for="option in persistentOptions" :key="option.key" class="action-toggle">
+          <component :is="option.icon" :size="19" />
+          <span><strong>{{ option.label }}</strong><small>{{ option.description }}</small></span>
+          <input class="checkbox checkbox-success" :name="`persistent-${option.key}`" type="checkbox" :checked="persistent.has(option.key)" :disabled="store.writeLocked" @change="togglePersistent(option.key, ($event.target as HTMLInputElement).checked)" />
+        </label>
+        <div class="hotkey-state">
+          <span class="status-badge" :class="persistentStateClass">{{ persistentStateLabel }}</span>
+          <small>已保存 {{ persistentSavedCount }} / {{ persistentOptions.length }} 项；进入对局后由工具自动恢复。</small>
         </div>
       </div>
     </section>

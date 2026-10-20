@@ -193,6 +193,9 @@ internal sealed class EditorCheatRuntime : IDisposable
                 CheatCommands.SetHotkeysEnabled => CheatExecutionResult.Fail(
                     "游戏内快捷键只在 Player 插件模式可用，Editor 运行控制不注册游戏按键。",
                     "EDITOR_HOTKEY_UNAVAILABLE"),
+                CheatCommands.SetCatalogPoolMode => CheatExecutionResult.Fail(
+                    "获取池切换只在 Player 插件模式可用，Editor 运行控制沿用全部池。",
+                    "EDITOR_POOL_MODE_UNAVAILABLE"),
                 _ => CheatExecutionResult.Fail("未知的作弊命令：" + command, "UNKNOWN_CHEAT_COMMAND")
             };
             return EditorCheatResponse.From(result);

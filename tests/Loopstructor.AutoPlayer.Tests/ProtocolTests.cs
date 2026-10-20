@@ -139,8 +139,8 @@ public sealed class ProtocolTests
     [Fact]
     public void CheatCommands_ExposeOnlyNamespacedFixedOperations()
     {
-        Assert.Equal(36, CheatCommands.All.Count);
-        Assert.Equal(26, CheatCommands.Mutations.Count);
+        Assert.Equal(37, CheatCommands.All.Count);
+        Assert.Equal(27, CheatCommands.Mutations.Count);
         Assert.Equal(7, CheatCommands.AutoPlayObservationCommands.Count);
         Assert.All(CheatCommands.All, command => Assert.StartsWith("cheat.", command, StringComparison.Ordinal));
         Assert.DoesNotContain(CheatCommands.All, command => command.Contains("reflect", StringComparison.OrdinalIgnoreCase));
@@ -151,6 +151,12 @@ public sealed class ProtocolTests
         Assert.True(CheatCommands.IsMutationCommand(CheatCommands.SetHotkeysEnabled));
         Assert.Contains(CheatCommands.SetHotkeysEnabled, CheatCommands.All);
         Assert.False(CheatCommands.IsAutoPlayObservationCommand(CheatCommands.SetHotkeysEnabled));
+        Assert.True(CheatCommands.IsMutationCommand(CheatCommands.SetCatalogPoolMode));
+        Assert.Contains(CheatCommands.SetCatalogPoolMode, CheatCommands.All);
+        Assert.False(CheatCommands.IsAutoPlayObservationCommand(CheatCommands.SetCatalogPoolMode));
+        Assert.Equal(CheatCatalogPoolModes.All, CheatCatalogPoolModes.Normalize(null));
+        Assert.Equal(CheatCatalogPoolModes.All, CheatCatalogPoolModes.Normalize("unexpected"));
+        Assert.Equal(CheatCatalogPoolModes.Configured, CheatCatalogPoolModes.Normalize("CONFIGURED"));
         Assert.False(CheatCommands.IsMutationCommand(CheatCommands.SetEnemyIdOverlay));
         Assert.False(CheatCommands.IsMutationCommand(CheatCommands.SetEnemyBuffOverlay));
         Assert.True(CheatCommands.IsMutationCommand(CheatCommands.RemoveVehicle));

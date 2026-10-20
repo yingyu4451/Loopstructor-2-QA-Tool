@@ -407,6 +407,7 @@ public static class CheatCommands
     public const string SpawnEnemy = "cheat.spawnEnemy";
     public const string SetMapSkipEnabled = "cheat.setMapSkipEnabled";
     public const string SetHotkeysEnabled = "cheat.setHotkeysEnabled";
+    public const string SetCatalogPoolMode = "cheat.setCatalogPoolMode";
 
     public static IReadOnlyList<string> All { get; } = new[]
     {
@@ -445,7 +446,8 @@ public static class CheatCommands
         ClearSpawnPoints,
         SpawnEnemy,
         SetMapSkipEnabled,
-        SetHotkeysEnabled
+        SetHotkeysEnabled,
+        SetCatalogPoolMode
     };
 
     public static IReadOnlyList<string> Mutations { get; } = new[]
@@ -475,7 +477,8 @@ public static class CheatCommands
         RemoveAllRelics,
         SpawnEnemy,
         SetMapSkipEnabled,
-        SetHotkeysEnabled
+        SetHotkeysEnabled,
+        SetCatalogPoolMode
     };
 
     public static IReadOnlyList<string> AutoPlayObservationCommands { get; } = new[]
@@ -500,4 +503,21 @@ public static class CheatCommands
     public static bool IsAutoPlayObservationCommand(string? command) =>
         !string.IsNullOrWhiteSpace(command) &&
         AutoPlayObservationCommands.Contains(command ?? string.Empty, StringComparer.OrdinalIgnoreCase);
+}
+
+/// <summary>
+/// 作弊目录的获取池模式：<see cref="All"/> 为枚举全集（工具默认），
+/// <see cref="Configured"/> 为游戏开发者作弊面板与奖励配置里列出的项目。
+/// </summary>
+public static class CheatCatalogPoolModes
+{
+    public const string All = "all";
+    public const string Configured = "configured";
+
+    public static bool IsValid(string? mode) =>
+        string.Equals(mode, All, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(mode, Configured, StringComparison.OrdinalIgnoreCase);
+
+    public static string Normalize(string? mode) =>
+        string.Equals(mode, Configured, StringComparison.OrdinalIgnoreCase) ? Configured : All;
 }

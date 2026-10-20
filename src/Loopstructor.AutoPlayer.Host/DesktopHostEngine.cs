@@ -60,6 +60,11 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
     private bool _cheatHotkeysApplied;
     private bool _cheatHotkeysDesired;
     private string _lastHotkeyApplyError = string.Empty;
+    private string _catalogPoolModeApplied = string.Empty;
+    private string _lastCatalogPoolApplyError = string.Empty;
+    private readonly HashSet<string> _persistentCheatsApplied = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _persistentCheatErrors = new(StringComparer.Ordinal);
+    private DateTime _nextPersistentCheatApplyUtc;
     private string _connectionLabel = "等待游戏连接";
     private string _connectionReason = string.Empty;
     private Task? _pollTask;
@@ -180,7 +185,13 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         _settingsStore.Save(_settings);
         await ObserveSaveBackupsAsync(null);
         _cheatHotkeysApplied = false;
+        _catalogPoolModeApplied = string.Empty;
+        _persistentCheatsApplied.Clear();
+        _persistentCheatErrors.Clear();
+        _nextPersistentCheatApplyUtc = default;
         await ApplyGameHotkeysAsync();
+        await ApplyCatalogPoolModeAsync();
+        await ApplyPersistentCheatsAsync();
         await EmitSnapshotAsync();
         return Serialize(_settings);
     }
@@ -913,6 +924,8 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         await ObserveSaveBackupsAsync(_status);
         await EnsureDefaultCheatEnabledAsync();
         await ApplyGameHotkeysAsync();
+        await ApplyCatalogPoolModeAsync();
+        await ApplyPersistentCheatsAsync();
         await EmitSnapshotAsync();
     }
 
@@ -1018,6 +1031,159 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Mirrors the persisted catalogue pool mode into the plugin. The plugin resets the mode
+    /// when cheat mode turns off, so the applied marker is cleared whenever the session is not
+    /// cheat-enabled and the command is repeated on the next poll.
+    /// </summary>
+    private async Task ApplyCatalogPoolModeAsync()
+    {
+        if (!_trusted || _session == null)
+        {
+            _catalogPoolModeApplied = string.Empty;
+            return;
+        }
+
+        if (_status?.CheatModeEnabled != true && _hello?.CheatModeEnabled != true)
+        {
+            _catalogPoolModeApplied = string.Empty;
+            return;
+        }
+
+        string desired = CheatCatalogPoolModes.Normalize(_settings.CatalogPoolMode);
+        _settings.CatalogPoolMode = desired;
+        if (string.Equals(_catalogPoolModeApplied, desired, StringComparison.Ordinal)) return;
+
+        PipeCallResult call = await _pipeClient.SendCheatAsync(
+            _session,
+            CheatCommands.SetCatalogPoolMode,
+            new JObject { ["mode"] = desired },
+            _lifetime);
+        if (!call.TransportSuccess)
+        {
+            _catalogPoolModeApplied = string.Empty;
+            _connectionLabel = "等待插件响应";
+            _connectionReason = call.Error;
+            return;
+        }
+
+        ControlResponse response = call.Response!;
+        if (response.Status != null) _status = response.Status;
+        _catalogPoolModeApplied = desired;
+        if (response.Success)
+        {
+            _lastCatalogPoolApplyError = string.Empty;
+            AddLog(
+                "cheat",
+                string.Equals(desired, CheatCatalogPoolModes.Configured, StringComparison.Ordinal)
+                    ? "作弊目录已切换为游戏配置池。"
+                    : "作弊目录已切换为全部池。",
+                emit: false);
+            return;
+        }
+
+        if (!string.Equals(_lastCatalogPoolApplyError, response.Message, StringComparison.Ordinal))
+        {
+            _lastCatalogPoolApplyError = response.Message;
+            AddLog("warn", "获取池设置未生效：" + response.Message, emit: false);
+        }
+    }
+
+    /// <summary>
+    /// Re-applies the persisted 常驻作弊项 once cheat mode is enabled. Some of them only take
+    /// effect inside a run, so failed attempts are retried with a short throttle and each
+    /// distinct failure is logged once.
+    /// </summary>
+    private async Task ApplyPersistentCheatsAsync()
+    {
+        if (!_trusted || _session == null)
+        {
+            _persistentCheatsApplied.Clear();
+            return;
+        }
+
+        if (_status?.CheatModeEnabled != true && _hello?.CheatModeEnabled != true)
+        {
+            _persistentCheatsApplied.Clear();
+            return;
+        }
+
+        if (DateTime.UtcNow < _nextPersistentCheatApplyUtc) return;
+
+        IReadOnlyList<string> desired = _settings.NormalizePersistentCheats();
+        List<string> pending = desired.Where(option => !_persistentCheatsApplied.Contains(option)).ToList();
+        if (pending.Count == 0) return;
+
+        _nextPersistentCheatApplyUtc = DateTime.UtcNow.AddSeconds(10);
+        foreach (string option in pending)
+        {
+            string command;
+            string label;
+            JObject arguments;
+            bool? current;
+            switch (option)
+            {
+                case "baseGodMode":
+                    command = CheatCommands.SetBaseGodMode;
+                    label = "基地无敌";
+                    arguments = new JObject { ["enabled"] = true };
+                    current = _status?.BaseGodModeEnabled;
+                    break;
+                case "mapSkipEnabled":
+                    command = CheatCommands.SetMapSkipEnabled;
+                    label = "地图自由跳转";
+                    arguments = new JObject { ["enabled"] = true };
+                    current = _status?.MapSkipEnabled;
+                    break;
+                case "enemyIdsVisible":
+                    command = CheatCommands.SetEnemyIdOverlay;
+                    label = "显示敌人 ID";
+                    arguments = new JObject { ["visible"] = true };
+                    current = _status?.EnemyIdsVisible;
+                    break;
+                default:
+                    command = CheatCommands.SetEnemyBuffOverlay;
+                    label = "显示 Buff";
+                    arguments = new JObject { ["visible"] = true };
+                    current = _status?.EnemyBuffsVisible;
+                    break;
+            }
+
+            if (current == true)
+            {
+                _persistentCheatsApplied.Add(option);
+                continue;
+            }
+
+            PipeCallResult call = await _pipeClient.SendCheatAsync(_session, command, arguments, _lifetime);
+            if (!call.TransportSuccess)
+            {
+                InvalidateTrust();
+                _connectionLabel = "等待插件响应";
+                _connectionReason = call.Error;
+                return;
+            }
+
+            ControlResponse response = call.Response!;
+            if (response.Status != null) _status = response.Status;
+            if (!response.Success)
+            {
+                if (!_persistentCheatErrors.TryGetValue(option, out string? previous)
+                    || !string.Equals(previous, response.Message, StringComparison.Ordinal))
+                {
+                    _persistentCheatErrors[option] = response.Message;
+                    AddLog("warn", "常驻作弊项「" + label + "」暂未生效：" + response.Message, emit: false);
+                }
+
+                continue;
+            }
+
+            _persistentCheatErrors.Remove(option);
+            _persistentCheatsApplied.Add(option);
+            AddLog("cheat", "常驻作弊项已恢复：" + label + "。", emit: false);
+        }
+    }
+
     private void PrepareInstalledSession(bool selectProfile, bool replaceExisting = true)
     {
         if (_game == null) return;
@@ -1041,6 +1207,11 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         _cheatHotkeysApplied = false;
         _cheatHotkeysDesired = false;
         _lastHotkeyApplyError = string.Empty;
+        _catalogPoolModeApplied = string.Empty;
+        _lastCatalogPoolApplyError = string.Empty;
+        _persistentCheatsApplied.Clear();
+        _persistentCheatErrors.Clear();
+        _nextPersistentCheatApplyUtc = default;
         _logTail.Reset(session.LogPath, startAtEnd: !includeExistingLog);
         _gameErrorTail.Reset(GameErrorLogPath(session), startAtEnd: !includeExistingLog);
     }
@@ -1128,6 +1299,11 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         _cheatHotkeysApplied = false;
         _cheatHotkeysDesired = false;
         _lastHotkeyApplyError = string.Empty;
+        _catalogPoolModeApplied = string.Empty;
+        _lastCatalogPoolApplyError = string.Empty;
+        _persistentCheatsApplied.Clear();
+        _persistentCheatErrors.Clear();
+        _nextPersistentCheatApplyUtc = default;
         _connectionLabel = "等待游戏连接";
         _connectionReason = string.Empty;
     }
@@ -1145,6 +1321,8 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         _trusted = false;
         _hello = null;
         _cheatHotkeysApplied = false;
+        _catalogPoolModeApplied = string.Empty;
+        _persistentCheatsApplied.Clear();
         if (_session != null) _session.ProcessInstanceId = string.Empty;
     }
 

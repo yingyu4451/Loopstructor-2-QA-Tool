@@ -4,6 +4,7 @@ import { MapPin, PackageOpen, Search, Trash2 } from '../icons'
 import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
 import type { CatalogItem } from '../types'
+import CatalogPoolSwitch from '../components/CatalogPoolSwitch.vue'
 import VirtualCatalogGrid from '../components/VirtualCatalogGrid.vue'
 
 const store = useAppStore()
@@ -46,7 +47,10 @@ async function setFieldDeleteMode(enabled: boolean) {
     <section class="card inventory-column mechanical-section min-h-0">
       <header class="section-heading compact-heading">
         <div class="heading-with-icon"><PackageOpen :size="20" /><div><h2>消耗品</h2><p>左键直接获取，单种最多持有 5 个。</p></div></div>
-        <button class="btn btn-error btn-sm button danger compact" :disabled="store.writeLocked" @click="store.command('cheat.clearConsumables').then(() => store.refreshState())"><Trash2 :size="16" />全部删除</button>
+        <div class="header-actions">
+          <CatalogPoolSwitch />
+          <button class="btn btn-error btn-sm button danger compact" :disabled="store.writeLocked" @click="store.command('cheat.clearConsumables').then(() => store.refreshState())"><Trash2 :size="16" />全部删除</button>
+        </div>
       </header>
       <label class="input input-bordered search-box"><Search :size="17" /><input v-model="consumableSearch" name="consumable-search" autocomplete="off" aria-label="搜索消耗品" placeholder="搜索消耗品…" /></label>
       <VirtualCatalogGrid :items="consumables" :counts="consumableCounts" :disabled="store.writeLocked" @invoke="grantConsumable" />

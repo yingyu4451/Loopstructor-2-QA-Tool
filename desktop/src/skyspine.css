@@ -401,6 +401,37 @@
 }
 .app-shell[data-skin="skyspine"] .hotkey-state .status-badge { align-self: flex-start; }
 .app-shell[data-skin="skyspine"] .hotkey-state small { color: var(--theme-muted); font-size: 10px; }
+.app-shell[data-skin="skyspine"] .pool-switch-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.app-shell[data-skin="skyspine"] .search-row .pool-switch-wrap { margin-left: auto; }
+.app-shell[data-skin="skyspine"] .pool-switch {
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding: 2px;
+  border: 1px solid var(--theme-line);
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-surface-deep);
+}
+.app-shell[data-skin="skyspine"] .pool-switch .pool-option {
+  min-height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: calc(var(--theme-radius-sm) - 2px);
+  background: transparent;
+  color: var(--theme-muted);
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.app-shell[data-skin="skyspine"] .pool-switch .pool-option:hover { background: var(--theme-surface); color: var(--theme-text); }
+.app-shell[data-skin="skyspine"] .pool-switch .pool-option.active {
+  background: var(--theme-surface-raised);
+  color: #ffe3a2;
+  box-shadow: inset 0 0 0 1px var(--theme-line-strong);
+}
+.app-shell[data-skin="skyspine"] .pool-state { color: var(--theme-muted); font-size: 10px; white-space: nowrap; }
+.app-shell[data-skin="skyspine"] .pool-state.live { color: #99f065; }
 .app-shell[data-skin="skyspine"] .switch-track { width: 38px; height: 20px; padding: 2px; border: 1px solid var(--theme-line-strong); border-radius: 999px; background: var(--theme-surface-deep); box-shadow: none; }
 .app-shell[data-skin="skyspine"] .switch-track span { width: 14px; height: 14px; border-radius: 50%; background: #8a7c68; box-shadow: none; transition: transform 140ms ease, background-color 140ms ease; }
 .app-shell[data-skin="skyspine"] .switch-control input:checked + .switch-track,
@@ -589,6 +620,7 @@
 .app-shell[data-skin="skyspine"] .field-delete-toggle:has(input:focus-visible) { outline: 2px solid var(--theme-accent-strong); outline-offset: 1px; box-shadow: none; }
 .app-shell[data-skin="skyspine"] .type-switcher button:focus-visible,
 .app-shell[data-skin="skyspine"] .segmented-control button:focus-visible { outline: 2px solid var(--theme-accent-strong); outline-offset: -2px; box-shadow: none; }
+.app-shell[data-skin="skyspine"] .pool-switch .pool-option:focus-visible { outline: 2px solid var(--theme-accent-strong); outline-offset: -2px; box-shadow: none; }
 
 @container app (max-width: 1180px) {
   .app-shell[data-skin="skyspine"] .app-body { grid-template-columns: 204px minmax(0, 1fr); }

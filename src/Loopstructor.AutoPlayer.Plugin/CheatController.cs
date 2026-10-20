@@ -199,6 +199,11 @@ internal sealed class CheatController : IDisposable
             return SetHotkeysEnabled(arguments.Value<bool?>("enabled") == true);
         }
 
+        if (string.Equals(command, CheatCommands.SetCatalogPoolMode, StringComparison.OrdinalIgnoreCase))
+        {
+            return _runtime.SetCatalogPoolMode(arguments.Value<string?>("mode"));
+        }
+
         if (!Enabled)
         {
             return CheatExecutionResult.Fail("作弊模式尚未启用。请先在作弊工具顶部显式开启。", "CHEAT_MODE_DISABLED");
@@ -377,6 +382,7 @@ internal sealed class CheatController : IDisposable
         _runtime.CancelGrantAllRelics("作弊控制已中断，一键获取所有遗物任务已取消。");
         _runtime.CancelRemoveAllRelics("作弊控制已中断，删除所有遗物任务已取消。");
         ResetTransientFeatures();
+        _runtime.ResetCatalogPoolMode();
         Enabled = false;
         HotkeysEnabled = false;
         _autoPlay.TrySetCheatMode(false, out _);
@@ -476,6 +482,7 @@ internal sealed class CheatController : IDisposable
             ["protocolVersion"] = Protocol.CheatCurrentVersion,
             ["hotkeysEnabled"] = HotkeysEnabled,
             ["hotkeysAvailable"] = _hotkeys.IsReady,
+            ["catalogPoolMode"] = _runtime.CatalogPoolMode,
             ["availabilityReason"] = BuildAvailabilityReason(),
             ["capabilities"] = JArray.FromObject(_runtime.Capabilities),
             ["ownedVehicles"] = new JArray(),

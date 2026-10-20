@@ -4,6 +4,7 @@ import { ImageOff, Plus, Search, Trash2 } from '../icons'
 import { useAppStore } from '../stores/app'
 import type { CatalogItem } from '../types'
 import CatalogCard from '../components/CatalogCard.vue'
+import CatalogPoolSwitch from '../components/CatalogPoolSwitch.vue'
 import VirtualCatalogGrid from '../components/VirtualCatalogGrid.vue'
 
 const store = useAppStore()
@@ -81,6 +82,7 @@ async function grantVehicle() {
     <section class="card vehicle-selector mechanical-section min-h-0">
       <div class="search-row">
         <label class="input input-bordered search-box"><Search :size="17" /><input v-model="search" name="vehicle-search" autocomplete="off" aria-label="搜索战车" placeholder="搜索中文名、枚举或系列…" /></label>
+        <CatalogPoolSwitch />
       </div>
       <div class="tabs tabs-box type-switcher" role="tablist" aria-label="战车类型">
         <button class="tab" :class="{ active: activeType === 'all' }" role="tab" :aria-selected="activeType === 'all'" @click="activeType = 'all'">全部</button>

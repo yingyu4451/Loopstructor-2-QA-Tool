@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, toRaw, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { Activity, Bot, OctagonX, Pause, Play, RefreshCw, ShieldAlert } from '../icons'
 import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
+import { cloneSettings } from '../settings-clone'
 import type { ManagerSettings } from '../types'
 
 const store = useAppStore()
 const ui = useUiStore()
-const cloneSettings = (settings: ManagerSettings) => structuredClone(toRaw(settings))
 const draft = ref<ManagerSettings>()
 const setupLoading = ref(false)
 

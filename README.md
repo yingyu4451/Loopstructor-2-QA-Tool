@@ -45,13 +45,13 @@ Loopstructor-2-QA-Tool.exe (Launcher)
 ./scripts/bootstrap.ps1
 ./scripts/build.ps1 -Configuration Release
 ./scripts/test.ps1 -Configuration Release -NoRestore -NoBuild
-./scripts/package.ps1 -Version 0.6.84
+./scripts/package.ps1 -Version 0.6.85
 ```
 
 - `build.ps1` 构建解决方案与 `desktop`，输出在各项目 `bin`/`dist` 目录。
 - `test.ps1` 依次运行：解决方案测试（TRX 输出到 `artifacts\TestResults`）、`Verification` 控制台校验、`pnpm typecheck`、`pnpm lint`、`pnpm test`。
 - `desktop` 的 Playwright E2E 由 `pnpm test:e2e` 单独运行（CI 会执行；本地需要可交互的桌面会话）。
-- `package.ps1` 需要 Node/pnpm 与 7-Zip，输出到 `artifacts\release\`：`Loopstructor-2-QA-Tool-0.6.84-win-x64.zip`、对应的 `.sha256` 和 `autoplayer-update-manifest.json`。`-SkipBuild` 可复用已有构建产物。
+- `package.ps1` 需要 Node/pnpm 与 7-Zip，输出到 `artifacts\release\`：`Loopstructor-2-QA-Tool-0.6.85-win-x64.zip`、对应的 `.sha256` 和 `autoplayer-update-manifest.json`。`-SkipBuild` 可复用已有构建产物。
 - 加 `-SkipBuild` 前必须先完成一次对应版本号的 Release 构建，否则包内二进制版本校验会失败。
 
 ## 使用发布包
@@ -107,7 +107,9 @@ Loopstructor-2-QA-Tool\
 - 写入类命令会在当前 QA profile 写入作弊标记；之后该 profile 的运行结果统一记为 `cheat-modified`，便于区分被改动过的证据。
 - 作弊会话依赖 Host 心跳；连接中断或心跳丢失时插件关闭作弊状态。
 - 游戏内快捷键：在「战斗」页开启后，不用切回工具，在游戏窗口内按 `F` 清除场上所有怪物、`F1` 结束当前波次（与游戏开发者模式同名按键一致）；快捷键只在作弊模式已启用且自动游玩未运行时生效，触发记录同样写入作弊审计。
-- 能力覆盖：载具与消耗品、弹射点（背包/场地）、遗物、敌人查询与修改、覆盖层显示、结束波次、清怪、跳过奖励弹窗、基地无敌、地图节点自由跳转、刷怪、弹射点捕获、游戏内快捷键。命令以 `cheat.` 为前缀，共 36 个，具体以插件返回的 `capabilities` 为准。
+- 获取池：战车、道具、遗物目录可在「全部池」与「游戏配置池」之间切换；游戏配置池与游戏开发者作弊面板同源（战车取 `CheatVehiclePanelCfg`，消耗品与遗物取 `RewardManager` 的奖励配置），读取失败时该类别回退全部池并在状态里说明。
+- 常驻启动：在「战斗」页勾选的基地无敌、地图自由跳转、显示敌人 ID、显示 Buff 会持久保存；连接游戏并启用作弊后由 Host 自动恢复，失败按项重试。
+- 能力覆盖：载具与消耗品、弹射点（背包/场地）、遗物、敌人查询与修改、覆盖层显示、结束波次、清怪、跳过奖励弹窗、基地无敌、地图节点自由跳转、刷怪、弹射点捕获、游戏内快捷键、获取池切换。命令以 `cheat.` 为前缀，共 37 个，具体以插件返回的 `capabilities` 为准。
 
 ## 存档备份
 
@@ -181,4 +183,4 @@ Plugin 端日志由 Host 合并显示；游戏处于非 Development Build 时不
 
 ## 版本
 
-当前版本 0.6.84。版本记录见 [docs/release.md](docs/release.md#版本记录)，发布流程与检查表见同一文档。
+当前版本 0.6.85。版本记录见 [docs/release.md](docs/release.md#版本记录)，发布流程与检查表见同一文档。

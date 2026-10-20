@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
-import type { AutomationSetup, CatalogItem, ControlResponse, EditorBridgeInstance, HostLogEntry, HostSnapshot, ManagerSettings, RouteKey, SaveBackupCatalog, SaveBackupEntry } from '../types'
+import type { AutomationSetup, CatalogItem, CatalogPoolMode, ControlResponse, EditorBridgeInstance, HostLogEntry, HostSnapshot, ManagerSettings, PersistentCheatOption, RouteKey, SaveBackupCatalog, SaveBackupEntry } from '../types'
 import { useUiStore } from './ui'
 
+const persistentCheatOrder: PersistentCheatOption[] = ['baseGodMode', 'mapSkipEnabled', 'enemyIdsVisible', 'enemyBuffsVisible']
 const mutationCommands = new Set([
   'cheat.grantVehicle', 'cheat.removeVehicle', 'cheat.clearFieldVehicles', 'cheat.clearBackpackVehicles',
   'cheat.grantDisposable', 'cheat.clearConsumables',
@@ -11,6 +12,7 @@ const mutationCommands = new Set([
   'cheat.modifyVehicle', 'cheat.setVehicleEnchantment', 'cheat.modifyEnemy', 'cheat.grantRelic',
   'cheat.grantAllRelics', 'cheat.removeRelic', 'cheat.removeAllRelics', 'cheat.spawnEnemy',
   'cheat.setMapSkipEnabled', 'cheat.setSpawnPointCapture', 'cheat.removeSpawnPoint', 'cheat.clearSpawnPoints',
+  'cheat.setCatalogPoolMode',
 ])
 const cheatRoutes = new Set<RouteKey>(['vehicles', 'items', 'relics', 'battle', 'objects', 'spawn'])
 
@@ -96,6 +98,27 @@ export const useAppStore = defineStore('app', {
         if (this.connected) await this.refreshState(false)
       }
       return saved
+    },
+    async setCatalogPoolMode(mode: CatalogPoolMode) {
+      const ui = useUiStore()
+      if (!this.snapshot) return undefined
+      if ((this.snapshot.settings.catalogPoolMode ?? 'all') === mode) return undefined
+      const saved = await this.saveSettings({ ...this.snapshot.settings, catalogPoolMode: mode }, false)
+      if (saved) {
+        ui.toast(mode === 'configured'
+          ? '获取池已切换为游戏配置池：战车取自带作弊面板配置，消耗品与遗物取自奖励配置。'
+          : '获取池已切换为全部池：所有目录项目均可获取。', 'success')
+        if (this.connected) await this.refreshCheat(false)
+      }
+      return saved
+    },
+    async setPersistentCheat(option: PersistentCheatOption, enabled: boolean) {
+      if (!this.snapshot) return undefined
+      const selected = new Set((this.snapshot.settings.persistentCheats ?? []).filter((item) => persistentCheatOrder.includes(item)))
+      if (enabled) selected.add(option)
+      else selected.delete(option)
+      const persistentCheats = persistentCheatOrder.filter((item) => selected.has(item))
+      return await this.saveSettings({ ...this.snapshot.settings, persistentCheats }, false)
     },
     async selectGame() {
       const ui = useUiStore()

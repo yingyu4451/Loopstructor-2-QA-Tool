@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Download, Gem, Search, Trash2 } from '../icons'
 import { useAppStore } from '../stores/app'
 import type { CatalogItem } from '../types'
+import CatalogPoolSwitch from '../components/CatalogPoolSwitch.vue'
 import VirtualCatalogGrid from '../components/VirtualCatalogGrid.vue'
 
 const store = useAppStore()
@@ -37,6 +38,7 @@ onBeforeUnmount(() => { if (pollTimer) window.clearInterval(pollTimer) })
     <header class="section-heading">
       <div class="heading-with-icon"><Gem :size="21" /><div><h2>遗物目录</h2><p>左键启用，右键移除；悬停 1 秒读取游戏原始说明。</p></div></div>
       <div class="header-actions">
+        <CatalogPoolSwitch />
         <button class="btn btn-outline btn-sm button secondary compact" :disabled="store.writeLocked" @click="runBatch('cheat.grantAllRelics')"><Download :size="16" />全部获取</button>
         <button class="btn btn-error btn-sm button danger compact" :disabled="store.writeLocked" @click="runBatch('cheat.removeAllRelics')"><Trash2 :size="16" />全部删除</button>
       </div>

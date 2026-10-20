@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, toRaw, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { ManagerSettings } from '../types'
 import { Download, Github, MonitorCog, RefreshCw } from '../icons'
 import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
+import { cloneSettings as cloneManagerSettings } from '../settings-clone'
 const store = useAppStore()
 const ui = useUiStore()
 const api = window.loopstructorDesktop
 const cloneSettings = (settings: ManagerSettings): ManagerSettings => ({
-  ...structuredClone(toRaw(settings)),
+  ...cloneManagerSettings(settings),
 })
 const draft = ref(store.settings ? cloneSettings(store.settings) : undefined)
 const dirty = ref(false)
