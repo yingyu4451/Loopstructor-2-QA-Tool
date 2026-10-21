@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { Activity, FileText, FolderOpen, Trash2 } from '../icons'
 import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
+import EmptyState from '../components/EmptyState.vue'
 const store = useAppStore()
 const ui = useUiStore()
 const api = window.loopstructorDesktop
@@ -47,14 +48,14 @@ async function clearLogs() {
       </div>
       <div class="header-actions">
         <button class="btn btn-outline btn-sm button secondary compact" @click="openEvidence"><FolderOpen :size="16" />证据目录</button>
-        <button v-if="active === 'logs'" class="btn btn-outline btn-sm button secondary compact" @click="clearLogs"><Trash2 :size="16" />清空</button>
+        <button v-if="active === 'logs'" class="btn btn-outline btn-sm button secondary compact" :disabled="logs.length === 0" @click="clearLogs"><Trash2 :size="16" />清空</button>
       </div>
     </header>
     <div v-if="active === 'logs'" ref="logHost" class="log-console">
       <div v-for="(entry, index) in logs" :key="`${entry.timestampUtc}-${index}`" :class="`log-${entry.level}`">
         <time>{{ new Date(entry.timestampUtc).toLocaleTimeString('zh-CN', { hour12: false }) }}</time><span>{{ entry.level.toUpperCase() }}</span><p>{{ entry.message }}</p>
       </div>
-      <p v-if="logs.length === 0" class="empty-state">尚无运行日志。</p>
+      <EmptyState v-if="logs.length === 0" :icon="FileText" title="尚无运行日志" />
     </div>
     <div v-else class="status-grid">
       <div v-for="row in statusRows" :key="row[0]"><span>{{ row[0] }}</span><strong>{{ row[1] || '-' }}</strong></div>

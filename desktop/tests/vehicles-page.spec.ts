@@ -41,6 +41,7 @@ describe('vehicle catalog presentation', () => {
 
   it('bulk-deletes field and backpack vehicles in one click', async () => {
     const store = useAppStore()
+    store.connected = true
     store.snapshot = {
       protocolVersion: 1,
       version: '0.6.79',

@@ -32,6 +32,7 @@ const detail = computed(() => [
     :aria-pressed="selected ? 'true' : 'false'"
     @click="emit('invoke', 'left', item)"
     @contextmenu.prevent="emit('invoke', 'right', item)"
+    @keydown.delete.prevent.stop="emit('invoke', 'right', item)"
   >
     <span class="catalog-icon">
       <img v-if="image" :src="image" alt="" width="46" height="46" loading="lazy" />

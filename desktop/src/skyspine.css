@@ -8,7 +8,7 @@
   --theme-surface-raised: #241d16;
   --theme-surface-deep: #0d0b08;
   --theme-line: #3c2a1a;
-  --theme-line-strong: #6b4a2b;
+  --theme-line-strong: #8a6238;
   --theme-accent: #c99542;
   --theme-accent-strong: #e0b060;
   --theme-nav-active: #2c241b;
@@ -20,6 +20,7 @@
   --theme-copper-dark: #49341f;
   --theme-text: #e8dfd2;
   --theme-muted: #a99a87;
+  --theme-meta: #8f806b;
   --theme-disabled: #62594d;
   --theme-radius-sm: 6px;
   --theme-radius-md: 8px;
@@ -147,8 +148,8 @@
   padding: 0;
   clip-path: none;
   background: none;
-  color: var(--theme-disabled);
-  font: 600 10.5px/1.2 "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  color: var(--theme-meta);
+  font: 600 11px/1.2 "Segoe UI", "Microsoft YaHei UI", sans-serif;
   letter-spacing: .02em;
 }
 
@@ -196,7 +197,7 @@
 .app-shell[data-skin="skyspine"] .nav-item.active .rail-symbol { color: var(--theme-accent-strong); filter: none; }
 .app-shell[data-skin="skyspine"] .nav-label { color: inherit; font: 500 13px/1.2 "Segoe UI", "Microsoft YaHei UI", sans-serif; text-shadow: none; }
 .app-shell[data-skin="skyspine"] .nav-item.active .nav-label { font-weight: 600; }
-.app-shell[data-skin="skyspine"] .tiny-status { color: var(--theme-amber); font-size: 10px; text-shadow: none; }
+.app-shell[data-skin="skyspine"] .tiny-status { color: var(--theme-amber); font-size: 10.5px; text-shadow: none; }
 
 .app-shell[data-skin="skyspine"] .collapse-button {
   width: 32px;
@@ -222,7 +223,15 @@
 .app-shell[data-skin="skyspine"] .workspace-station { display: none; }
 
 .app-shell[data-skin="skyspine"] .page-host { padding: 18px 22px 22px; }
-.app-shell[data-skin="skyspine"] .page-grid { gap: 14px; }
+.app-shell[data-skin="skyspine"] .page-grid { gap: 18px; }
+.app-shell[data-skin="skyspine"] .automation-workspace,
+.app-shell[data-skin="skyspine"] .vehicle-workspace,
+.app-shell[data-skin="skyspine"] .items-workspace,
+.app-shell[data-skin="skyspine"] .objects-workspace,
+.app-shell[data-skin="skyspine"] .spawn-workspace,
+.app-shell[data-skin="skyspine"] .settings-workspace,
+.app-shell[data-skin="skyspine"] .saves-workspace,
+.app-shell[data-skin="skyspine"] .battle-workspace { gap: 16px; }
 
 .app-shell[data-skin="skyspine"] .page-heading {
   min-height: 54px;
@@ -253,7 +262,7 @@
 .app-shell[data-skin="skyspine"] .section-heading h2,
 .app-shell[data-skin="skyspine"] .spawn-point-heading h3,
 .app-shell[data-skin="skyspine"] .enchantment-readout h3 { color: #ecc98d; font: 600 15px/1.3 "Segoe UI Variable Display", "Microsoft YaHei UI", "Segoe UI", sans-serif; text-shadow: none; }
-.app-shell[data-skin="skyspine"] .section-heading p { margin-top: 4px; color: var(--theme-muted); font-size: 11.5px; line-height: 1.45; }
+.app-shell[data-skin="skyspine"] .section-heading p { margin-top: 4px; color: var(--theme-muted); font-size: 12px; line-height: 1.45; }
 .app-shell[data-skin="skyspine"] .heading-with-icon { color: var(--theme-accent); gap: 9px; }
 .app-shell[data-skin="skyspine"] .heading-with-icon svg { flex: none; }
 
@@ -349,7 +358,7 @@
 .app-shell[data-skin="skyspine"] input[type="number"]:focus-visible,
 .app-shell[data-skin="skyspine"] select:focus-visible { border-color: var(--theme-accent); outline: 0; box-shadow: 0 0 0 2px #c9954233; }
 .app-shell[data-skin="skyspine"] .search-box input { color: var(--theme-text); font: inherit; }
-.app-shell[data-skin="skyspine"] .search-box input::placeholder { color: var(--theme-disabled); }
+.app-shell[data-skin="skyspine"] .search-box input::placeholder { color: var(--theme-meta); }
 
 .app-shell[data-skin="skyspine"] .radio-card,
 .app-shell[data-skin="skyspine"] .range-field,
@@ -400,7 +409,7 @@
   background: var(--theme-surface-deep);
 }
 .app-shell[data-skin="skyspine"] .hotkey-state .status-badge { align-self: flex-start; }
-.app-shell[data-skin="skyspine"] .hotkey-state small { color: var(--theme-muted); font-size: 10px; }
+.app-shell[data-skin="skyspine"] .hotkey-state small { color: var(--theme-muted); font-size: 11px; }
 .app-shell[data-skin="skyspine"] .pool-switch-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .app-shell[data-skin="skyspine"] .search-row .pool-switch-wrap { margin-left: auto; }
 .app-shell[data-skin="skyspine"] .pool-switch {
@@ -430,7 +439,7 @@
   color: #ffe3a2;
   box-shadow: inset 0 0 0 1px var(--theme-line-strong);
 }
-.app-shell[data-skin="skyspine"] .pool-state { color: var(--theme-muted); font-size: 10px; white-space: nowrap; }
+.app-shell[data-skin="skyspine"] .pool-state { color: var(--theme-muted); font-size: 11px; white-space: nowrap; }
 .app-shell[data-skin="skyspine"] .pool-state.live { color: #99f065; }
 .app-shell[data-skin="skyspine"] .switch-track { width: 38px; height: 20px; padding: 2px; border: 1px solid var(--theme-line-strong); border-radius: 999px; background: var(--theme-surface-deep); box-shadow: none; }
 .app-shell[data-skin="skyspine"] .switch-track span { width: 14px; height: 14px; border-radius: 50%; background: #8a7c68; box-shadow: none; transition: transform 140ms ease, background-color 140ms ease; }
@@ -456,7 +465,22 @@
 .app-shell[data-skin="skyspine"] .entity-summary span,
 .app-shell[data-skin="skyspine"] .status-grid span,
 .app-shell[data-skin="skyspine"] .automation-facts span,
-.app-shell[data-skin="skyspine"] .update-panel span { color: var(--theme-muted); }
+.app-shell[data-skin="skyspine"] .update-panel span { color: var(--theme-muted); font-size: 11px; }
+.app-shell[data-skin="skyspine"] .automation-form > label,
+.app-shell[data-skin="skyspine"] .form-grid label,
+.app-shell[data-skin="skyspine"] .scale-controls > label,
+.app-shell[data-skin="skyspine"] .enchantment-editor label,
+.app-shell[data-skin="skyspine"] .switch-row small,
+.app-shell[data-skin="skyspine"] .field-delete-toggle { font-size: 11px; }
+.app-shell[data-skin="skyspine"] .action-toggle small,
+.app-shell[data-skin="skyspine"] .command-button small { font-size: 10.5px; }
+.app-shell[data-skin="skyspine"] .catalog-copy small,
+.app-shell[data-skin="skyspine"] .entity-table small,
+.app-shell[data-skin="skyspine"] .family-identity small,
+.app-shell[data-skin="skyspine"] .level-buttons button { font-size: 10.5px; }
+.app-shell[data-skin="skyspine"] .fixed-operation-note,
+.app-shell[data-skin="skyspine"] .inventory-action-footer,
+.app-shell[data-skin="skyspine"] .relic-footer { font-size: 11px; }
 .app-shell[data-skin="skyspine"] .plugin-facts strong,
 .app-shell[data-skin="skyspine"] .entity-summary strong,
 .app-shell[data-skin="skyspine"] .status-grid strong,
@@ -467,6 +491,7 @@
 .app-shell[data-skin="skyspine"] .launch-band { clip-path: none; border: 1px solid var(--theme-line); border-radius: var(--theme-radius-sm); background: var(--theme-surface-deep); box-shadow: none; }
 .app-shell[data-skin="skyspine"] .validation-strip.valid { border-color: #6ab145; color: #d9f0b9; }
 .app-shell[data-skin="skyspine"] .launch-band.ready { border-color: #6ab145; box-shadow: none; }
+.app-shell[data-skin="skyspine"] .game-page > .launch-band { position: sticky; bottom: 0; z-index: 5; background: #0d0b08f2; backdrop-filter: blur(10px); box-shadow: 0 -10px 24px #00000066; }
 
 .app-shell[data-skin="skyspine"] .type-switcher,
 .app-shell[data-skin="skyspine"] .segmented-control { border: 1px solid var(--theme-line); border-radius: var(--theme-radius-sm); background: var(--theme-surface-deep); box-shadow: none; overflow: hidden; }
@@ -499,7 +524,7 @@
 .app-shell[data-skin="skyspine"] .entity-table > button:hover { border-color: var(--theme-line-strong); background: var(--theme-surface); filter: none; }
 .app-shell[data-skin="skyspine"] .catalog-card.selected,
 .app-shell[data-skin="skyspine"] .vehicle-family.selected,
-.app-shell[data-skin="skyspine"] .entity-table > button.active { border-color: #5a3a1f; background: #2a1f14; box-shadow: inset 0 0 0 1px #5a3a1f; }
+.app-shell[data-skin="skyspine"] .entity-table > button.active { border-color: #5a3a1f; background: #2a1f14; box-shadow: inset 0 0 0 1px #5a3a1f, inset 3px 0 var(--theme-accent); }
 .app-shell[data-skin="skyspine"] .catalog-card.selected:hover,
 .app-shell[data-skin="skyspine"] .vehicle-family.selected:hover,
 .app-shell[data-skin="skyspine"] .entity-table > button.active:hover { border-color: var(--theme-accent); background: #33261a; }
@@ -526,17 +551,22 @@
 .app-shell[data-skin="skyspine"] .automation-timeline article.timeline-start { border-left-color: var(--theme-signal); }
 .app-shell[data-skin="skyspine"] .automation-timeline strong { color: var(--theme-text); }
 .app-shell[data-skin="skyspine"] .automation-timeline p { color: #cdbfa8; }
-.app-shell[data-skin="skyspine"] .automation-timeline time { color: var(--theme-disabled); }
+.app-shell[data-skin="skyspine"] .automation-timeline time { color: var(--theme-meta); font-size: 11px; font-variant-numeric: tabular-nums; }
 
 .app-shell[data-skin="skyspine"] .log-console { background: #0b0907; border: 1px solid var(--theme-line); border-radius: var(--theme-radius-sm); color: #b9c9a6; }
 .app-shell[data-skin="skyspine"] .log-console > div { border-bottom-color: #241d16; }
-.app-shell[data-skin="skyspine"] .log-console time { color: var(--theme-disabled); }
+.app-shell[data-skin="skyspine"] .log-console time { color: var(--theme-meta); font-size: 11px; font-variant-numeric: tabular-nums; }
 .app-shell[data-skin="skyspine"] .log-console span { color: var(--theme-accent); }
 .app-shell[data-skin="skyspine"] .log-console p { color: #cdbfa8; }
+.app-shell[data-skin="skyspine"] .log-console .log-error span,
+.app-shell[data-skin="skyspine"] .log-console .log-error p { color: #ef8873; }
+.app-shell[data-skin="skyspine"] .log-console .log-warn span { color: var(--theme-amber); }
+.app-shell[data-skin="skyspine"] .log-console .log-safe span,
+.app-shell[data-skin="skyspine"] .log-console .log-success span { color: var(--theme-signal); }
 
 .app-shell[data-skin="skyspine"] .empty-state,
 .app-shell[data-skin="skyspine"] .empty-editor,
-.app-shell[data-skin="skyspine"] .save-history-empty { color: var(--theme-disabled); }
+.app-shell[data-skin="skyspine"] .save-history-empty { color: var(--theme-muted); }
 .app-shell[data-skin="skyspine"] .save-history-empty svg { color: var(--theme-muted); }
 .app-shell[data-skin="skyspine"] .save-history-empty strong { color: var(--theme-muted); }
 
@@ -627,6 +657,26 @@
   .app-shell[data-skin="skyspine"] .app-body.sidebar-collapsed { grid-template-columns: 68px minmax(0, 1fr); }
   .app-shell[data-skin="skyspine"] .rail-sidebar { padding-inline: 8px; }
   .app-shell[data-skin="skyspine"] .page-host { padding: 16px 16px 18px; }
+  .app-shell[data-skin="skyspine"] .nav-group { margin-bottom: 10px; }
+  .app-shell[data-skin="skyspine"] .nav-group h2 { margin-bottom: 4px; }
+  .app-shell[data-skin="skyspine"] .nav-item { height: 38px; }
+
+  /* Let the autoplay setup card hold its full form at compact widths; the
+     workspace scrolls as a whole instead of clipping the last two rows. */
+  .app-shell[data-skin="skyspine"] .automation-config { min-height: 402px; }
+  .app-shell[data-skin="skyspine"] .automation-config .automation-form { overflow: visible; }
+
+  /* Centre empty catalog states without creating a scrollbar in the column. */
+  .app-shell[data-skin="skyspine"] .virtual-catalog.is-empty { display: grid; place-items: center; overflow: hidden; }
+  .app-shell[data-skin="skyspine"] .virtual-catalog.is-empty > .empty-state-panel { width: 100%; }
+
+  /* Compact, self-contained empty states inside virtualised grids so the
+     message and its call to action fit the shortest column at small sizes. */
+  .app-shell[data-skin="skyspine"] .virtual-catalog > .empty-state-panel { gap: 3px; padding: 12px 10px; }
+  .app-shell[data-skin="skyspine"] .virtual-catalog > .empty-state-panel .empty-state-icon { width: 32px; height: 32px; margin-bottom: 1px; }
+  .app-shell[data-skin="skyspine"] .virtual-catalog > .empty-state-panel strong { font-size: 12px; }
+  .app-shell[data-skin="skyspine"] .virtual-catalog > .empty-state-panel p { display: none; }
+  .app-shell[data-skin="skyspine"] .virtual-catalog > .empty-state-panel .button { min-height: 27px; margin-top: 3px; padding: 0 9px; font-size: 11px; }
 }
 
 @media (max-width: 760px) {
@@ -643,13 +693,45 @@
   .app-shell[data-skin="skyspine"] .switch-track span { transition: none; }
 }
 
-/* Catalog grids share one empty-state treatment so a filtered or configured pool never looks broken. */
-.app-shell[data-skin="skyspine"] .virtual-empty {
-  margin: 18px 0;
-  padding: 22px 18px;
-  border: 1px dashed var(--theme-line-strong);
-  border-radius: var(--theme-radius-md);
-  color: var(--theme-muted);
-  font-size: 12px;
+/* Empty states: one quiet icon, one line, centred in the space they occupy. */
+.app-shell[data-skin="skyspine"] .empty-state-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 0;
+  padding: 28px 20px;
   text-align: center;
+  color: var(--theme-muted);
 }
+.app-shell[data-skin="skyspine"] .empty-state-panel .empty-state-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 4px;
+  border: 1px solid var(--theme-line);
+  border-radius: 50%;
+  background: var(--theme-surface-deep);
+  color: var(--theme-meta);
+}
+.app-shell[data-skin="skyspine"] .empty-state-panel strong { color: var(--theme-text); font: 600 13px/1.35 "Segoe UI Variable Display", "Microsoft YaHei UI", "Segoe UI", sans-serif; }
+.app-shell[data-skin="skyspine"] .empty-state-panel p { max-width: 320px; color: var(--theme-meta); font-size: 11.5px; line-height: 1.5; }
+.app-shell[data-skin="skyspine"] .empty-state-panel.compact { gap: 3px; padding: 14px 8px; }
+.app-shell[data-skin="skyspine"] .empty-state-panel.compact .empty-state-icon { width: 34px; height: 34px; margin-bottom: 2px; }
+.app-shell[data-skin="skyspine"] .empty-state-panel.compact strong { font-size: 12px; }
+.app-shell[data-skin="skyspine"] .empty-state-panel .button { margin-top: 8px; }
+.app-shell[data-skin="skyspine"] .virtual-catalog > .empty-state-panel,
+.app-shell[data-skin="skyspine"] .log-console > .empty-state-panel,
+.app-shell[data-skin="skyspine"] .automation-timeline > .empty-state-panel,
+.app-shell[data-skin="skyspine"] .entity-table > .empty-state-panel { min-height: 100%; }
+.app-shell[data-skin="skyspine"] .vehicle-family-grid > .empty-state-panel,
+.app-shell[data-skin="skyspine"] .selected-enchantment-wrap > .empty-state-panel { grid-column: 1 / -1; }
+.app-shell[data-skin="skyspine"] .vehicle-family-grid,
+.app-shell[data-skin="skyspine"] .selected-enchantment-wrap { position: relative; }
+.app-shell[data-skin="skyspine"] .vehicle-family-grid > .empty-state-panel,
+.app-shell[data-skin="skyspine"] .selected-enchantment-wrap > .empty-state-panel { position: absolute; inset: 0; }
+.app-shell[data-skin="skyspine"] .entity-editor > .empty-state-panel { grid-row: 2 / -1; }
+.app-shell[data-skin="skyspine"] .virtual-empty { margin: 18px 0; padding: 22px 18px; color: var(--theme-muted); font-size: 12px; text-align: center; }
+.app-shell[data-skin="skyspine"] :is(.virtual-catalog, .log-console, .vehicle-family-grid, .automation-form, .automation-timeline, .entity-table, .save-history-list, .spawn-point-list, .selected-enchantment-wrap) { overscroll-behavior: contain; }

@@ -45,13 +45,13 @@ Loopstructor-2-QA-Tool.exe (Launcher)
 ./scripts/bootstrap.ps1
 ./scripts/build.ps1 -Configuration Release
 ./scripts/test.ps1 -Configuration Release -NoRestore -NoBuild
-./scripts/package.ps1 -Version 0.6.90
+./scripts/package.ps1 -Version 0.6.91
 ```
 
 - `build.ps1` 构建解决方案与 `desktop`，输出在各项目 `bin`/`dist` 目录。
 - `test.ps1` 依次运行：解决方案测试（TRX 输出到 `artifacts\TestResults`）、`Verification` 控制台校验、`pnpm typecheck`、`pnpm lint`、`pnpm test`。
 - `desktop` 的 Playwright E2E 由 `pnpm test:e2e` 单独运行（CI 会执行；本地需要可交互的桌面会话）。
-- `package.ps1` 需要 Node/pnpm 与 7-Zip，输出到 `artifacts\release\`：`Loopstructor-2-QA-Tool-0.6.90-win-x64.zip`、对应的 `.sha256` 和 `autoplayer-update-manifest.json`。`-SkipBuild` 可复用已有构建产物。
+- `package.ps1` 需要 Node/pnpm 与 7-Zip，输出到 `artifacts\release\`：`Loopstructor-2-QA-Tool-0.6.91-win-x64.zip`、对应的 `.sha256` 和 `autoplayer-update-manifest.json`。`-SkipBuild` 可复用已有构建产物。
 - 加 `-SkipBuild` 前必须先完成一次对应版本号的 Release 构建，否则包内二进制版本校验会失败。
 
 ## 使用发布包
@@ -183,4 +183,4 @@ Plugin 端日志由 Host 合并显示；游戏处于非 Development Build 时不
 
 ## 版本
 
-当前版本 0.6.90。版本记录见 [docs/release.md](docs/release.md#版本记录)，发布流程与检查表见同一文档。
+当前版本 0.6.91。版本记录见 [docs/release.md](docs/release.md#版本记录)，发布流程与检查表见同一文档。

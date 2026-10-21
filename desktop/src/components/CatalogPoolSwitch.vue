@@ -15,7 +15,7 @@ const warnings = computed<string[]>(() => {
 })
 const live = computed(() => store.cheatEnabled && applied.value !== undefined)
 const stateLabel = computed(() => {
-  if (!store.cheatEnabled) return '等待游戏连接'
+  if (!store.cheatEnabled) return '等待选择游戏'
   if (!applied.value) return '等待生效'
   return applied.value === selected.value ? '已生效' : '正在切换'
 })

@@ -37,7 +37,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.90
+./scripts/package.ps1 -Version 0.6.91
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -47,8 +47,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.90-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.90-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.91-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.91-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -63,15 +63,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.90",
+  "version": "0.6.91",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.90-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.91-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
       "fromVersion": "0.6.85",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.89-to-0.6.90-win-x64.delta.zip",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.90-to-0.6.91-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -135,8 +135,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.90
-git push origin v0.6.90
+git tag v0.6.91
+git push origin v0.6.91
 ```
 
 ## 升级 BepInEx
@@ -167,6 +167,13 @@ git push origin v0.6.90
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.91
+
+- Manager 界面可用性修复（沿用 0.6.83 起的煤矿／铜／黄铜配色与扁平面板，不更换视觉语言）：新增统一空状态组件（图标＋短标题＋一句提示，未连接时提供「去选择游戏」），替换各目录页顶部悬浮的虚线圈与 2.4–2.9:1 的灰字；空态说明、导航分组、时间戳与输入占位改用新的元信息色 `#8f806b`（对比度 ≥4.5:1）；恢复诊断日志的错误／警告／成功三级语义色（此前被皮肤规则整片覆盖成铜色）。
+- 布局修复：战车页「数量」标签不再断成两行；战斗页动作网格按可用宽度自适应（原先固定 220px，右侧约 2/3 空白）；设置页「应用界面设置」不再拉满整行；自动游玩页删除唯一的页面标题并把「刷新可玩内容」并入运行配置标题行（980×680＠125% 下表单不再被卡片裁切）；游戏页「启动游戏」改为吸底操作条；toast 移到右下角，不再遮挡页面首个控件。
+- 交互与结构：战车页左栏与附魔栏补标题与空状态；对象属性、日志、生成、遗物、道具、存档等页的批量／清空／选点按钮在未连接时禁用；目录卡支持键盘 `Delete` 移除（此前右键操作无法用键盘完成）；未连接文案统一为「等待选择游戏」；战车类型与对象类型切换改用 `role="group"` + `aria-pressed`。
+- 无协议、命令集与打包格式变化；.NET 测试 665 项、桌面单元测试 31 项、Playwright E2E 4 项，Release 构建 0 警告。
 
 ### 0.6.90
 

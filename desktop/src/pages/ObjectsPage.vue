@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Bug, RefreshCw, Save, TrainFront, Trash2 } from '../icons'
+import { Bug, Plug, RefreshCw, Save, ScanSearch, TrainFront, Trash2 } from '../icons'
 import { useAppStore } from '../stores/app'
+import EmptyState from '../components/EmptyState.vue'
 
 const store = useAppStore()
 const active = ref<'vehicles' | 'enemies'>('vehicles')
@@ -54,11 +55,11 @@ async function setEnchantment() {
   <div class="objects-workspace">
     <section class="card entity-list mechanical-section">
       <header class="section-heading compact-heading">
-        <div class="tabs tabs-box segmented-control" role="tablist" aria-label="对象类型">
-          <button class="tab" :class="{ active: active === 'vehicles' }" role="tab" :aria-selected="active === 'vehicles'" @click="active = 'vehicles'; refresh()"><TrainFront :size="16" />战车</button>
-          <button class="tab" :class="{ active: active === 'enemies' }" role="tab" :aria-selected="active === 'enemies'" @click="active = 'enemies'; refresh()"><Bug :size="16" />怪物</button>
+        <div class="tabs tabs-box segmented-control" role="group" aria-label="对象类型">
+          <button class="tab" :class="{ active: active === 'vehicles' }" :aria-pressed="active === 'vehicles'" @click="active = 'vehicles'; refresh()"><TrainFront :size="16" />战车</button>
+          <button class="tab" :class="{ active: active === 'enemies' }" :aria-pressed="active === 'enemies'" @click="active = 'enemies'; refresh()"><Bug :size="16" />怪物</button>
         </div>
-        <button class="btn btn-square btn-ghost btn-sm icon-button" aria-label="刷新对象" @click="refresh"><RefreshCw :size="17" /></button>
+        <button class="btn btn-square btn-ghost btn-sm icon-button" aria-label="刷新对象" :disabled="!store.connected" @click="refresh"><RefreshCw :size="17" /></button>
       </header>
       <div class="entity-table" role="listbox">
         <button v-for="row in rows" :key="row.runtimeId || row.vehicleId || row.id" :class="{ active: selected === row }" @click="selectRow(row)">
@@ -66,12 +67,18 @@ async function setEnchantment() {
           <span><strong>{{ row.name || row.enumName || row.id }}</strong><small>{{ row.enumName || row.runtimeId || row.vehicleId }}</small></span>
           <span>{{ row.health != null ? `${row.health} / ${row.maxHealth}` : row.level ? `L${row.level}` : '' }}</span>
         </button>
-        <p v-if="rows.length === 0" class="empty-state">点击刷新读取当前场景对象。</p>
+        <EmptyState
+          v-if="rows.length === 0"
+          :icon="!store.connected ? Plug : active === 'vehicles' ? TrainFront : Bug"
+          :title="!store.connected ? '等待选择游戏' : '还没有读取到对象'"
+          :hint="!store.connected ? '选择游戏后读取当前场景对象。' : '点击右上角刷新读取当前场景。'"
+        >
+          <button v-if="!store.connected" class="btn btn-outline btn-sm button secondary compact" @click="store.setRoute('game')">去选择游戏</button>
+        </EmptyState>
       </div>
     </section>
     <section class="card entity-editor mechanical-section" :class="{ mutationLocked: store.writeLocked }">
-      <header class="section-heading"><div><h2>{{ selected?.name || '选择一个对象' }}</h2><p>{{ selected?.enumName || selected?.runtimeId || '选择后读取当前属性与附魔' }}</p></div></header>
-      <template v-if="selected">
+      <header class="section-heading"><div><h2>{{ selected?.name || '选择一个对象' }}</h2><p v-if="selected">{{ selected.enumName || selected.runtimeId }}</p></div></header>      <template v-if="selected">
         <div class="entity-summary">
           <div><span>位置</span><strong>{{ selected.position ? `${selected.position.x} / ${selected.position.y} / ${selected.position.z}` : '-' }}</strong></div>
           <div><span>运行时 ID</span><strong>{{ selected.runtimeId || selected.vehicleId || '-' }}</strong></div>
@@ -94,7 +101,7 @@ async function setEnchantment() {
           <button class="btn btn-outline button secondary" :disabled="store.writeLocked || !enchantmentId" @click="setEnchantment"><Save :size="17" />设置附魔</button>
         </div>
       </template>
-      <p v-else class="empty-editor">对象属性读取保持可用；自动游玩期间修改区会被锁定。</p>
+      <EmptyState v-else compact :icon="ScanSearch" title="尚未选择" hint="从左侧选择一个对象，读取后可修改属性与附魔。" />
     </section>
   </div>
 </template>

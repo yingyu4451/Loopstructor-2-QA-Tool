@@ -5,6 +5,7 @@ import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
 import { cloneSettings } from '../settings-clone'
 import type { ManagerSettings } from '../types'
+import EmptyState from '../components/EmptyState.vue'
 
 const store = useAppStore()
 const ui = useUiStore()
@@ -95,13 +96,6 @@ onMounted(refreshSetup)
 
 <template>
   <div class="page-grid autoplay-page">
-    <section class="page-heading">
-      <div><span class="eyebrow">AUTOMATION</span><h1>自动游玩</h1></div>
-      <button class="btn btn-outline btn-sm button secondary compact" :disabled="!store.connected || editorTarget || setupLoading || ui.busy" @click="refreshSetup">
-        <RefreshCw :size="16" />刷新可玩内容
-      </button>
-    </section>
-
     <section class="automation-warning" role="status">
       <ShieldAlert :size="22" />
       <div><strong>自动游玩尚未完成</strong><span>当前版本允许使用，但仍可能遇到流程中断或策略错误，请避免用于重要存档。</span></div>
@@ -110,8 +104,13 @@ onMounted(refreshSetup)
     <div class="automation-workspace">
       <section class="card mechanical-section automation-config">
         <header class="section-heading compact-heading">
-          <div class="heading-with-icon"><Bot :size="21" /><div><h2>运行配置</h2><p>可玩模式和角色直接读取当前已连接的游戏。</p></div></div>
-          <span class="status-badge" :class="{ online: store.connected && !editorTarget, warning: !store.connected || editorTarget }">{{ editorTarget ? 'Editor 不支持自动游玩' : store.connected ? '游戏已连接' : '等待游戏连接' }}</span>
+          <div class="heading-with-icon"><Bot :size="21" /><div><h2>运行配置</h2></div></div>
+          <div class="header-actions">
+            <button class="btn btn-outline btn-sm button secondary compact" :disabled="!store.connected || editorTarget || setupLoading || ui.busy" @click="refreshSetup">
+              <RefreshCw :size="16" />刷新可玩内容
+            </button>
+            <span class="status-badge" :class="{ online: store.connected && !editorTarget, warning: !store.connected || editorTarget }">{{ editorTarget ? 'Editor 不支持自动游玩' : store.connected ? '游戏已连接' : '等待选择游戏' }}</span>
+          </div>
         </header>
         <div v-if="draft" class="automation-form" :class="{ locked: isActive }">
           <label><span>游戏模式</span><select v-model="draft.gameMode" class="select select-bordered" name="game-mode" autocomplete="off" :disabled="isActive"><option v-for="mode in modes" :key="mode.mode" :value="mode.mode" :disabled="!mode.available" :title="mode.reason">{{ mode.displayName }}{{ mode.available ? '' : ' · 不可用' }}</option></select></label>
@@ -145,7 +144,7 @@ onMounted(refreshSetup)
             <time>{{ new Date(entry.timestampUtc).toLocaleTimeString('zh-CN', { hour12: false }) }}</time>
             <div><strong>{{ entry.stage }}</strong><p>{{ entry.message }}</p></div>
           </article>
-          <p v-if="timeline.length === 0" class="empty-state">尚无自动游玩轨迹。</p>
+          <EmptyState v-if="timeline.length === 0" :icon="Activity" title="尚无运行轨迹" />
         </div>
       </section>
     </div>

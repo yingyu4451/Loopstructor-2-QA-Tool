@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted } from 'vue'
-import { FolderOpen, MonitorCog, Play, Plug, PlugZap, RefreshCw, ShieldCheck, Trash2 } from '../icons'
+import { FolderOpen, Gamepad2, MonitorCog, Play, Plug, PlugZap, RefreshCw, ShieldCheck, Trash2 } from '../icons'
 import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
+import EmptyState from '../components/EmptyState.vue'
 
 const store = useAppStore()
 const ui = useUiStore()
@@ -31,7 +32,7 @@ onBeforeUnmount(() => {
   <div class="page-grid game-page grid min-h-0">
     <section class="mechanical-section card game-location">
       <header class="section-heading">
-        <div><h2>游戏构建</h2><p>只连接经过路径、产品身份和程序集指纹验证的 Skyspine。</p></div>
+        <div class="heading-with-icon"><Gamepad2 :size="21" /><div><h2>游戏构建</h2><p>只连接经过路径、产品身份和程序集指纹验证的 Skyspine。</p></div></div>
         <button class="btn btn-outline btn-sm button secondary compact" :disabled="ui.busy" @click="store.refreshConnection"><RefreshCw :size="16" />刷新连接</button>
       </header>
       <div class="path-row">
@@ -79,13 +80,13 @@ onBeforeUnmount(() => {
           ><Plug :size="16" />连接</button>
           <button v-else class="btn btn-error btn-sm button danger compact" :disabled="ui.busy" @click="store.disconnectEditor">断开</button>
         </div>
-        <p v-if="editorInstances.length === 0" class="empty-state">未发现运行中的 Unity Editor 实例。</p>
+        <EmptyState v-if="editorInstances.length === 0" compact :icon="MonitorCog" title="未发现运行中的 Unity Editor" />
       </div>
     </section>
 
     <section class="card mechanical-section plugin-section">
       <header class="section-heading">
-        <div><h2>AutoPlayer 插件</h2><p>{{ store.snapshot?.plugin?.detail || '尚未读取插件状态' }}</p></div>
+        <div class="heading-with-icon"><PlugZap :size="21" /><div><h2>AutoPlayer 插件</h2><p>{{ store.snapshot?.plugin?.detail || '尚未读取插件状态' }}</p></div></div>
         <span class="status-badge" :class="{ online: pluginState === 'enabled', warning: pluginState === 'incomplete' }">{{ pluginStateLabel }}</span>
       </header>
       <div class="plugin-facts">

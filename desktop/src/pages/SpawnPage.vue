@@ -79,7 +79,7 @@ onBeforeUnmount(() => {
   <div class="spawn-workspace" :class="{ mutationLocked: store.writeLocked }">
     <section class="card spawn-catalog mechanical-section">
       <label class="input input-bordered search-box"><Search :size="17" /><input v-model="search" name="enemy-search" autocomplete="off" aria-label="搜索怪物" placeholder="搜索怪物中文名或枚举…" /></label>
-      <VirtualCatalogGrid :items="enemies" :selected-ids="selected ? [selected.id] : []" :disabled="store.writeLocked" @invoke="(_button, item) => selected = item" />
+      <VirtualCatalogGrid :items="enemies" :selected-ids="selected ? [selected.id] : []" :disabled="store.writeLocked" :search-term="search" @invoke="(_button, item) => selected = item" />
     </section>
     <section class="card spawn-editor mechanical-section">
       <header class="section-heading"><div><h2>生成怪物</h2><p>{{ selected?.name || selected?.enumName || '先从左侧选择怪物' }}</p></div></header>
@@ -89,7 +89,7 @@ onBeforeUnmount(() => {
         <label>数量<input v-model.number="count" class="input input-bordered" name="spawn-count" autocomplete="off" type="number" inputmode="numeric" min="1" max="100" /></label>
         <label>散布半径<input v-model.number="radius" class="input input-bordered" name="spawn-radius" autocomplete="off" type="number" inputmode="decimal" min="0" step="0.5" /></label>
       </div>
-      <div class="spawn-point-heading"><div><h3>生成位置</h3><small>{{ captureState.message || '可手工输入，或在游戏内按住左 Alt 后点击选点。' }}</small></div><div class="action-bar"><button class="btn btn-outline btn-sm button secondary compact" @click="capture"><Crosshair :size="16" />{{ captureState.state === 'armed' ? '取消选点' : '游戏内选点' }}</button><button class="btn btn-square btn-error btn-sm icon-button danger-icon" aria-label="清空生成点" :disabled="points.length === 0" @click="clearPoints"><Trash2 :size="16" /></button></div></div>
+      <div class="spawn-point-heading"><div><h3>生成位置</h3><small>{{ captureState.message || '手工输入，或按住左 Alt 在游戏内选点。' }}</small></div><div class="action-bar"><button class="btn btn-outline btn-sm button secondary compact" :disabled="!store.connected" @click="capture"><Crosshair :size="16" />{{ captureState.state === 'armed' ? '取消选点' : '游戏内选点' }}</button><button class="btn btn-square btn-error btn-sm icon-button danger-icon" aria-label="清空生成点" :disabled="points.length === 0" @click="clearPoints"><Trash2 :size="16" /></button></div></div>
       <div class="spawn-point-list">
         <div v-for="point in points" :key="point.id" class="coordinate-row">
           <input v-model.number="point.x" type="number" step="0.1" aria-label="X 坐标" />
@@ -100,7 +100,7 @@ onBeforeUnmount(() => {
       </div>
       <div class="action-bar between">
         <button class="btn btn-outline btn-sm button secondary compact" @click="points.push({ id: createId(), pointId: '', x: 0, y: 0, z: 0 })"><Plus :size="16" />添加位置</button>
-        <button class="btn btn-primary button primary" :disabled="!selected || points.length === 0 || store.writeLocked" @click="spawn"><BugPlay :size="18" />生成怪物</button>
+        <button class="btn btn-primary button primary" :disabled="!store.connected || !selected || points.length === 0 || store.writeLocked" @click="spawn"><BugPlay :size="18" />生成怪物</button>
       </div>
     </section>
   </div>

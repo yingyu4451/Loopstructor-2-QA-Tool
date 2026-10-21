@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { ImageOff, Plus, Search, Trash2 } from '../icons'
+import { ImageOff, Plus, Search, Sparkles, TrainFront, Trash2 } from '../icons'
 import { useAppStore } from '../stores/app'
 import { useUiStore } from '../stores/ui'
 import type { CatalogItem } from '../types'
 import CatalogCard from '../components/CatalogCard.vue'
 import CatalogPoolSwitch from '../components/CatalogPoolSwitch.vue'
+import EmptyState from '../components/EmptyState.vue'
 import VirtualCatalogGrid from '../components/VirtualCatalogGrid.vue'
 
 const store = useAppStore()
@@ -86,15 +87,26 @@ async function clearVehicles(command: string, message: string) {
 <template>
   <div class="vehicle-workspace grid h-full min-h-0">
     <section class="card vehicle-selector mechanical-section min-h-0">
+      <header class="section-heading compact-heading">
+        <div class="heading-with-icon"><TrainFront :size="21" /><div><h2>战车目录</h2></div></div>
+      </header>
       <div class="search-row">
         <label class="input input-bordered search-box"><Search :size="17" /><input v-model="search" name="vehicle-search" autocomplete="off" aria-label="搜索战车" placeholder="搜索中文名、枚举或系列…" /></label>
         <CatalogPoolSwitch />
       </div>
-      <div class="tabs tabs-box type-switcher" role="tablist" aria-label="战车类型">
-        <button class="tab" :class="{ active: activeType === 'all' }" role="tab" :aria-selected="activeType === 'all'" @click="activeType = 'all'">全部</button>
-        <button v-for="type in types" :key="type.key" class="tab" :class="{ active: activeType === type.key }" role="tab" :aria-selected="activeType === type.key" @click="activeType = type.key">{{ type.label }}</button>
+      <div class="tabs tabs-box type-switcher" role="group" aria-label="战车类型">
+        <button class="tab" :class="{ active: activeType === 'all' }" :aria-pressed="activeType === 'all'" @click="activeType = 'all'">全部</button>
+        <button v-for="type in types" :key="type.key" class="tab" :class="{ active: activeType === type.key }" :aria-pressed="activeType === type.key" @click="activeType = type.key">{{ type.label }}</button>
       </div>
       <div class="vehicle-family-grid">
+        <EmptyState
+          v-if="families.length === 0"
+          :icon="vehicles.length ? Search : TrainFront"
+          :title="!store.connected ? '等待选择游戏' : vehicles.length ? '没有匹配的战车' : '这里还没有战车'"
+          :hint="!store.connected ? '选择游戏后自动读取可获取战车。' : vehicles.length ? '换个关键词或切换类型。' : '当前游戏版本没有返回战车目录。'"
+        >
+          <button v-if="!store.connected" class="btn btn-outline btn-sm button secondary compact" @click="store.setRoute('game')">去选择游戏</button>
+        </EmptyState>
         <article v-for="family in families" :key="family.key" class="card vehicle-family" :class="{ selected: family.items.some(item => item.id === selectedVehicle?.id) }">
           <div class="card-body">
             <div class="family-identity">
@@ -120,7 +132,7 @@ async function clearVehicles(command: string, message: string) {
     </section>
 
     <section class="card vehicle-loadout mechanical-section" :class="{ mutationLocked: store.writeLocked }">
-      <header class="section-heading"><div><h2>本次装配</h2><p>{{ selectedVehicle?.name || selectedVehicle?.enumName || '尚未选择战车' }}</p></div></header>
+      <header class="section-heading"><div><h2>本次装配</h2><p>{{ selectedVehicle?.name || selectedVehicle?.enumName || '选择左侧任意形态' }}</p></div></header>
       <div class="selected-enchantment-wrap">
         <CatalogCard
           v-for="item in selectedEnchantments"
@@ -129,9 +141,15 @@ async function clearVehicles(command: string, message: string) {
           :count="enchantments[item.id]"
           @invoke="adjustEnchantment"
         />
-        <p v-if="selectedEnchantments.length === 0" class="empty-state">未选择附魔时获取普通战车。</p>
+        <EmptyState
+          v-if="selectedEnchantments.length === 0"
+          compact
+          :icon="Sparkles"
+          :title="selectedVehicle ? '未选择附魔' : '尚未选择战车'"
+          :hint="selectedVehicle ? '直接获取普通战车。' : '从左侧选择形态。'"
+        />
       </div>
-      <div class="bulk-delete-row grant-row">
+      <div v-if="store.connected" class="bulk-delete-row grant-row">
         <span>批量删除</span>
         <button class="btn btn-error btn-sm button danger compact" :disabled="store.writeLocked" @click="clearVehicles('cheat.clearFieldVehicles', '将删除场上的全部战车，且无法撤销。')"><Trash2 :size="16" />删除场上全部战车</button>
         <button class="btn btn-error btn-sm button danger compact" :disabled="store.writeLocked" @click="clearVehicles('cheat.clearBackpackVehicles', '将删除背包内的全部战车，且无法撤销。')"><Trash2 :size="16" />删除背包全部战车</button>
@@ -143,11 +161,16 @@ async function clearVehicles(command: string, message: string) {
     </section>
 
     <section class="card enchantment-panel mechanical-section">
+      <header class="section-heading compact-heading">
+        <div><h2>附魔</h2><p>左键 +1，右键或 Delete 减 1。</p></div>
+        <div class="header-actions">
+          <button class="btn btn-outline btn-sm button secondary compact" :disabled="selectedEnchantments.length === 0 || !store.connected || store.writeLocked" @click="enchantments = {}"><Trash2 :size="16" />清空所选</button>
+        </div>
+      </header>
       <div class="search-row">
         <label class="input input-bordered search-box"><Search :size="17" /><input v-model="enchantmentSearch" name="enchantment-search" autocomplete="off" aria-label="搜索附魔" placeholder="搜索附魔中文名或枚举…" /></label>
-        <button class="btn btn-outline btn-sm button secondary compact" @click="enchantments = {}"><Trash2 :size="16" />清空所选</button>
       </div>
-      <VirtualCatalogGrid :items="enchantmentItems" :counts="enchantments" @invoke="adjustEnchantment" />
+      <VirtualCatalogGrid :items="enchantmentItems" :counts="enchantments" :search-term="enchantmentSearch" :empty-action="false" @invoke="adjustEnchantment" />
     </section>
   </div>
 </template>
