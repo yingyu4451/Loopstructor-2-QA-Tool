@@ -37,7 +37,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.88
+./scripts/package.ps1 -Version 0.6.89
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -47,8 +47,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.88-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.88-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.89-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.89-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -63,15 +63,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.88",
+  "version": "0.6.89",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.88-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.89-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
       "fromVersion": "0.6.85",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.87-to-0.6.88-win-x64.delta.zip",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.88-to-0.6.89-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -135,8 +135,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.88
-git push origin v0.6.88
+git tag v0.6.89
+git push origin v0.6.89
 ```
 
 ## 升级 BepInEx
@@ -167,6 +167,11 @@ git push origin v0.6.88
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.89
+
+- 修复切换获取池、游戏内快捷键或常驻作弊开关时可能弹出 `An object could not be cloned.` 的问题：这些操作会把界面状态直接交给 Electron 主进程，而当 `persistentCheats` 等数组已被 Vue 响应式代理包裹时，序列化会失败。现在所有设置写入都先转成普通对象再发送（`saveSettings` 与页面切换的 `saveSettings` 两条路径），设置可以正常保存到磁盘并回读。
+- 行为不变，仅修复设置持久化路径；.NET 测试 665 项、桌面单元测试 31 项、Playwright E2E 4 项，Release 构建 0 警告。
 
 ### 0.6.88
 

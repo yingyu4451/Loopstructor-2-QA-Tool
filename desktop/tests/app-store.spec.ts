@@ -103,6 +103,26 @@ describe('desktop application store', () => {
     expect(store.snapshot?.settings.persistentCheats).toEqual(['mapSkipEnabled', 'enemyBuffsVisible'])
   })
 
+  it('serializes settings payloads before they cross the Electron bridge', async () => {
+    const saveSettings = vi.fn(async (settings) => settings)
+    const cheatCommand = vi.fn(async () => ({ success: true, message: '', data: {} }))
+    window.loopstructorDesktop = { saveSettings, cheatCommand } as unknown as DesktopApi
+    const store = useAppStore()
+    const hostSnapshot = snapshot()
+    hostSnapshot.settings.persistentCheats = ['mapSkipEnabled']
+    store.applySnapshot(hostSnapshot)
+
+    await store.setRoute('battle')
+    await store.setCatalogPoolMode('configured')
+
+    const payloads = saveSettings.mock.calls.map(call => call[0])
+    expect(payloads.length).toBeGreaterThanOrEqual(2)
+    for (const payload of payloads) {
+      expect(() => structuredClone(payload)).not.toThrow()
+      expect((payload as { persistentCheats?: string[] }).persistentCheats).toEqual(['mapSkipEnabled'])
+    }
+  })
+
   it('loads cheat catalogs silently when entering a cheat page', async () => {
     const saveSettings = vi.fn(async (settings) => settings)
     const cheatCommand = vi.fn(async (command: string) => command === 'cheat.queryCatalog'

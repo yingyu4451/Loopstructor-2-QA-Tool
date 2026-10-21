@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { cloneSettings } from '../settings-clone'
 import type { AutomationSetup, CatalogItem, CatalogPoolMode, ControlResponse, EditorBridgeInstance, HostLogEntry, HostSnapshot, ManagerSettings, PersistentCheatOption, RouteKey, SaveBackupCatalog, SaveBackupEntry } from '../types'
 import { useUiStore } from './ui'
 
@@ -87,7 +88,7 @@ export const useAppStore = defineStore('app', {
     async setRoute(route: RouteKey) {
       if (!this.snapshot) return
       this.currentRoute = route
-      const settings = { ...this.snapshot.settings, activeRoute: route }
+      const settings = cloneSettings({ ...this.snapshot.settings, activeRoute: route })
       this.snapshot.settings = settings
       try {
         await window.loopstructorDesktop.saveSettings(settings)
@@ -98,11 +99,11 @@ export const useAppStore = defineStore('app', {
     },
     async saveSettings(settings: ManagerSettings, announce = true) {
       const ui = useUiStore()
-      const payload = {
+      const payload = cloneSettings({
         ...settings,
         activeRoute: this.currentRoute,
         sidebarCollapsed: this.snapshot?.settings.sidebarCollapsed ?? settings.sidebarCollapsed,
-      }
+      })
       const saved = await ui.run(() => window.loopstructorDesktop.saveSettings(payload), announce ? '设置已保存。' : undefined)
       if (saved && this.snapshot) {
         this.snapshot.settings = { ...saved, activeRoute: this.currentRoute }
