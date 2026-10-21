@@ -37,7 +37,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.89
+./scripts/package.ps1 -Version 0.6.90
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -47,8 +47,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.89-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.89-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.90-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.90-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -63,15 +63,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.89",
+  "version": "0.6.90",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.89-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.90-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
       "fromVersion": "0.6.85",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.88-to-0.6.89-win-x64.delta.zip",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.89-to-0.6.90-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -135,8 +135,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.89
-git push origin v0.6.89
+git tag v0.6.90
+git push origin v0.6.90
 ```
 
 ## 升级 BepInEx
@@ -167,6 +167,12 @@ git push origin v0.6.89
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.90
+
+- 修正「游戏配置池」的判定口径：0.6.85 起战车取 `CheatVehiclePanelCfg`（开发者作弊面板配置）再与运行时可用战车取交集，实际只显示少量家族（用户实测 3 个家族）；遗物只读 `RewardManager.AllSuperModuleRewards` 主池，漏掉可重复获取的备用池与 BOSS/精英关掉落。现在战车改为读取奖励配置 `SO_RewardCfg.tagMappingVehicleType` 的 Tag 映射并按其家族展开到各星级（当前版本 14 个可获取家族，与游戏内一致）；遗物取奖励主池 `AllSuperModuleRewards` + 备用池 `m_backupSuperModuleRewards` + `SO_RewardCfg.bossRewardCfg` 的并集（覆盖商店、精英关与可无限叠加遗物）。旧版作弊面板列表保留为战车读取失败时的兜底。
+- `QueryCatalog` 的 `catalogVersion` 升到 7；池开关的提示文案与切换提示同步说明新口径。
+- .NET 测试 665 项、桌面单元测试 31 项、Playwright E2E 4 项，Release 构建 0 警告。
 
 ### 0.6.89
 

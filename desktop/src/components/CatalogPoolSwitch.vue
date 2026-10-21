@@ -21,7 +21,7 @@ const stateLabel = computed(() => {
 })
 const stateTitle = computed(() => warnings.value.length > 0
   ? warnings.value.join('；')
-  : '游戏配置池：战车取自带作弊面板配置，消耗品与遗物取自奖励配置中的全部条目。')
+  : '游戏配置池：战车来自奖励配置的 Tag 映射；遗物来自奖励主池、备用池与 BOSS 奖励；消耗品来自奖励配置。')
 function choose(mode: CatalogPoolMode) {
   if (mode !== selected.value) void store.setCatalogPoolMode(mode)
 }
@@ -31,7 +31,7 @@ function choose(mode: CatalogPoolMode) {
   <div class="pool-switch-wrap">
     <div class="pool-switch" role="group" aria-label="获取池">
       <button type="button" class="pool-option" :class="{ active: selected === 'all' }" :aria-pressed="selected === 'all'" title="全部池：目录里的所有项目均可获取" @click="choose('all')">全部池</button>
-      <button type="button" class="pool-option" :class="{ active: selected === 'configured' }" :aria-pressed="selected === 'configured'" title="游戏配置池：与游戏开发者作弊面板可获取的项目一致" @click="choose('configured')">游戏配置池</button>
+      <button type="button" class="pool-option" :class="{ active: selected === 'configured' }" :aria-pressed="selected === 'configured'" title="游戏配置池：只显示当前版本奖励配置里可获取的项目" @click="choose('configured')">游戏配置池</button>
     </div>
     <span class="pool-state" :class="{ live }" :title="stateTitle">{{ stateLabel }}</span>
   </div>

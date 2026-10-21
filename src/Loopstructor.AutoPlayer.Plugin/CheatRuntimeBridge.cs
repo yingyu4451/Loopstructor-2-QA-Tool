@@ -478,7 +478,7 @@ internal sealed class CheatRuntimeBridge
         InvalidateRuntimeCatalogCache();
         bool configured = string.Equals(normalized, CheatCatalogPoolModes.Configured, StringComparison.Ordinal);
         string message = configured
-            ? "获取池已切换为游戏配置池：战车取自带作弊面板配置，消耗品与遗物取自奖励配置。"
+            ? "获取池已切换为游戏配置池：战车取奖励配置的 Tag 映射，遗物取奖励主池/备用池与 BOSS 奖励，消耗品取道具奖励配置。"
             : "获取池已切换为全部池：所有目录项目均可获取。";
         return CheatExecutionResult.Changed(message, new JObject { ["poolMode"] = normalized });
     }
@@ -512,7 +512,7 @@ internal sealed class CheatRuntimeBridge
 
         return new JObject
         {
-            ["catalogVersion"] = 6,
+            ["catalogVersion"] = 7,
             ["locale"] = "zh",
             ["poolMode"] = _catalogPoolMode,
             ["poolWarnings"] = new JArray(poolWarnings),
@@ -3968,6 +3968,139 @@ internal sealed class CheatRuntimeBridge
     private IReadOnlyList<object>? ConfiguredVehicleValues(List<string> warnings)
     {
         if (_configuredVehicleValues != null) return _configuredVehicleValues;
+
+        IReadOnlyList<object>? fromRewardConfig = ReadRewardCfgVehiclePool(warnings);
+        if (fromRewardConfig != null)
+        {
+            _configuredVehicleValues = fromRewardConfig;
+            return fromRewardConfig;
+        }
+
+        IReadOnlyList<object>? fromCheatPanel = ConfiguredVehicleValuesFromCheatPanel(warnings);
+        if (fromCheatPanel == null) return null;
+        _configuredVehicleValues = fromCheatPanel;
+        return fromCheatPanel;
+    }
+
+    /// <summary>
+    /// 战车配置池以奖励配置里的 Tag 映射为准：只包含当前版本真正会作为奖励发放的战车，
+    /// 再按战车家族展开到可生成的全部星级。
+    /// </summary>
+    private IReadOnlyList<object>? ReadRewardCfgVehiclePool(List<string> warnings)
+    {
+        Type? configType = FindType("MetroTD.RewardSystem.SO_RewardCfg");
+        if (configType == null || _vehicleType == null)
+        {
+            warnings.Add("当前游戏版本缺少奖励配置（SO_RewardCfg），战车配置池已回退。");
+            return null;
+        }
+
+        object? config = TryGetSingleton(configType) ?? FindLoadedObject(configType);
+        if (config == null)
+        {
+            warnings.Add("奖励配置（SO_RewardCfg）尚未初始化，战车配置池已回退。");
+            return null;
+        }
+
+        if (GetMember(config, "tagMappingVehicleType") is not IEnumerable mappingEntries)
+        {
+            warnings.Add("奖励配置没有 Tag 战车映射，战车配置池已回退。");
+            return null;
+        }
+
+        HashSet<long> configuredNumbers = new();
+        foreach (object? entry in mappingEntries)
+        {
+            object? mappingData = GetMember(entry, "Value");
+            if (mappingData == null || GetMember(mappingData, "vehicleTypes") is not IEnumerable vehicleTypes) continue;
+            foreach (object? item in vehicleTypes)
+            {
+                if (item == null || item.GetType() != _vehicleType) continue;
+                if (IsNoneEnumValue(item)) continue;
+                configuredNumbers.Add(Convert.ToInt64(item, CultureInfo.InvariantCulture));
+            }
+        }
+
+        if (configuredNumbers.Count == 0)
+        {
+            warnings.Add("奖励配置的 Tag 战车映射为空，战车配置池已回退。");
+            return null;
+        }
+
+        // Tag 映射通常只列每个家族的一个代表星级，这里按家族展开，避免星级按钮缺失。
+        HashSet<string> configuredFamilies = new(StringComparer.Ordinal);
+        foreach (long number in configuredNumbers)
+        {
+            string? name = GetEnumMemberName(_vehicleType, number);
+            if (!string.IsNullOrEmpty(name)) configuredFamilies.Add(VehicleFamilyKey(name!));
+        }
+
+        IReadOnlyList<object> available;
+        try
+        {
+            available = AllVehicleValues();
+        }
+        catch (Exception exception)
+        {
+            warnings.Add("读取可获取战车失败（" + Unwrap(exception).Message + "），战车配置池已回退。");
+            return null;
+        }
+
+        List<object> values = new();
+        foreach (object value in available)
+        {
+            long number = Convert.ToInt64(value, CultureInfo.InvariantCulture);
+            if (configuredNumbers.Contains(number))
+            {
+                values.Add(value);
+                continue;
+            }
+
+            string? name = GetEnumMemberName(_vehicleType, number);
+            if (!string.IsNullOrEmpty(name) && configuredFamilies.Contains(VehicleFamilyKey(name!)))
+            {
+                values.Add(value);
+            }
+        }
+
+        IReadOnlyList<object> distinct = DistinctEnumValues(values);
+        if (distinct.Count == 0)
+        {
+            warnings.Add("奖励配置战车与当前可获取战车没有交集，战车配置池已回退。");
+            return null;
+        }
+
+        return distinct;
+    }
+
+    private static string? GetEnumMemberName(Type enumType, long value)
+    {
+        try
+        {
+            object enumValue = Enum.ToObject(enumType, value);
+            return Enum.GetName(enumType, enumValue);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    private static string VehicleFamilyKey(string enumName)
+    {
+        int marker = enumName.LastIndexOf("_L", StringComparison.Ordinal);
+        if (marker > 0 && marker + 2 < enumName.Length
+            && int.TryParse(enumName.Substring(marker + 2), NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+        {
+            return enumName.Substring(0, marker);
+        }
+
+        return enumName;
+    }
+
+    /// <summary>旧版兜底：读取游戏开发者作弊面板的战车配置列表。</summary>
+    private IReadOnlyList<object>? ConfiguredVehicleValuesFromCheatPanel(List<string> warnings)
+    {
         Type? configType = FindType("MetroTD.CheatSystem.UI.CheatVehiclePanelCfg");
         if (configType == null)
         {
@@ -4003,7 +4136,6 @@ internal sealed class CheatRuntimeBridge
             return null;
         }
 
-        _configuredVehicleValues = distinct;
         return distinct;
     }
 
@@ -4021,19 +4153,102 @@ internal sealed class CheatRuntimeBridge
         return rewards;
     }
 
+    /// <summary>
+    /// 遗物配置池 = 奖励主池（遗物总库）+ 备用池（可重复获取）+ BOSS/精英关奖励，
+    /// 这些都是当前版本真正可能发放的遗物。
+    /// </summary>
     private IReadOnlyList<object>? ConfiguredRelicValues(List<string> warnings)
     {
         if (_configuredRelicValues != null) return _configuredRelicValues;
-        IReadOnlyList<object>? rewards = ReadRewardPool(
-            "AllSuperModuleRewards",
-            "superModuleEnum",
-            _superModuleType,
-            "遗物",
-            warnings);
-        if (rewards == null) return null;
-        _configuredRelicValues = rewards;
-        return rewards;
+
+        Type? rewardManagerType = FindType("MetroTD.RewardSystem.RewardManager");
+        if (rewardManagerType == null || _superModuleType == null)
+        {
+            warnings.Add("当前游戏版本缺少奖励配置入口，遗物已回退到全部池。");
+            return null;
+        }
+
+        object? manager = TryGetSingleton(rewardManagerType);
+        if (manager == null)
+        {
+            warnings.Add("奖励配置尚未初始化，遗物已回退到全部池。");
+            return null;
+        }
+
+        List<object> values = new();
+        bool mainPoolReady = CollectRewardEnumValues(manager, "AllSuperModuleRewards", "superModuleEnum", _superModuleType, values);
+        if (!mainPoolReady)
+        {
+            MethodInfo? updateAll = FindMethod(manager.GetType(), "UpdateAllRewards");
+            if (updateAll == null)
+            {
+                warnings.Add("奖励配置缺少刷新入口，遗物已回退到全部池。");
+                return null;
+            }
+
+            try
+            {
+                updateAll.Invoke(manager, null);
+            }
+            catch (Exception exception)
+            {
+                warnings.Add("刷新奖励配置失败（" + Unwrap(exception).Message + "），遗物已回退到全部池。");
+                return null;
+            }
+
+            mainPoolReady = CollectRewardEnumValues(manager, "AllSuperModuleRewards", "superModuleEnum", _superModuleType, values);
+        }
+
+        if (mainPoolReady)
+        {
+            CollectRewardEnumValues(manager, "m_backupSuperModuleRewards", "superModuleEnum", _superModuleType, values);
+
+            Type? rewardConfigType = FindType("MetroTD.RewardSystem.SO_RewardCfg");
+            object? rewardConfig = rewardConfigType != null ? TryGetSingleton(rewardConfigType) : null;
+            if (rewardConfig != null)
+            {
+                CollectRewardEnumValues(rewardConfig, "bossRewardCfg", "superModuleEnum", _superModuleType, values);
+            }
+        }
+
+        IReadOnlyList<object> distinct = DistinctEnumValues(values);
+        if (distinct.Count == 0)
+        {
+            warnings.Add("奖励配置里没有可获取的遗物，遗物已回退到全部池。");
+            return null;
+        }
+
+        _configuredRelicValues = distinct;
+        return distinct;
     }
+
+    private static bool CollectRewardEnumValues(
+        object? target,
+        string listMember,
+        string enumMember,
+        Type enumType,
+        List<object> sink)
+    {
+        if (target == null) return false;
+        try
+        {
+            if (GetMember(target, listMember) is not IEnumerable rewards) return false;
+            foreach (object? reward in rewards)
+            {
+                object? value = GetMember(reward, enumMember);
+                if (value == null || value.GetType() != enumType) continue;
+                if (IsNoneEnumValue(value)) continue;
+                sink.Add(value);
+            }
+
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
 
     /// <summary>
     /// 读取游戏奖励配置里列出的奖励类型。奖励列表由 RewardManager 在进入对局后填充，

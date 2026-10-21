@@ -129,7 +129,7 @@ export const useAppStore = defineStore('app', {
       const saved = await this.saveSettings({ ...this.snapshot.settings, catalogPoolMode: mode }, false)
       if (saved) {
         ui.toast(mode === 'configured'
-          ? '获取池已切换为游戏配置池：战车取自带作弊面板配置，消耗品与遗物取自奖励配置。'
+          ? '获取池已切换为游戏配置池：只显示当前版本奖励配置里可获取的项目。'
           : '获取池已切换为全部池：所有目录项目均可获取。', 'success')
         if (this.connected) await this.refreshCheat(false)
       }
