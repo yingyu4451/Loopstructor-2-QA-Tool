@@ -450,12 +450,16 @@ public sealed class SaveBackupService
 
     private static string Fingerprint(IReadOnlyList<SourceFile> files)
     {
+        // Hash the contents, not the timestamps: save files are often rewritten with the same length, and some file
+        // systems preserve or defer the last-write timestamp. Metadata-only changes must not create duplicate snapshots.
         using SHA256 sha = SHA256.Create();
         foreach (SourceFile file in files)
         {
-            byte[] line = Encoding.UTF8.GetBytes(
-                file.RelativePath.Replace('\\', '/') + "\0" + file.Length + "\0" + file.LastWriteTimeUtc.Ticks + "\n");
+            byte[] line = Encoding.UTF8.GetBytes(file.RelativePath.Replace('\\', '/') + "\0" + file.Length + "\n");
             sha.TransformBlock(line, 0, line.Length, null, 0);
+            using FileStream stream = new(file.FullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            byte[] fileHash = SHA256.HashData(stream);
+            sha.TransformBlock(fileHash, 0, fileHash.Length, null, 0);
         }
         sha.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
         return Convert.ToHexString(sha.Hash!).ToLowerInvariant();
