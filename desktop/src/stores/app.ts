@@ -15,6 +15,11 @@ const mutationCommands = new Set([
   'cheat.setCatalogPoolMode',
 ])
 const cheatRoutes = new Set<RouteKey>(['vehicles', 'items', 'relics', 'battle', 'objects', 'spawn'])
+const routeKeys: readonly RouteKey[] = ['game', 'saves', 'autoplay', 'vehicles', 'items', 'relics', 'battle', 'objects', 'spawn', 'diagnostics', 'settings']
+
+function isRouteKey(value: unknown): value is RouteKey {
+  return typeof value === 'string' && (routeKeys as readonly string[]).includes(value)
+}
 
 export const useAppStore = defineStore('app', {
   state: () => ({
@@ -44,7 +49,22 @@ export const useAppStore = defineStore('app', {
         if (message.event === 'snapshot') this.applySnapshot(message.payload as HostSnapshot)
         else if (message.event === 'log' && this.snapshot) {
           this.snapshot.logs = [...this.snapshot.logs, message.payload as HostLogEntry].slice(-600)
-        } else if (message.event === 'hostExit') ui.toast('.NET Host 已退出，请重新启动工具。', 'error')
+        } else if (message.event === 'hostExit') {
+          const connection = this.snapshot?.connection
+          this.connected = false
+          this.catalog = undefined
+          this.cheatState = undefined
+          this.vehicles = []
+          this.enemies = []
+          this.automationSetup = undefined
+          if (this.snapshot && connection) {
+            this.snapshot = {
+              ...this.snapshot,
+              connection: { ...connection, trusted: false, label: '.NET Host 已退出', autoplayActive: false },
+            }
+          }
+          ui.toast('.NET Host 已退出，请重新启动工具。', 'error')
+        }
         else if (message.event === 'hostDiagnostic') console.warn(message.payload?.message)
       })
       const snapshot = await ui.run(() => window.loopstructorDesktop.getSnapshot())
@@ -53,9 +73,11 @@ export const useAppStore = defineStore('app', {
     applySnapshot(snapshot: HostSnapshot) {
       const becameConnected = !this.connected && snapshot.connection.trusted
       if (!this.routeInitialized) {
-        this.currentRoute = snapshot.settings.activeRoute ?? 'game'
+        const savedRoute = snapshot.settings.activeRoute
+        this.currentRoute = isRouteKey(savedRoute) ? savedRoute : 'game'
         this.routeInitialized = true
       }
+      if (!isRouteKey(this.currentRoute)) this.currentRoute = 'game'
       this.snapshot = snapshot
       this.connected = snapshot.connection.trusted
       if (becameConnected && cheatRoutes.has(this.currentRoute)) {

@@ -119,7 +119,18 @@ function Get-VerifiedBepInExArchive {
     }
 
     Write-Host "Downloading BepInEx $($RuntimeInfo.Version)..."
-    Invoke-WebRequest -UseBasicParsing -Uri $RuntimeInfo.DownloadUrl -OutFile $partialPath
+    $attempts = 3
+    for ($attempt = 1; $attempt -le $attempts; $attempt++) {
+        try {
+            Invoke-WebRequest -UseBasicParsing -Uri $RuntimeInfo.DownloadUrl -OutFile $partialPath -TimeoutSec 180
+            break
+        }
+        catch {
+            if ($attempt -eq $attempts) { throw }
+            Write-Warning "BepInEx download attempt $attempt failed: $($_.Exception.Message). Retrying..."
+            Start-Sleep -Seconds (5 * $attempt)
+        }
+    }
     $downloadedHash = (Get-FileHash -LiteralPath $partialPath -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($downloadedHash -ne $RuntimeInfo.Sha256) {
         Remove-Item -LiteralPath $partialPath -Force
@@ -301,7 +312,7 @@ function New-MaximumCompressionZip {
         '-mm=Deflate',
         '-mx=9',
         '-mfb=258',
-        '-mpass=15',
+        '-mpass=3',
         '-mtc=off',
         '-mtm=off',
         '-mta=off',

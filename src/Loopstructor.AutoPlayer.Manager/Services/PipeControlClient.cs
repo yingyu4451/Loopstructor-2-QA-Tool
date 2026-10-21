@@ -195,7 +195,8 @@ public sealed class PipeControlClient
                 cancellationToken);
         }
 
-        bool serialize = !IsHealthCommand(request.Command);
+        // Health commands are answered above, so every remaining command must be serialized through the gate.
+        const bool serialize = true;
         bool gateEntered = false;
         if (serialize)
         {

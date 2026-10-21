@@ -31,6 +31,7 @@ function markDirty() {
 
 async function saveSettings() {
   if (!draft.value) return
+  draft.value.maximumSaveBackups = Math.min(100, Math.max(1, Math.round(Number(draft.value.maximumSaveBackups) || 20)))
   const saved = await store.saveSettings(cloneSettings(draft.value))
   if (!saved) return
   dirty.value = false
@@ -105,7 +106,7 @@ async function restore(backup: SaveBackupEntry) {
             <p>{{ formatDate(backup.createdAt) }}</p>
             <small>{{ backup.fileCount }} 个文件 · {{ formatSize(backup.totalBytes) }}</small>
           </div>
-          <button class="btn btn-outline button secondary restore-save-button" @click="restore(backup)"><BackupRestore :size="18" />读档</button>
+          <button class="btn btn-outline button secondary restore-save-button" :disabled="ui.busy || status?.busy" @click="restore(backup)"><BackupRestore :size="18" />读档</button>
         </article>
       </div>
       <div v-else class="save-history-empty">

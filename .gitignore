@@ -1,8 +1,12 @@
 .vs/
 .idea/
+.vscode/
 .dotnet/
+.dotnet-*/
 .dotnet-staging-*/
 .tools/
+.DS_Store
+Thumbs.db
 artifacts/
 bin/
 obj/

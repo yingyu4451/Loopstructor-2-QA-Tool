@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { CatalogItem } from '../types'
 import CatalogCard from './CatalogCard.vue'
 
@@ -19,10 +19,18 @@ const scrollTop = ref(0)
 let observer: ResizeObserver | undefined
 const columns = computed(() => Math.max(1, Math.floor(width.value / props.minItemWidth)))
 const rowCount = computed(() => Math.ceil(props.items.length / columns.value))
-const startRow = computed(() => Math.max(0, Math.floor(scrollTop.value / props.itemHeight) - 2))
+const startRow = computed(() => Math.min(
+  Math.max(0, rowCount.value - 1),
+  Math.max(0, Math.floor(scrollTop.value / props.itemHeight) - 2),
+))
 const endRow = computed(() => Math.min(rowCount.value, Math.ceil((scrollTop.value + height.value) / props.itemHeight) + 2))
 const visibleItems = computed(() => props.items.slice(startRow.value * columns.value, endRow.value * columns.value))
 const selected = computed(() => new Set(props.selectedIds ?? []))
+
+watch(() => props.items, () => {
+  scrollTop.value = 0
+  if (host.value) host.value.scrollTop = 0
+})
 
 onMounted(() => {
   observer = new ResizeObserver(([entry]) => {
@@ -36,7 +44,8 @@ onBeforeUnmount(() => observer?.disconnect())
 
 <template>
   <div ref="host" class="virtual-catalog" @scroll="scrollTop = ($event.target as HTMLElement).scrollTop">
-    <div class="virtual-spacer" :style="{ height: `${rowCount * itemHeight}px` }">
+    <p v-if="props.items.length === 0" class="virtual-empty">没有匹配的条目，试试调整搜索或获取池。</p>
+    <div v-else class="virtual-spacer" :style="{ height: `${rowCount * itemHeight}px` }">
       <div
         class="virtual-grid"
         :style="{

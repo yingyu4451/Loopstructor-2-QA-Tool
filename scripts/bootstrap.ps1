@@ -23,7 +23,13 @@ if ($sdkVersion -ne '8.0.426') {
 }
 
 $archiveName = "dotnet-sdk-$sdkVersion-win-x64.zip"
-$archiveUrl = "https://builds.dotnet.microsoft.com/dotnet/Sdk/$sdkVersion/$archiveName"
+# The official host throttles some networks down to a few dozen KB/s; try the
+# Azure CDN mirrors before giving up so bootstrapping does not stall for an hour.
+$archiveUrls = @(
+    "https://builds.dotnet.microsoft.com/dotnet/Sdk/$sdkVersion/$archiveName",
+    "https://dotnetcli.azureedge.net/dotnet/Sdk/$sdkVersion/$archiveName",
+    "https://dotnetcli.blob.core.windows.net/dotnet/Sdk/$sdkVersion/$archiveName"
+)
 $archiveSha512 = '10261657109f1c62126f106a9ac966739b025b5f6b4a9f88ab7c6e73cacce9aec771895daa3267b8da933a83c32ee91bf458dc6704e1ddcd9bcf0d5edd036abb'
 $archivePath = Join-Path $toolsRoot $archiveName
 
@@ -66,20 +72,40 @@ if (Test-Path -LiteralPath $archivePath -PathType Leaf) {
 
 if (-not $archiveIsValid) {
     $partialPath = "$archivePath.partial"
-    if (Test-Path -LiteralPath $partialPath) {
-        Remove-Item -LiteralPath $partialPath -Force
+    $downloadErrors = [System.Collections.Generic.List[string]]::new()
+    $downloaded = $false
+
+    foreach ($archiveUrl in $archiveUrls) {
+        if (Test-Path -LiteralPath $partialPath) {
+            Remove-Item -LiteralPath $partialPath -Force
+        }
+
+        try {
+            Write-Host "Downloading .NET SDK $sdkVersion from $archiveUrl..."
+            Invoke-WebRequest -UseBasicParsing -Uri $archiveUrl -OutFile $partialPath -TimeoutSec 1800
+
+            $downloadedHash = (Get-FileHash -LiteralPath $partialPath -Algorithm SHA512).Hash.ToLowerInvariant()
+            if ($downloadedHash -ne $archiveSha512) {
+                Remove-Item -LiteralPath $partialPath -Force
+                $downloadErrors.Add("$archiveUrl returned SHA-512 $downloadedHash instead of $archiveSha512")
+                continue
+            }
+
+            Move-Item -LiteralPath $partialPath -Destination $archivePath -Force
+            $downloaded = $true
+            break
+        }
+        catch {
+            if (Test-Path -LiteralPath $partialPath) {
+                Remove-Item -LiteralPath $partialPath -Force
+            }
+            $downloadErrors.Add("$archiveUrl -> $($_.Exception.Message)")
+        }
     }
 
-    Write-Host "Downloading .NET SDK $sdkVersion..."
-    Invoke-WebRequest -UseBasicParsing -Uri $archiveUrl -OutFile $partialPath
-
-    $downloadedHash = (Get-FileHash -LiteralPath $partialPath -Algorithm SHA512).Hash.ToLowerInvariant()
-    if ($downloadedHash -ne $archiveSha512) {
-        Remove-Item -LiteralPath $partialPath -Force
-        throw "The .NET SDK archive failed SHA-512 verification. Expected $archiveSha512, got $downloadedHash."
+    if (-not $downloaded) {
+        throw "The .NET SDK $sdkVersion archive could not be downloaded from any mirror: $($downloadErrors -join ' | ')"
     }
-
-    Move-Item -LiteralPath $partialPath -Destination $archivePath -Force
 }
 
 $stagingRoot = Join-Path $repositoryRoot ('.dotnet-staging-' + [Guid]::NewGuid().ToString('N'))

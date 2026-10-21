@@ -4,6 +4,8 @@ namespace Loopstructor.AutoPlayer.Manager.Services;
 
 public sealed class LogTailReader
 {
+    private const byte LineFeed = (byte)'\n';
+    private const byte CarriageReturn = (byte)'\r';
     private string _path = string.Empty;
     private long _position;
 
@@ -28,15 +30,40 @@ public sealed class LogTailReader
             _position = 0;
         }
 
-        stream.Position = _position;
-        using StreamReader reader = new(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
-        List<string> lines = new();
-        while (lines.Count < Math.Max(1, maximumLines) && reader.ReadLine() is { } line)
+        long startPosition = _position;
+        stream.Position = startPosition;
+        int limit = Math.Max(1, maximumLines);
+        List<string> lines = new(limit);
+        List<byte> current = new(256);
+        byte[] buffer = new byte[64 * 1024];
+        long consumed = 0;
+        long completePosition = startPosition;
+        int read;
+        while (lines.Count < limit && (read = stream.Read(buffer, 0, buffer.Length)) > 0)
         {
-            lines.Add(line);
+            for (int offset = 0; offset < read && lines.Count < limit; offset++)
+            {
+                consumed++;
+                if (buffer[offset] != LineFeed)
+                {
+                    current.Add(buffer[offset]);
+                    continue;
+                }
+
+                int count = current.Count;
+                if (count > 0 && current[count - 1] == CarriageReturn) count--;
+                string line = Encoding.UTF8.GetString(current.ToArray(), 0, count);
+                if (lines.Count == 0 && startPosition == 0) line = line.TrimStart('\uFEFF');
+                lines.Add(line);
+                current.Clear();
+                completePosition = startPosition + consumed;
+            }
         }
 
-        _position = stream.Position;
+        // Only advance past whole lines. A trailing partial line is re-read on the next call, once the writer
+        // has completed it, so lines are never split or dropped between polls.
+        _position = lines.Count > 0 ? completePosition : startPosition;
+
         return lines;
     }
 }

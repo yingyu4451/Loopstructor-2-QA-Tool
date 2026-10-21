@@ -5,6 +5,7 @@ import { mountWithTooltip } from './helpers/mount'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import VehiclesPage from '../src/pages/VehiclesPage.vue'
 import { useAppStore } from '../src/stores/app'
+import { useUiStore } from '../src/stores/ui'
 
 describe('vehicle catalog presentation', () => {
   beforeEach(() => setActivePinia(createPinia()))
@@ -47,6 +48,7 @@ describe('vehicle catalog presentation', () => {
       connection: { trusted: true, label: '已连接', reason: '', cheatAvailable: true, autoplayActive: true },
       logs: [],
     }
+    vi.spyOn(useUiStore(), 'confirm').mockResolvedValue(true)
     const command = vi.spyOn(store, 'command').mockResolvedValue({ success: true, message: '' })
     const refreshState = vi.spyOn(store, 'refreshState').mockResolvedValue()
 

@@ -188,7 +188,7 @@ public sealed class ManagerSettings
     private static string NormalizeRoute(string? value)
     {
         string route = string.IsNullOrWhiteSpace(value) ? "game" : value.Trim();
-        return route is "game" or "autoplay" or "vehicles" or "items" or "relics" or "battle"
+        return route is "game" or "saves" or "autoplay" or "vehicles" or "items" or "relics" or "battle"
             or "objects" or "spawn" or "diagnostics" or "settings"
             ? route
             : "game";

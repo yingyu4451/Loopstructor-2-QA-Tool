@@ -642,3 +642,14 @@
   .app-shell[data-skin="skyspine"] .button,
   .app-shell[data-skin="skyspine"] .switch-track span { transition: none; }
 }
+
+/* Catalog grids share one empty-state treatment so a filtered or configured pool never looks broken. */
+.app-shell[data-skin="skyspine"] .virtual-empty {
+  margin: 18px 0;
+  padding: 22px 18px;
+  border: 1px dashed var(--theme-line-strong);
+  border-radius: var(--theme-radius-md);
+  color: var(--theme-muted);
+  font-size: 12px;
+  text-align: center;
+}

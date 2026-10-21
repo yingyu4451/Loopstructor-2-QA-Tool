@@ -81,16 +81,25 @@ export class HostClient extends EventEmitter {
     const lines = createInterface({ input: this.process.stdout })
     lines.on('line', (line) => this.handleLine(line))
     this.process.stderr.on('data', (chunk) => this.emit('diagnostic', String(chunk)))
+    this.process.on('error', (error) => {
+      this.emit('diagnostic', `无法启动 .NET Host：${error.message}`)
+      this.rejectPending(new Error(`无法启动 .NET Host：${error.message}`))
+      this.process = undefined
+      this.emit('exit', null)
+    })
     this.process.on('exit', (code) => {
-      const error = new Error(`.NET Host 已退出（代码 ${code ?? 'unknown'}）。`)
-      for (const request of this.pending.values()) {
-        clearTimeout(request.timer)
-        request.reject(error)
-      }
-      this.pending.clear()
+      this.rejectPending(new Error(`.NET Host 已退出（代码 ${code ?? 'unknown'}）。`))
       this.process = undefined
       this.emit('exit', code)
     })
+  }
+
+  private rejectPending(error: Error): void {
+    for (const request of this.pending.values()) {
+      clearTimeout(request.timer)
+      request.reject(error)
+    }
+    this.pending.clear()
   }
 
   async invoke(method: string, params?: unknown, timeoutMs = 45000): Promise<unknown> {

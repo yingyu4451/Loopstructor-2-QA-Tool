@@ -75,7 +75,7 @@ internal static class DesktopHostProgram
                     {
                         Id = request.Id,
                         Success = false,
-                        Error = exception.Message
+                        Error = $"{request.Method} 执行失败（{exception.GetType().Name}）：{exception.Message}"
                     });
                 }
             }

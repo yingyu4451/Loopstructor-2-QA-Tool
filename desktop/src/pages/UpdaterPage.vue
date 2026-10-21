@@ -18,6 +18,7 @@ const api = window.loopstructorDesktop
 const progress = ref<ProgressSnapshot>({ message: '正在准备更新…', overallPercent: 0 })
 const result = ref<{ success?: boolean; message?: string; latestVersion?: string; usedIncrementalUpdate?: boolean }>()
 const exitCode = ref<number | null>(null)
+const errorFailed = ref(false)
 const logs = ref<string[]>([])
 const started = ref(false)
 const progressFill = ref<HTMLElement>()
@@ -25,7 +26,7 @@ let removeListener: (() => void) | undefined
 let progressTween: gsap.core.Tween | undefined
 
 const percent = computed(() => Math.max(0, Math.min(100, progress.value.overallPercent ?? 0)))
-const isFailure = computed(() => progress.value.isFailure === true || result.value?.success === false || (exitCode.value !== null && exitCode.value !== 0))
+const isFailure = computed(() => errorFailed.value || progress.value.isFailure === true || result.value?.success === false || (exitCode.value !== null && exitCode.value !== 0))
 const statusIcon = computed(() => isFailure.value ? XCircle : result.value?.success ? CheckCircle2 : Download)
 const statusText = computed(() => {
   if (isFailure.value) return '更新未完成'
@@ -75,6 +76,7 @@ function handleEvent(message: { event: string; payload: any }): void {
   if (message.event === 'stderr' || message.event === 'log' || message.event === 'error') {
     const text = String(message.payload?.message ?? '')
     if (text.trim()) logs.value.push(text.trim())
+    if (message.event === 'error') errorFailed.value = true
     return
   }
   if (message.event === 'exit') {

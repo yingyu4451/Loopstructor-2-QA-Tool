@@ -27,7 +27,7 @@ Loopstructor-2-QA-Tool.exe (Launcher)
 - Windows x64；游戏为 Unity 2022.3.62f3c1 Mono 构建。
 - BepInEx 运行时固定为 5.4.23.5，随发布包提供。
 - 游戏目录全路径必须是 ASCII 字符：BepInEx/Mono 组合对非 ASCII 路径不稳定，不做兼容。
-- 已核对的真实包为 Skyspine 1.385。其他构建必须同时通过产品标识、程序集 SHA-256 指纹和运行时反射契约校验；任一不通过时只保留只读信息，自动游玩保持不可用。
+- 已核对的真实包为 Skyspine 1.419（实机冒烟）与 1.423_Beta（运行时反射契约核对）。其他构建必须同时通过产品标识、程序集 SHA-256 指纹和运行时反射契约校验；任一不通过时只保留只读信息，自动游玩保持不可用。
 - 隔离 QA 模式下四个门禁标志必须全部为真：`SaveIsolationApplied`、`SaveIsolationVerified`、`PlatformWritesBlocked`、`GameArtifactsRedirected`；`ResidentPlayer` 模式则必须全部为假。不满足时不会降级为另一种模式，自动游玩保持不可用。详见 [docs/safety.md](docs/safety.md)。
 
 ## 环境要求
@@ -45,13 +45,13 @@ Loopstructor-2-QA-Tool.exe (Launcher)
 ./scripts/bootstrap.ps1
 ./scripts/build.ps1 -Configuration Release
 ./scripts/test.ps1 -Configuration Release -NoRestore -NoBuild
-./scripts/package.ps1 -Version 0.6.86
+./scripts/package.ps1 -Version 0.6.87
 ```
 
 - `build.ps1` 构建解决方案与 `desktop`，输出在各项目 `bin`/`dist` 目录。
 - `test.ps1` 依次运行：解决方案测试（TRX 输出到 `artifacts\TestResults`）、`Verification` 控制台校验、`pnpm typecheck`、`pnpm lint`、`pnpm test`。
 - `desktop` 的 Playwright E2E 由 `pnpm test:e2e` 单独运行（CI 会执行；本地需要可交互的桌面会话）。
-- `package.ps1` 需要 Node/pnpm 与 7-Zip，输出到 `artifacts\release\`：`Loopstructor-2-QA-Tool-0.6.86-win-x64.zip`、对应的 `.sha256` 和 `autoplayer-update-manifest.json`。`-SkipBuild` 可复用已有构建产物。
+- `package.ps1` 需要 Node/pnpm 与 7-Zip，输出到 `artifacts\release\`：`Loopstructor-2-QA-Tool-0.6.87-win-x64.zip`、对应的 `.sha256` 和 `autoplayer-update-manifest.json`。`-SkipBuild` 可复用已有构建产物。
 - 加 `-SkipBuild` 前必须先完成一次对应版本号的 Release 构建，否则包内二进制版本校验会失败。
 
 ## 使用发布包
@@ -183,4 +183,4 @@ Plugin 端日志由 Host 合并显示；游戏处于非 Development Build 时不
 
 ## 版本
 
-当前版本 0.6.86。版本记录见 [docs/release.md](docs/release.md#版本记录)，发布流程与检查表见同一文档。
+当前版本 0.6.87。版本记录见 [docs/release.md](docs/release.md#版本记录)，发布流程与检查表见同一文档。

@@ -41,7 +41,17 @@ public sealed class ManagerSettingsStore
         }
         catch (Exception exception)
         {
-            warning = "无法读取 Manager 设置。详细信息：" + exception.Message;
+            string detail = $"{SettingsPath}：{exception.GetType().Name}: {exception.Message}";
+            try
+            {
+                string quarantine = SettingsPath + ".bad-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
+                File.Move(SettingsPath, quarantine, overwrite: true);
+                warning = $"无法读取 Manager 设置，已把损坏文件移到 {quarantine}。详细信息：{detail}";
+            }
+            catch (Exception moveException) when (moveException is IOException or UnauthorizedAccessException)
+            {
+                warning = $"无法读取 Manager 设置，且无法隔离损坏文件（{moveException.Message}）。详细信息：{detail}";
+            }
             return new ManagerSettings();
         }
     }

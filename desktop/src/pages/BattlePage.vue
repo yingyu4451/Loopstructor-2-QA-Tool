@@ -1,4 +1,6 @@
 <script setup lang="ts">
+
+type CheckboxInput = { checked: boolean }
 import { computed } from 'vue'
 import { Eye, FastForward, Gift, Keyboard, Map, Shield, Skull, Sparkles } from '../icons'
 import { useAppStore } from '../stores/app'
@@ -37,15 +39,19 @@ const persistentStateClass = computed(() => {
   if (!store.cheatEnabled || persistentSavedCount.value === 0) return ''
   return persistentLiveCount.value === persistentSavedCount.value ? 'online' : 'warning'
 })
-async function toggle(command: string, value: boolean) {
-  if (await store.command(command, { enabled: value })) await store.refreshState()
+async function toggle(command: string, value: boolean, input: CheckboxInput) {
+  const response = await store.command(command, { enabled: value })
+  if (response?.success) await store.refreshState()
+  else input.checked = !value
 }
-async function toggleHotkeys(value: boolean) {
-  await store.setGameHotkeys(value)
+async function toggleHotkeys(value: boolean, input: CheckboxInput) {
+  const saved = await store.setGameHotkeys(value)
+  if (!saved) input.checked = !value
 }
-async function togglePersistent(option: PersistentCheatOption, value: boolean) {
+async function togglePersistent(option: PersistentCheatOption, value: boolean, input: CheckboxInput) {
   const saved = await store.setPersistentCheat(option, value)
-  if (saved && store.connected) await store.refreshState(false)
+  if (!saved) input.checked = !value
+  else if (store.connected) await store.refreshState(false)
 }
 </script>
 
@@ -54,15 +60,15 @@ async function togglePersistent(option: PersistentCheatOption, value: boolean) {
     <section class="card battle-section mechanical-section" :class="{ mutationLocked: store.writeLocked }">
       <header class="section-heading"><div><h2>战场状态</h2><p>持久开关会标记当前游戏使用过作弊。</p></div></header>
       <div class="battle-action-grid">
-        <label class="action-toggle"><Shield :size="19" /><span><strong>基地无敌</strong><small>阻止基地受到伤害</small></span><input class="checkbox checkbox-success" name="base-god-mode" type="checkbox" :checked="state.baseGodMode" :disabled="store.writeLocked" @change="toggle('cheat.setBaseGodMode', ($event.target as HTMLInputElement).checked)" /></label>
-        <label class="action-toggle"><Map :size="19" /><span><strong>地图自由跳转</strong><small>允许选择后续地图节点</small></span><input class="checkbox checkbox-success" name="map-skip-enabled" type="checkbox" :checked="state.mapSkipEnabled" :disabled="store.writeLocked" @change="toggle('cheat.setMapSkipEnabled', ($event.target as HTMLInputElement).checked)" /></label>
+        <label class="action-toggle"><Shield :size="19" /><span><strong>基地无敌</strong><small>阻止基地受到伤害</small></span><input class="checkbox checkbox-success" name="base-god-mode" type="checkbox" :checked="state.baseGodMode" :disabled="store.writeLocked" @change="toggle('cheat.setBaseGodMode', ($event.target as HTMLInputElement).checked, $event.target as HTMLInputElement)" /></label>
+        <label class="action-toggle"><Map :size="19" /><span><strong>地图自由跳转</strong><small>允许选择后续地图节点</small></span><input class="checkbox checkbox-success" name="map-skip-enabled" type="checkbox" :checked="state.mapSkipEnabled" :disabled="store.writeLocked" @change="toggle('cheat.setMapSkipEnabled', ($event.target as HTMLInputElement).checked, $event.target as HTMLInputElement)" /></label>
       </div>
     </section>
     <section class="card battle-section mechanical-section">
       <header class="section-heading"><div><h2>敌人信息</h2><p>只读覆盖在自动游玩期间仍可使用。</p></div></header>
       <div class="battle-action-grid">
-        <label class="action-toggle"><Eye :size="19" /><span><strong>显示敌人 ID</strong><small>在怪物旁显示运行时 ID</small></span><input class="checkbox checkbox-success" name="enemy-id-overlay" type="checkbox" :checked="state.enemyIdsVisible" @change="toggle('cheat.setEnemyIdOverlay', ($event.target as HTMLInputElement).checked)" /></label>
-        <label class="action-toggle"><Sparkles :size="19" /><span><strong>显示 Buff</strong><small>显示 Buff 图标与持续时间</small></span><input class="checkbox checkbox-success" name="enemy-buff-overlay" type="checkbox" :checked="state.enemyBuffsVisible" @change="toggle('cheat.setEnemyBuffOverlay', ($event.target as HTMLInputElement).checked)" /></label>
+        <label class="action-toggle"><Eye :size="19" /><span><strong>显示敌人 ID</strong><small>在怪物旁显示运行时 ID</small></span><input class="checkbox checkbox-success" name="enemy-id-overlay" type="checkbox" :checked="state.enemyIdsVisible" @change="toggle('cheat.setEnemyIdOverlay', ($event.target as HTMLInputElement).checked, $event.target as HTMLInputElement)" /></label>
+        <label class="action-toggle"><Sparkles :size="19" /><span><strong>显示 Buff</strong><small>显示 Buff 图标与持续时间</small></span><input class="checkbox checkbox-success" name="enemy-buff-overlay" type="checkbox" :checked="state.enemyBuffsVisible" @change="toggle('cheat.setEnemyBuffOverlay', ($event.target as HTMLInputElement).checked, $event.target as HTMLInputElement)" /></label>
       </div>
     </section>
     <section class="card battle-section mechanical-section" :class="{ mutationLocked: store.writeLocked }">
@@ -76,7 +82,7 @@ async function togglePersistent(option: PersistentCheatOption, value: boolean) {
     <section class="card battle-section mechanical-section" :class="{ mutationLocked: store.writeLocked }">
       <header class="section-heading"><div><h2>游戏内快捷键</h2><p>不用切回工具，在游戏窗口内直接按键；行为与开发者模式的 F / F1 一致。</p></div></header>
       <div class="battle-action-grid">
-        <label class="action-toggle"><Keyboard :size="19" /><span><strong>启用 F / F1</strong><small>F 清除当前所有怪物；F1 结束当前波次</small></span><input class="checkbox checkbox-success" name="game-hotkeys" type="checkbox" :checked="hotkeysEnabled" :disabled="store.writeLocked" @change="toggleHotkeys(($event.target as HTMLInputElement).checked)" /></label>
+        <label class="action-toggle"><Keyboard :size="19" /><span><strong>启用 F / F1</strong><small>F 清除当前所有怪物；F1 结束当前波次</small></span><input class="checkbox checkbox-success" name="game-hotkeys" type="checkbox" :checked="hotkeysEnabled" :disabled="store.writeLocked" @change="toggleHotkeys(($event.target as HTMLInputElement).checked, $event.target as HTMLInputElement)" /></label>
         <div class="hotkey-state">
           <span class="status-badge" :class="hotkeysLive ? 'online' : (hotkeysEnabled ? 'warning' : '')">{{ hotkeyStateLabel }}</span>
           <small>快捷键只在工具与游戏保持连接时生效。</small>
@@ -89,7 +95,7 @@ async function togglePersistent(option: PersistentCheatOption, value: boolean) {
         <label v-for="option in persistentOptions" :key="option.key" class="action-toggle">
           <component :is="option.icon" :size="19" />
           <span><strong>{{ option.label }}</strong><small>{{ option.description }}</small></span>
-          <input class="checkbox checkbox-success" :name="`persistent-${option.key}`" type="checkbox" :checked="persistent.has(option.key)" :disabled="store.writeLocked" @change="togglePersistent(option.key, ($event.target as HTMLInputElement).checked)" />
+          <input class="checkbox checkbox-success" :name="`persistent-${option.key}`" type="checkbox" :checked="persistent.has(option.key)" :disabled="store.writeLocked" @change="togglePersistent(option.key, ($event.target as HTMLInputElement).checked, $event.target as HTMLInputElement)" />
         </label>
         <div class="hotkey-state">
           <span class="status-badge" :class="persistentStateClass">{{ persistentStateLabel }}</span>

@@ -37,7 +37,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.86
+./scripts/package.ps1 -Version 0.6.87
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -47,8 +47,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.86-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.86-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.87-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.87-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -63,15 +63,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.86",
+  "version": "0.6.87",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.86-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.87-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
       "fromVersion": "0.6.85",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.85-to-0.6.86-win-x64.delta.zip",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.86-to-0.6.87-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -135,8 +135,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.86
-git push origin v0.6.86
+git tag v0.6.87
+git push origin v0.6.87
 ```
 
 ## 升级 BepInEx
@@ -167,6 +167,13 @@ git push origin v0.6.86
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.87
+
+- 问题修复（全项目审计，均为低风险局部改动）：存档页路由 `saves` 被 `NormalizeRoute` 丢弃，重启后回不到存档页；日志尾读会跳过超长文件的较早行、把 EOF 半行当成整行（改为字节级逐行解析，只前进到完整换行）；存档指纹只含路径与长度，同长度内容变化会漏备份（加入最后写入时间）；损坏的 `settings.json` 会被默认值静默覆盖（现隔离为 `settings.json.bad-<时间戳>` 并告警）；Host 进程启动失败时界面无兜底（现弹出错误并退出）、子进程错误事件不再悬挂请求；选择合法游戏目录时因 Host 的 `{ validation, plugin }` 返回结构未解包而抛 `TypeError`；Host 退出后界面仍显示已连接（现重置连接与目录、作弊状态）；非法路由名补默认页兜底；复选框命令失败时回滚选中态；批量删除/清空前增加二次确认；读档按钮忙碌时禁用；备份上限收敛到 1–100；模态框支持 Esc 取消、初始焦点、Tab 焦点陷阱与关闭后焦点恢复；虚拟目录列表裁剪越界起始行、切换数据重置滚动并显示空状态；诊断日志只在接近底部时自动跟随；自动游玩状态、阶段与结果中文化；更新器收到错误事件时进入失败态。
+- 打包与 CI：7-Zip 压缩 `-mpass` 由 15 降为 3（本机 449 MB staging 实测 402 s → 68.5 s，包体 +0.25%）；Release workflow 在解析版本时校验四份版本号一致（`Directory.Build.props`、`desktop/package.json`、Unity bridge `package.json`、`PluginInfo.cs`）；CI 把 PowerShell 脚本语法校验前移到安装依赖之前，构建复用已安装依赖（`-SkipPnpmInstall`），E2E 不再重复执行 `pnpm build`；BepInEx 下载增加超时与三次重试；Electron 仅打包 `zh-CN` / `en-US` 语言包；发行校验改用本地打包 staging，去掉 189 MB 产物上传后再下载的重复步骤；新增 `.gitattributes` 与 `.gitignore` 规则，抑制 CRLF 转换噪音并忽略编辑器临时文件。
+- 文档：真实包验证基线更新为 Skyspine `1.419`（实机冒烟）与 `1.423_Beta`（运行时反射契约核对）。
+- 协议与命令集无变化；.NET 测试 665 项、桌面单元测试 30 项、Playwright E2E 4 项，Release 构建 0 警告。
 
 ### 0.6.86
 

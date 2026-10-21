@@ -1,0 +1,26 @@
+# Normalize text files to LF in the repository so Windows checkouts with
+# core.autocrlf=true stop producing line-ending warnings on every commit.
+* text=auto eol=lf
+
+# Windows scripts keep CRLF so they run under both Windows PowerShell 5.1 and pwsh.
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary assets must never be normalized.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.zip binary
+*.7z binary
+*.dll binary
+*.pdb binary
+*.mdb binary
+*.asar binary

@@ -40,6 +40,22 @@ const canStart = computed(() => store.connected
   && ['standby', 'completed', 'faulted'].includes(runState.value)
   && setupAllowsStart.value)
 const timeline = computed(() => [...(status.value?.timeline ?? [])].slice(-120).reverse())
+const runStateLabels: Record<string, string> = {
+  standby: '待机', running: '运行中', paused: '已暂停', completed: '已完成', faulted: '出错', incompatible: '不兼容',
+}
+const stageLabels: Record<string, string> = {
+  waitingforgame: '等待游戏', frontend: '主界面', randomselection: '随机选择', initializingrun: '初始化本局',
+  preparingdefense: '战前准备', managingrewards: '处理奖励', managingevent: '处理事件', managingshop: '处理商店',
+  selectingroute: '选择路线', startingwave: '开始波次', battle: '战斗中', completed: '已完成', recovery: '恢复中',
+}
+const outcomeLabels: Record<string, string> = {
+  unknown: '未知', inprogress: '进行中', victory: '胜利', defeat: '失败', timeout: '超时',
+  wavelimit: '达到波次上限', stopped: '已停止', error: '错误',
+}
+function labelOf(labels: Record<string, string>, value?: string): string {
+  if (!value) return '-'
+  return labels[value.toLowerCase()] ?? value
+}
 const speedChoice = computed({
   get: () => draft.value?.overrideGameSpeed ? String(draft.value.speedState) : 'native',
   set: (value: string) => {
@@ -117,11 +133,11 @@ onMounted(refreshSetup)
       <section class="card mechanical-section automation-runtime">
         <header class="section-heading compact-heading">
           <div class="heading-with-icon"><Activity :size="21" /><div><h2>运行轨迹</h2><p>{{ status?.stageDetail || '开始后将在这里显示当前步骤与决策。' }}</p></div></div>
-          <span class="status-badge" :class="{ online: isActive, warning: runState === 'faulted' }">{{ status?.runState || 'standby' }}</span>
+          <span class="status-badge" :class="{ online: isActive, warning: runState === 'faulted' }">{{ labelOf(runStateLabels, runState) }}</span>
         </header>
         <div class="automation-facts">
-          <div><span>阶段</span><strong>{{ status?.stage || '-' }}</strong></div>
-          <div><span>结果</span><strong>{{ status?.outcome || '-' }}</strong></div>
+          <div><span>阶段</span><strong>{{ labelOf(stageLabels, status?.stage) }}</strong></div>
+          <div><span>结果</span><strong>{{ labelOf(outcomeLabels, status?.outcome) }}</strong></div>
           <div><span>波次</span><strong>{{ status ? `${status.wavesCompleted}/${status.wavesStarted}` : '-' }}</strong></div>
         </div>
         <div class="automation-timeline">

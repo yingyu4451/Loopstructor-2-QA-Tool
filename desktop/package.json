@@ -1,6 +1,6 @@
 {
   "name": "loopstructor-autoplayer-desktop",
-  "version": "0.6.86",
+  "version": "0.6.87",
   "private": true,
   "description": "Loopstructor 2 QA Tool unified Electron desktop client",
   "author": "yingyu4451",
@@ -50,6 +50,10 @@
     "appId": "com.loopstructor.autoplayer.manager",
     "productName": "Loopstructor 2 QA Tool",
     "electronDist": "node_modules/electron/dist",
+    "electronLanguages": [
+      "zh-CN",
+      "en-US"
+    ],
     "asar": true,
     "disableAsarIntegrity": true,
     "asarUnpack": [

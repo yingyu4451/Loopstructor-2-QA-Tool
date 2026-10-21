@@ -94,6 +94,17 @@ jobs:
           if (-not (Test-CanonicalSemanticVersion -Value $env:PACKAGE_VERSION)) {
             throw "Release version is not a canonical semantic version: $env:PACKAGE_VERSION"
           }
+          $checks = [ordered]@{
+            'Directory.Build.props' = [regex]::Match((Get-Content 'Directory.Build.props' -Raw), '<VersionPrefix>([^<]+)</VersionPrefix>').Groups[1].Value
+            'desktop/package.json' = (Get-Content 'desktop/package.json' -Raw | ConvertFrom-Json).version
+            'unity-package/com.loopstructor.qa-editor-bridge/package.json' = (Get-Content 'resources/unity-package/com.loopstructor.qa-editor-bridge/package.json' -Raw | ConvertFrom-Json).version
+            'PluginInfo.cs' = [regex]::Match((Get-Content 'src/Loopstructor.AutoPlayer.Plugin/PluginInfo.cs' -Raw), 'Version\s*=\s*"([^"]+)"').Groups[1].Value
+          }
+          foreach ($entry in $checks.GetEnumerator()) {
+            if ($entry.Value -ne $env:PACKAGE_VERSION) {
+              throw "Version mismatch: $($entry.Key) declares '$($entry.Value)' but the release tag is '$env:PACKAGE_VERSION'."
+            }
+          }
 
       - name: Bootstrap pinned .NET SDK
         shell: pwsh
@@ -103,7 +114,7 @@ jobs:
         shell: pwsh
         env:
           PACKAGE_VERSION: ${{ steps.version.outputs.version }}
-        run: ./scripts/build.ps1 -Configuration Release -Version $env:PACKAGE_VERSION
+        run: ./scripts/build.ps1 -Configuration Release -Version $env:PACKAGE_VERSION -SkipPnpmInstall
 
       - name: Test
         shell: pwsh
@@ -112,7 +123,7 @@ jobs:
       - name: Electron desktop smoke test
         working-directory: desktop
         shell: pwsh
-        run: pnpm test:e2e
+        run: pnpm exec playwright test
 
       - name: Package Windows x64 release
         shell: pwsh
@@ -147,6 +158,7 @@ jobs:
           foreach ($candidate in $candidates) {
             $releaseJson = gh release view $candidate.Tag --json isDraft,isPrerelease
             if ($LASTEXITCODE -ne 0) {
+              Write-Warning "Could not inspect release $($candidate.Tag) (gh exit $LASTEXITCODE); skipping it as an incremental base."
               continue
             }
             $releaseState = $releaseJson | ConvertFrom-Json
@@ -158,6 +170,7 @@ jobs:
             $asset = "Loopstructor-2-QA-Tool-$($candidate.Text)-win-x64.zip"
             gh release download $candidate.Tag --pattern $asset --pattern 'autoplayer-update-manifest.json' --dir $directory --clobber
             if ($LASTEXITCODE -ne 0) {
+              Write-Warning "Could not download assets for release $($candidate.Tag) (gh exit $LASTEXITCODE); skipping it as an incremental base."
               continue
             }
             try {
@@ -225,24 +238,10 @@ jobs:
           }
           ./scripts/verify-release-assets.ps1 @arguments
 
-      - name: Upload runnable program artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: Loopstructor-2-QA-Tool-${{ steps.version.outputs.version }}-win-x64
-          path: artifacts/package/Loopstructor-2-QA-Tool/
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Download runnable artifact for verification
-        uses: actions/download-artifact@v8
-        with:
-          name: Loopstructor-2-QA-Tool-${{ steps.version.outputs.version }}-win-x64
-          path: artifacts/workflow-artifact-verification
-
-      - name: Verify runnable artifact layout
+      - name: Verify runnable staging layout
         shell: pwsh
         run: |
-          $artifactRoot = Join-Path $env:GITHUB_WORKSPACE 'artifacts\workflow-artifact-verification'
+          $artifactRoot = Join-Path $env:GITHUB_WORKSPACE 'artifacts\package\Loopstructor-2-QA-Tool'
           $requiredFiles = @(
             'Loopstructor-2-QA-Tool.exe'
             'autoplayer-release.json'
@@ -306,6 +305,14 @@ jobs:
           if ($nestedProductZips.Count -ne 0) {
             throw "Workflow artifact root must contain runnable files, not a nested product ZIP: $($nestedProductZips.Name -join ', ')"
           }
+
+      - name: Upload runnable program artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Loopstructor-2-QA-Tool-${{ steps.version.outputs.version }}-win-x64
+          path: artifacts/package/Loopstructor-2-QA-Tool/
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Publish GitHub release
         if: github.event_name == 'push'

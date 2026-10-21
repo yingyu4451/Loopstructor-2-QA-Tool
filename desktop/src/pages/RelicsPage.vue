@@ -2,11 +2,13 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Download, Gem, Search, Trash2 } from '../icons'
 import { useAppStore } from '../stores/app'
+import { useUiStore } from '../stores/ui'
 import type { CatalogItem } from '../types'
 import CatalogPoolSwitch from '../components/CatalogPoolSwitch.vue'
 import VirtualCatalogGrid from '../components/VirtualCatalogGrid.vue'
 
 const store = useAppStore()
+const ui = useUiStore()
 const search = ref('')
 const items = computed(() => {
   const term = search.value.trim().toLocaleLowerCase()
@@ -22,6 +24,7 @@ const removal = computed(() => store.cheatState?.removeAllRelics)
 let pollTimer: number | undefined
 
 async function runBatch(command: 'cheat.grantAllRelics' | 'cheat.removeAllRelics') {
+  if (command === 'cheat.removeAllRelics' && !(await ui.confirm({ title: '确认删除', message: '将删除已启用的全部遗物，且无法撤销。', confirmText: '删除', danger: true }))) return
   if (await store.command(command)) await store.refreshState(true)
 }
 

@@ -87,6 +87,24 @@ public sealed class SaveBackupServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SameStep_SameLengthContentChange_StillCreatesANewSnapshot()
+    {
+        string source = Path.Combine(_root, "game-save");
+        Directory.CreateDirectory(source);
+        string save = Path.Combine(source, "progress.json");
+        File.WriteAllText(save, "one");
+        SaveBackupService service = new(Path.Combine(_root, "backups"), TimeSpan.Zero);
+        ManagerSettings settings = new() { AutomaticSaveBackupEnabled = true, MaximumSaveBackups = 10 };
+
+        await ObserveStep(service, settings, source, chapter: 1, level: 2);
+        File.WriteAllText(save, "two");
+        await Task.Delay(TimeSpan.FromSeconds(2.1));
+        Assert.NotNull(await service.ObserveAsync(Status(source, 1, 2), settings, Path.GetDirectoryName(source), CancellationToken.None));
+
+        Assert.Equal(2, service.Snapshot(true, 10).BackupCount);
+    }
+
+    [Fact]
     public async Task ListBackups_ReturnsEveryManagedSnapshotNewestFirst()
     {
         string source = Path.Combine(_root, "game-save");

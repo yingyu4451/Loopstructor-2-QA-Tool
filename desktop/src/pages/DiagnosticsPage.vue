@@ -9,7 +9,13 @@ const api = window.loopstructorDesktop
 const active = ref<'logs' | 'status'>('logs')
 const logHost = ref<HTMLElement>()
 const logs = computed(() => store.snapshot?.logs ?? [])
-watch(() => logs.value.length, async () => { await nextTick(); if (logHost.value) logHost.value.scrollTop = logHost.value.scrollHeight })
+watch(() => logs.value.length, async () => {
+  const element = logHost.value
+  // Only follow new output when the reader is already at the bottom; otherwise keep their scroll position.
+  const follow = !element || element.scrollHeight - element.scrollTop - element.clientHeight < 48
+  await nextTick()
+  if (follow && logHost.value) logHost.value.scrollTop = logHost.value.scrollHeight
+})
 const statusRows = computed(() => {
   const status = store.snapshot?.status
   return [

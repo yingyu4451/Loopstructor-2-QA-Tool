@@ -46,6 +46,38 @@ public sealed class LogTailReaderTests
         Assert.Equal(new[] { "new process" }, reader.ReadAvailable());
     }
 
+    [Fact]
+    public void ReadAvailable_LimitsLinesWithoutLosingTheRest()
+    {
+        using TemporaryDirectory temporary = new();
+        string path = Path.Combine(temporary.Root, "Player.log");
+        File.WriteAllLines(path, Enumerable.Range(1, 10).Select(index => $"line {index}").ToArray());
+        LogTailReader reader = new();
+        reader.Reset(path);
+
+        Assert.Equal(new[] { "line 1", "line 2", "line 3" }, reader.ReadAvailable(maximumLines: 3));
+        Assert.Equal(new[] { "line 4", "line 5", "line 6" }, reader.ReadAvailable(maximumLines: 3));
+        Assert.Equal(new[] { "line 7", "line 8", "line 9" }, reader.ReadAvailable(maximumLines: 3));
+        Assert.Equal(new[] { "line 10" }, reader.ReadAvailable(maximumLines: 3));
+    }
+
+    [Fact]
+    public void ReadAvailable_RetriesTrailingPartialLineUntilItIsComplete()
+    {
+        using TemporaryDirectory temporary = new();
+        string path = Path.Combine(temporary.Root, "Player.log");
+        File.WriteAllText(path, "complete" + Environment.NewLine + "incomp");
+        LogTailReader reader = new();
+        reader.Reset(path);
+
+        Assert.Equal(new[] { "complete" }, reader.ReadAvailable());
+        Assert.Empty(reader.ReadAvailable());
+
+        File.AppendAllText(path, "lete" + Environment.NewLine);
+
+        Assert.Equal(new[] { "incomplete" }, reader.ReadAvailable());
+    }
+
     private sealed class TemporaryDirectory : IDisposable
     {
         public TemporaryDirectory()

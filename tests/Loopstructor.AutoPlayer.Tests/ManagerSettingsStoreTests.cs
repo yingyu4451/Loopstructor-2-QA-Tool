@@ -281,6 +281,48 @@ public sealed class ManagerSettingsStoreTests
         }
     }
 
+    [Theory]
+    [InlineData("saves")]
+    [InlineData("vehicles")]
+    [InlineData("settings")]
+    public void Save_PreservesSupportedActiveRoutes(string route)
+    {
+        string root = CreateTemporaryDirectory();
+        try
+        {
+            string settingsPath = Path.Combine(root, "settings.json");
+            ManagerSettingsStore store = new(settingsPath);
+            store.Save(new ManagerSettings { ActiveRoute = route });
+
+            ManagerSettings reloaded = store.Load(out string warning);
+
+            Assert.Empty(warning);
+            Assert.Equal(route, reloaded.ActiveRoute);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Save_MigratesUnknownActiveRouteToGame()
+    {
+        string root = CreateTemporaryDirectory();
+        try
+        {
+            string settingsPath = Path.Combine(root, "settings.json");
+            ManagerSettingsStore store = new(settingsPath);
+            store.Save(new ManagerSettings { ActiveRoute = "not-a-route" });
+
+            Assert.Equal("game", store.Load(out _).ActiveRoute);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     [Fact]
     public void Save_NormalizesCatalogPoolModeAndPersistentCheats()
     {

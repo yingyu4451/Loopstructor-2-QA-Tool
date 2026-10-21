@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, session, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, session } from 'electron'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import path from 'node:path'
@@ -35,6 +35,12 @@ if (!isUpdaterMode) {
   const gotLock = app.requestSingleInstanceLock()
   if (!gotLock) app.quit()
 }
+
+process.on('unhandledRejection', (reason) => {
+  const message = reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)
+  console.error('未处理的异步错误。', message)
+  window?.webContents.send('host:event', { event: 'hostDiagnostic', payload: { message } })
+})
 
 function showExistingWindow(): void {
   if (!window) return
@@ -105,7 +111,17 @@ app.whenReady().then(() => {
   const developmentRoot = path.resolve(__dirname, '..', '..')
   const distributionRoot = app.isPackaged ? path.dirname(managerDirectory) : developmentRoot
   host = new HostClient(managerDirectory, distributionRoot)
-  host.start(process.pid)
+  try {
+    host.start(process.pid)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error('无法启动 .NET Host。', message)
+    dialog.showErrorBox('无法启动 .NET Host', `后台 Host 启动失败，工具无法继续运行。\n\n${message}`)
+    host = undefined
+    quitAfterHostShutdown = true
+    app.exit(1)
+    return
+  }
 
   const iconPath = app.isPackaged
     ? path.join(process.resourcesPath, 'branding', 'manager-logo-256.png')
@@ -130,23 +146,7 @@ app.whenReady().then(() => {
   })
 
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-  window.webContents.on('preload-error', (_event, preloadPath, error) => {
-    console.error(`Preload 加载失败：${preloadPath}`, error)
-  })
-  window.webContents.on('will-navigate', (event, target) => {
-    const current = window?.webContents.getURL() ?? ''
-    if (target !== current) event.preventDefault()
-  })
-  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        'Content-Security-Policy': [
-          "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'none'",
-        ],
-      },
-    })
-  })
+  configureSecurity(window)
 
   const rendererUrl = process.env.VITE_DEV_SERVER_URL
   if (rendererUrl) void window.loadURL(rendererUrl)
@@ -362,14 +362,22 @@ function invoke(method: string, params?: unknown): Promise<unknown> {
   return host.invoke(method, params)
 }
 
+function unwrapValidation<T>(response: unknown): T {
+  if (response && typeof response === 'object' && 'validation' in response) {
+    return (response as { validation?: T }).validation as T
+  }
+  return response as T
+}
+
 function registerIpc(): void {
   ipcMain.handle('app:getSnapshot', () => invoke('app.getSnapshot'))
   ipcMain.handle('settings:save', (_event, settings) => invoke('settings.save', settings))
   ipcMain.handle('game:selectDirectory', async () => {
     const result = await dialog.showOpenDialog(window!, { properties: ['openDirectory'], title: '选择 Loopstructor 2: Skyspine 游戏目录' })
-    return result.canceled || result.filePaths.length === 0 ? null : invoke('game.validate', { path: result.filePaths[0] })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return unwrapValidation(await invoke('game.validate', { path: result.filePaths[0] }))
   })
-  ipcMain.handle('game:validate', (_event, gamePath: string) => invoke('game.validate', { path: gamePath }))
+  ipcMain.handle('game:validate', async (_event, gamePath: string) => unwrapValidation(await invoke('game.validate', { path: gamePath })))
   ipcMain.handle('editor:selectProject', async () => {
     const result = await dialog.showOpenDialog(window!, { properties: ['openDirectory'], title: '选择 Loopstructor 2 Unity 工程' })
     return result.canceled || result.filePaths.length === 0 ? null : invoke('editor.validateProject', { path: result.filePaths[0] })
@@ -416,19 +424,12 @@ function registerIpc(): void {
   })
   ipcMain.on('window:systemMenu', (_event, point: { x: number; y: number }) => {
     const menu = Menu.buildFromTemplate([
-      { label: '还原', click: () => window?.restore(), enabled: window?.isMaximized() === true },
       { label: '最小化', click: () => window?.minimize() },
       { label: window?.isMaximized() ? '还原' : '最大化', click: () => window?.isMaximized() ? window.unmaximize() : window?.maximize() },
       { type: 'separator' },
       { label: '关闭', click: () => window?.close() },
     ])
     menu.popup({ window, x: Math.round(point.x), y: Math.round(point.y) })
-  })
-  ipcMain.handle('external:openRelease', (_event, url: string) => {
-    if (!/^https:\/\/github\.com\/yingyu4451\/Loopstructor-2-QA-Tool\//i.test(url)) {
-      throw new Error('只允许打开 QA Tool 官方 GitHub 页面。')
-    }
-    return shell.openExternal(url)
   })
 }
 

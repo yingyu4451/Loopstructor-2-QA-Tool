@@ -2,12 +2,14 @@
 import { computed, ref } from 'vue'
 import { ImageOff, Plus, Search, Trash2 } from '../icons'
 import { useAppStore } from '../stores/app'
+import { useUiStore } from '../stores/ui'
 import type { CatalogItem } from '../types'
 import CatalogCard from '../components/CatalogCard.vue'
 import CatalogPoolSwitch from '../components/CatalogPoolSwitch.vue'
 import VirtualCatalogGrid from '../components/VirtualCatalogGrid.vue'
 
 const store = useAppStore()
+const ui = useUiStore()
 const search = ref('')
 const enchantmentSearch = ref('')
 const activeType = ref('all')
@@ -75,6 +77,10 @@ async function grantVehicle() {
     enchantments: Object.entries(enchantments.value).filter(([, level]) => level > 0).map(([enchantmentId, level]) => ({ enchantmentId, level })),
   })
 }
+async function clearVehicles(command: string, message: string) {
+  if (!(await ui.confirm({ title: '确认删除', message, confirmText: '删除', danger: true }))) return
+  if (await store.command(command)) await store.refreshState()
+}
 </script>
 
 <template>
@@ -127,8 +133,8 @@ async function grantVehicle() {
       </div>
       <div class="bulk-delete-row grant-row">
         <span>批量删除</span>
-        <button class="btn btn-error btn-sm button danger compact" :disabled="store.writeLocked" @click="store.command('cheat.clearFieldVehicles').then(() => store.refreshState())"><Trash2 :size="16" />删除场上全部战车</button>
-        <button class="btn btn-error btn-sm button danger compact" :disabled="store.writeLocked" @click="store.command('cheat.clearBackpackVehicles').then(() => store.refreshState())"><Trash2 :size="16" />删除背包全部战车</button>
+        <button class="btn btn-error btn-sm button danger compact" :disabled="store.writeLocked" @click="clearVehicles('cheat.clearFieldVehicles', '将删除场上的全部战车，且无法撤销。')"><Trash2 :size="16" />删除场上全部战车</button>
+        <button class="btn btn-error btn-sm button danger compact" :disabled="store.writeLocked" @click="clearVehicles('cheat.clearBackpackVehicles', '将删除背包内的全部战车，且无法撤销。')"><Trash2 :size="16" />删除背包全部战车</button>
       </div>
       <div class="grant-row">
         <label>数量<input v-model.number="count" class="input input-bordered input-sm" name="vehicle-count" autocomplete="off" type="number" inputmode="numeric" min="1" max="999" /></label>

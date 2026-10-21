@@ -397,13 +397,23 @@ public sealed class SaveBackupService
                 Directory.Move(rollback, target);
                 rollback = string.Empty;
             }
-            throw new IOException("读档未完成，读档前的玩家存档已恢复：" + exception.Message, exception);
+            string reason = targetMoved
+                ? "读档未完成，读档前的玩家存档已恢复："
+                : "读档未完成，玩家存档未被替换：";
+            throw new IOException(reason + exception.Message, exception);
         }
         finally
         {
-            if (!string.IsNullOrEmpty(staging) && Directory.Exists(staging)) Directory.Delete(staging, true);
-            if (!string.IsNullOrEmpty(rollback) && Directory.Exists(rollback) && !Directory.Exists(target))
-                Directory.Move(rollback, target);
+            try
+            {
+                if (!string.IsNullOrEmpty(staging) && Directory.Exists(staging)) Directory.Delete(staging, true);
+                if (!string.IsNullOrEmpty(rollback) && Directory.Exists(rollback) && !Directory.Exists(target))
+                    Directory.Move(rollback, target);
+            }
+            catch (Exception cleanupException) when (cleanupException is IOException or UnauthorizedAccessException)
+            {
+                // Cleanup failures must not hide the original restore error.
+            }
         }
     }
 
@@ -444,7 +454,7 @@ public sealed class SaveBackupService
         foreach (SourceFile file in files)
         {
             byte[] line = Encoding.UTF8.GetBytes(
-                file.RelativePath.Replace('\\', '/') + "\0" + file.Length + "\n");
+                file.RelativePath.Replace('\\', '/') + "\0" + file.Length + "\0" + file.LastWriteTimeUtc.Ticks + "\n");
             sha.TransformBlock(line, 0, line.Length, null, 0);
         }
         sha.TransformFinalBlock(Array.Empty<byte>(), 0, 0);

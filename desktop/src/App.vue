@@ -28,7 +28,7 @@ const pages = {
   relics: RelicsPage, battle: BattlePage, objects: ObjectsPage, spawn: SpawnPage,
   diagnostics: DiagnosticsPage, settings: SettingsPage,
 }
-const activePage = computed(() => pages[store.route])
+const activePage = computed(() => pages[store.route] ?? pages.game)
 let pageTween: gsap.core.Tween | undefined
 let busyTween: gsap.core.Tween | undefined
 

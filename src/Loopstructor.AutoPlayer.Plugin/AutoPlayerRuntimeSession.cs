@@ -34,7 +34,8 @@ internal sealed class AutoPlayerRuntimeSession : IDisposable
     private bool _eventsAttached;
     private GameErrorLog? _gameErrorLog;
     private bool _quitting;
-    private bool _disposed;
+    private int _disposedFlag;
+    private bool IsDisposed => Volatile.Read(ref _disposedFlag) != 0;
     private DateTime _nextHostRecoveryAttemptUtc;
 
     private AutoPlayerRuntimeSession(
@@ -53,7 +54,7 @@ internal sealed class AutoPlayerRuntimeSession : IDisposable
         {
             lock (SessionSync)
             {
-                return _current is { _disposed: false };
+                return _current is { IsDisposed: false };
             }
         }
     }
@@ -74,7 +75,7 @@ internal sealed class AutoPlayerRuntimeSession : IDisposable
                 return false;
             }
 
-            if (_current is { _disposed: false })
+            if (_current is { IsDisposed: false })
             {
                 if (_current.MatchesActivation(activation))
                 {
@@ -206,7 +207,7 @@ internal sealed class AutoPlayerRuntimeSession : IDisposable
 
     private void EnsureHost()
     {
-        if (_disposed || _quitting || _host != null) return;
+        if (IsDisposed || _quitting || _host != null) return;
 
         GameObject? hostObject = null;
         AutoPlayerRuntimeHost? host = null;
@@ -262,14 +263,14 @@ internal sealed class AutoPlayerRuntimeSession : IDisposable
 
     internal void BeginQuit()
     {
-        if (_quitting || _disposed) return;
+        if (_quitting || IsDisposed) return;
         _quitting = true;
         Dispose();
     }
 
     internal void PumpFrame()
     {
-        if (_disposed) return;
+        if (IsDisposed) return;
         _controller?.RecordFrame(Time.unscaledDeltaTime);
         _controlServer?.Pump();
         _cheatController?.Tick();
@@ -285,14 +286,14 @@ internal sealed class AutoPlayerRuntimeSession : IDisposable
 
     internal void DrawOverlay()
     {
-        if (!_disposed) _cheatController?.DrawEnemyOverlays();
+        if (!IsDisposed) _cheatController?.DrawEnemyOverlays();
     }
 
     internal void HostDestroyed(AutoPlayerRuntimeHost host)
     {
         if (!ReferenceEquals(_host, host)) return;
         _host = null;
-        if (!_disposed && !_quitting)
+        if (!IsDisposed && !_quitting)
         {
             try
             {
@@ -309,7 +310,7 @@ internal sealed class AutoPlayerRuntimeSession : IDisposable
 
     private void RecoverHostIfNeeded()
     {
-        if (_disposed || _quitting || _host != null || DateTime.UtcNow < _nextHostRecoveryAttemptUtc) return;
+        if (IsDisposed || _quitting || _host != null || DateTime.UtcNow < _nextHostRecoveryAttemptUtc) return;
         try
         {
             EnsureHost();
@@ -343,8 +344,8 @@ internal sealed class AutoPlayerRuntimeSession : IDisposable
 
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
+        if (IsDisposed) return;
+        if (Interlocked.Exchange(ref _disposedFlag, 1) != 0) return;
         AutoPlayerRuntimeHost? host = _host;
         try
         {

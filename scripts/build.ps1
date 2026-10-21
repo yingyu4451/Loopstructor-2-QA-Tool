@@ -5,7 +5,9 @@ param(
 
     [string]$Version,
 
-    [switch]$NoRestore
+    [switch]$NoRestore,
+
+    [switch]$SkipPnpmInstall
 )
 
 Set-StrictMode -Version Latest
@@ -37,5 +39,7 @@ if (-not [string]::IsNullOrWhiteSpace($Version)) {
 
 Invoke-DotNet -Arguments $buildArguments
 
-Invoke-Pnpm -Arguments @('install', '--frozen-lockfile')
+if (-not $SkipPnpmInstall) {
+    Invoke-Pnpm -Arguments @('install', '--frozen-lockfile')
+}
 Invoke-Pnpm -Arguments @('build')
