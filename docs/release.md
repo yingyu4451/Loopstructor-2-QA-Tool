@@ -37,7 +37,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.92
+./scripts/package.ps1 -Version 0.6.93
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -47,8 +47,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.92-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.92-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.93-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.93-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -63,15 +63,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.92",
+  "version": "0.6.93",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.92-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.93-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.91",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.91-to-0.6.92-win-x64.delta.zip",
+      "fromVersion": "0.6.92",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.92-to-0.6.93-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -135,8 +135,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.92
-git push origin v0.6.92
+git tag v0.6.93
+git push origin v0.6.93
 ```
 
 ## 升级 BepInEx
@@ -168,6 +168,15 @@ git push origin v0.6.92
 
 ## 版本记录
 
+### 0.6.93
+
+- 星标存档：存档页新增「星标存档」区域，提供两种入口——自动备份列表每行可一键加星标；也可以点「立即保存当前存档为星标」直接保存当前进度。
+- 星标存档独立保存在 `save-backups\<game-id>\starred\<32 位十六进制 id>`，不匹配自动备份的目录命名规则，因此不会被保留份数轮换清理。
+- 创建星标时给出默认名称并允许自定义；之后可重命名或删除。读取星标存档与普通备份共用同一安全流程：正常关闭游戏 → 事务替换存档目录 → 自动重启游戏。
+- 新增通用输入对话框（Esc 取消、Enter 提交、焦点恢复），删除与读档等危险操作带确认。
+- 存档页改为单列可滚动布局：宽窗口下限制存档列表高度，窄窗口（980×680）下卡片按内容自然展开、整页滚动，避免卡片内部裁切。
+- 放宽 RailJointLayoutPlanner 的墙钟断言范围：切片算法本身用状态与计数断言校验，避免高负载机器上 3ms 预算偶发超出导致测试不稳定。
+- .NET 测试 669 项、桌面单元测试 32 项、Playwright E2E 4 项，Release 构建 0 警告。
 ### 0.6.92
 
 - 功能平台对齐：此前有三个功能被 Editor Play Mode 显式拒绝，只在 BepInEx Player 插件中可用。现在 Unity Editor Play Mode 运行层也支持地图自由跳转、游戏内 `F`/`F1` 快捷键与获取池切换：

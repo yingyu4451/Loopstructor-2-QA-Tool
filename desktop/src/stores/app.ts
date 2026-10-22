@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { cloneSettings } from '../settings-clone'
-import type { AutomationSetup, CatalogItem, CatalogPoolMode, ControlResponse, EditorBridgeInstance, HostLogEntry, HostSnapshot, ManagerSettings, PersistentCheatOption, RouteKey, SaveBackupCatalog, SaveBackupEntry } from '../types'
+import type { AutomationSetup, CatalogItem, CatalogPoolMode, ControlResponse, EditorBridgeInstance, HostLogEntry, HostSnapshot, ManagerSettings, PersistentCheatOption, RouteKey, SaveBackupCatalog, SaveBackupEntry, SaveRestoreResponse, StarredSaveActionResponse, StarredSaveEntry } from '../types'
 import { useUiStore } from './ui'
 
 const persistentCheatOrder: PersistentCheatOption[] = ['baseGodMode', 'mapSkipEnabled', 'enemyIdsVisible', 'enemyBuffsVisible']
@@ -246,15 +246,108 @@ export const useAppStore = defineStore('app', {
       if (!confirmed) return undefined
       const result = await ui.run(() => window.loopstructorDesktop.restoreSaveBackup(backup.id))
       if (!result) return undefined
+      this.applyRestoreResponse(result)
+      ui.toast(result.message, result.gameRestarted ? 'success' : 'warning')
+      return result
+    },
+    async starSaveBackup(backup: SaveBackupEntry) {
+      const ui = useUiStore()
+      const name = await ui.prompt({
+        title: '保存为星标存档',
+        message: `把第 ${backup.chapter} 章、第 ${backup.level} 关的备份另存为星标存档。星标存档不会被自动清理，可以随时读档。`,
+        value: `第${String(backup.chapter).padStart(2, '0')}章-第${String(backup.level).padStart(3, '0')}关`,
+        confirmText: '保存星标',
+        placeholder: '给星标存档起个名字',
+      })
+      if (name === null) return undefined
+      const result = await ui.run(() => window.loopstructorDesktop.starSaveBackup(backup.id, name))
+      if (!result) return undefined
+      this.applyStarredAction(result)
+      ui.toast(`已保存星标存档「${result.starred?.name ?? name}」。`, 'success')
+      return result
+    },
+    async starActiveSave() {
+      const ui = useUiStore()
+      const name = await ui.prompt({
+        title: '立即保存当前存档为星标',
+        message: '把游戏正在使用的玩家存档复制一份到独立的星标目录。星标存档不会被自动清理，可以随时读档。',
+        value: '星标存档',
+        confirmText: '保存星标',
+        placeholder: '给星标存档起个名字',
+      })
+      if (name === null) return undefined
+      const result = await ui.run(() => window.loopstructorDesktop.starActiveSave(name))
+      if (!result) return undefined
+      this.applyStarredAction(result)
+      ui.toast(`已保存星标存档「${result.starred?.name ?? name}」。`, 'success')
+      return result
+    },
+    async renameStarredSave(entry: StarredSaveEntry) {
+      const ui = useUiStore()
+      const name = await ui.prompt({
+        title: '重命名星标存档',
+        message: `修改星标存档「${entry.name}」的名称。`,
+        value: entry.name,
+        confirmText: '保存名称',
+        placeholder: '输入新的名称',
+      })
+      if (name === null || !name.trim()) return undefined
+      const result = await ui.run(() => window.loopstructorDesktop.renameStarredSave(entry.id, name))
+      if (!result) return undefined
+      this.applyStarredAction(result)
+      ui.toast(`已重命名为「${result.starred?.name ?? name}」。`, 'success')
+      return result
+    },
+    async deleteStarredSave(entry: StarredSaveEntry) {
+      const ui = useUiStore()
+      if (!await ui.confirm({
+        title: '删除星标存档',
+        message: `将永久删除星标存档「${entry.name}」。此操作无法撤销。`,
+        confirmText: '删除',
+        danger: true,
+      })) return undefined
+      const result = await ui.run(() => window.loopstructorDesktop.deleteStarredSave(entry.id))
+      if (!result) return undefined
+      this.applyStarredAction(result)
+      ui.toast('星标存档已删除。', 'success')
+      return result
+    },
+    async restoreStarredSave(entry: StarredSaveEntry) {
+      const ui = useUiStore()
+      if (!await ui.confirm({
+        title: '关闭游戏并读取星标存档',
+        message: `将读取星标存档「${entry.name}」。Manager 会先请求 Skyspine 正常关闭，恢复存档后再自动启动游戏。`,
+        confirmText: '关闭游戏并读档',
+        danger: true,
+      })) return undefined
+      const result = await ui.run(() => window.loopstructorDesktop.restoreStarredSave(entry.id))
+      if (!result) return undefined
+      this.applyRestoreResponse(result)
+      ui.toast(result.message, result.gameRestarted ? 'success' : 'warning')
+      return result
+    },
+    async openStarredSaves() {
+      await useUiStore().run(() => window.loopstructorDesktop.openStarredSaves())
+    },
+    applyStarredAction(result: StarredSaveActionResponse) {
+      const current = this.saveBackupCatalog
+      const backups = result.backups ?? current?.backups
+      const starred = result.starredSaves ?? current?.starred
+      const status = this.snapshot?.saveBackups ?? current?.status ?? {
+        enabled: true, maximumBackups: 20, backupCount: backups?.length ?? 0,
+        backupRoot: '', latestBackup: '', lastMessage: '', pending: false, busy: false,
+      }
+      if (backups) this.saveBackupCatalog = { backups, starred, status }
+    },
+    applyRestoreResponse(result: SaveRestoreResponse) {
       this.saveBackupCatalog = {
         backups: result.backups,
+        starred: result.starredSaves ?? this.saveBackupCatalog?.starred,
         status: this.snapshot?.saveBackups ?? this.saveBackupCatalog?.status ?? {
           enabled: true, maximumBackups: 20, backupCount: result.backups.length,
           backupRoot: '', latestBackup: '', lastMessage: result.message, pending: false, busy: false,
         },
       }
-      ui.toast(result.message, result.gameRestarted ? 'success' : 'warning')
-      return result
     },
     async refreshConnection() {
       const snapshot = await useUiStore().run(() => window.loopstructorDesktop.refreshConnection())

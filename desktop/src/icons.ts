@@ -48,6 +48,9 @@ import fileIcon from '@iconify-icons/mdi/file-document'
 import monitorIcon from '@iconify-icons/mdi/monitor-dashboard'
 import githubIcon from '@iconify-icons/mdi/github'
 import archiveClockIcon from '@iconify-icons/mdi/archive-clock'
+import starIcon from '@iconify-icons/mdi/star'
+import starOutlineIcon from '@iconify-icons/mdi/star-outline'
+import pencilIcon from '@iconify-icons/mdi/pencil'
 import backupRestoreIcon from '@iconify-icons/mdi/backup-restore'
 import paletteIcon from '@iconify-icons/mdi/palette-outline'
 import keyboardIcon from '@iconify-icons/mdi/keyboard'
@@ -113,6 +116,9 @@ export const FileText = iconComponent('LogIcon', fileIcon)
 export const MonitorCog = iconComponent('DisplayIcon', monitorIcon)
 export const Github = iconComponent('GitHubIcon', githubIcon)
 export const ArchiveClock = iconComponent('ArchiveClockIcon', archiveClockIcon)
+export const Star = iconComponent('StarIcon', starIcon)
+export const StarOutline = iconComponent('StarOutlineIcon', starOutlineIcon)
+export const Pencil = iconComponent('PencilIcon', pencilIcon)
 export const BackupRestore = iconComponent('BackupRestoreIcon', backupRestoreIcon)
 export const Palette = iconComponent('PaletteIcon', paletteIcon)
 export const Keyboard = iconComponent('KeyboardIcon', keyboardIcon)

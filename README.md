@@ -45,13 +45,13 @@ Loopstructor-2-QA-Tool.exe (Launcher)
 ./scripts/bootstrap.ps1
 ./scripts/build.ps1 -Configuration Release
 ./scripts/test.ps1 -Configuration Release -NoRestore -NoBuild
-./scripts/package.ps1 -Version 0.6.92
+./scripts/package.ps1 -Version 0.6.93
 ```
 
 - `build.ps1` 构建解决方案与 `desktop`，输出在各项目 `bin`/`dist` 目录。
 - `test.ps1` 依次运行：解决方案测试（TRX 输出到 `artifacts\TestResults`）、`Verification` 控制台校验、`pnpm typecheck`、`pnpm lint`、`pnpm test`。
 - `desktop` 的 Playwright E2E 由 `pnpm test:e2e` 单独运行（CI 会执行；本地需要可交互的桌面会话）。
-- `package.ps1` 需要 Node/pnpm 与 7-Zip，输出到 `artifacts\release\`：`Loopstructor-2-QA-Tool-0.6.92-win-x64.zip`、对应的 `.sha256` 和 `autoplayer-update-manifest.json`。`-SkipBuild` 可复用已有构建产物。
+- `package.ps1` 需要 Node/pnpm 与 7-Zip，输出到 `artifacts\release\`：`Loopstructor-2-QA-Tool-0.6.93-win-x64.zip`、对应的 `.sha256` 和 `autoplayer-update-manifest.json`。`-SkipBuild` 可复用已有构建产物。
 - 加 `-SkipBuild` 前必须先完成一次对应版本号的 Release 构建，否则包内二进制版本校验会失败。
 
 ## 使用发布包
@@ -117,6 +117,7 @@ Loopstructor-2-QA-Tool\
 - 自动备份可开关，保留份数 1–100。
 - 进度变化并通过写入稳定检测（默认 2 秒）后生成快照；单次快照最多 5000 个文件、总计 2 GiB，超限跳过并记录原因。
 - 恢复流程：正常关闭游戏 → 事务替换存档目录 → 自动重启游戏；失败时保留原存档。
+- 星标存档：可把任意自动备份加星标，或把当前存档「立即保存为星标」；星标存档独立保存在 save-backups\<game-id>\starred\<id>，不参与保留份数轮换，可命名、重命名、删除与读档。
 
 ## 运行时数据目录
 
@@ -184,4 +185,4 @@ Plugin 端日志由 Host 合并显示；游戏处于非 Development Build 时不
 
 ## 版本
 
-当前版本 0.6.92。版本记录见 [docs/release.md](docs/release.md#版本记录)，发布流程与检查表见同一文档。
+当前版本 0.6.93。版本记录见 [docs/release.md](docs/release.md#版本记录)，发布流程与检查表见同一文档。

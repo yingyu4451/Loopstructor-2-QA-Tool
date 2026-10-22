@@ -153,6 +153,12 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
                 "backups.open" => OpenSaveBackupDirectory(),
                 "backups.list" => ListSaveBackups(),
                 "backups.restore" => await RestoreSaveBackupAsync(RequiredString(parameters, "backupId")),
+                "backups.star" => StarSaveBackup(RequiredString(parameters, "backupId"), OptionalString(parameters, "name")),
+                "backups.starActive" => StarActiveSave(OptionalString(parameters, "name")),
+                "backups.renameStarred" => RenameStarredSave(RequiredString(parameters, "starredId"), OptionalString(parameters, "name")),
+                "backups.deleteStarred" => DeleteStarredSave(RequiredString(parameters, "starredId")),
+                "backups.restoreStarred" => await RestoreStarredSaveAsync(RequiredString(parameters, "starredId")),
+                "backups.openStarred" => OpenStarredSaveDirectory(),
                 "logs.clear" => ClearLogs(),
                 _ => throw new InvalidOperationException("Host 不允许调用未知方法：" + method)
             };
@@ -643,16 +649,91 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
 
     private JToken ListSaveBackups()
     {
-        IReadOnlyList<SaveBackupEntry> backups = _saveBackups.ListBackups(
-            _game?.GameRoot ?? _settings.GameRoot,
-            _lifetime);
+        string gameRoot = _game?.GameRoot ?? _settings.GameRoot;
+        IReadOnlyList<SaveBackupEntry> backups = _saveBackups.ListBackups(gameRoot, _lifetime);
+        IReadOnlyList<StarredSaveEntry> starred = _saveBackups.ListStarredSaves(gameRoot, _lifetime);
         return Serialize(new
         {
             backups,
+            starred,
             status = _saveBackups.Snapshot(
                 _settings.AutomaticSaveBackupEnabled,
                 _settings.MaximumSaveBackups)
         });
+    }
+
+    private JToken StarSaveBackup(string backupId, string? name)
+    {
+        string gameRoot = _game?.GameRoot ?? _settings.GameRoot;
+        StarredSaveEntry starred = _saveBackups.StarBackup(gameRoot, backupId, name, _lifetime);
+        AddLog("success", $"已把 {backupId} 保存为星标存档「{starred.Name}」，它不会被自动清理。", emit: false);
+        return Serialize(new
+        {
+            success = true,
+            starred,
+            backups = _saveBackups.ListBackups(gameRoot, _lifetime),
+            starredSaves = _saveBackups.ListStarredSaves(gameRoot, _lifetime)
+        });
+    }
+
+    private JToken StarActiveSave(string? name)
+    {
+        GameInstallValidation game = RequireGame();
+        string activeSaveRoot = _status?.ActivationMode == AutoPlayerActivationMode.ResidentPlayer
+            ? _status.ActiveSaveRoot
+            : string.Empty;
+        if (string.IsNullOrWhiteSpace(activeSaveRoot))
+            throw new InvalidOperationException("当前没有正在使用的玩家存档，无法立即创建星标存档。");
+        StarredSaveEntry starred = _saveBackups.StarActiveSave(
+            game.GameRoot,
+            name,
+            activeSaveRoot,
+            _status?.CurrentChapter ?? 0,
+            0,
+            _lifetime);
+        AddLog("success", $"已把当前存档保存为星标存档「{starred.Name}」，它不会被自动清理。", emit: false);
+        return Serialize(new
+        {
+            success = true,
+            starred,
+            backups = _saveBackups.ListBackups(game.GameRoot, _lifetime),
+            starredSaves = _saveBackups.ListStarredSaves(game.GameRoot, _lifetime)
+        });
+    }
+
+    private JToken RenameStarredSave(string starredId, string? name)
+    {
+        string gameRoot = _game?.GameRoot ?? _settings.GameRoot;
+        StarredSaveEntry starred = _saveBackups.RenameStarred(gameRoot, starredId, name);
+        return Serialize(new
+        {
+            success = true,
+            starred,
+            starredSaves = _saveBackups.ListStarredSaves(gameRoot, _lifetime)
+        });
+    }
+
+    private JToken DeleteStarredSave(string starredId)
+    {
+        string gameRoot = _game?.GameRoot ?? _settings.GameRoot;
+        _saveBackups.DeleteStarred(gameRoot, starredId);
+        AddLog("backup", $"已删除星标存档 {starredId}。", emit: false);
+        return Serialize(new
+        {
+            success = true,
+            starredSaves = _saveBackups.ListStarredSaves(gameRoot, _lifetime)
+        });
+    }
+
+    private JToken OpenStarredSaveDirectory()
+    {
+        string path = _saveBackups.EnsureStarredRoot(_settings.GameRoot);
+        Process.Start(new ProcessStartInfo("explorer.exe")
+        {
+            ArgumentList = { path },
+            UseShellExecute = false
+        });
+        return Serialize(new { path });
     }
 
     private async Task<JToken> RestoreSaveBackupAsync(string backupId)
@@ -662,6 +743,21 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
             ? _status.ActiveSaveRoot
             : string.Empty;
         SaveRestorePlan plan = _saveBackups.CreateRestorePlan(game.GameRoot, backupId, activeSaveRoot);
+        return await RestorePlanAsync(plan, game);
+    }
+
+    private async Task<JToken> RestoreStarredSaveAsync(string starredId)
+    {
+        GameInstallValidation game = RequireGame();
+        string activeSaveRoot = _status?.ActivationMode == AutoPlayerActivationMode.ResidentPlayer
+            ? _status.ActiveSaveRoot
+            : string.Empty;
+        SaveRestorePlan plan = _saveBackups.CreateStarredRestorePlan(game.GameRoot, starredId, activeSaveRoot);
+        return await RestorePlanAsync(plan, game);
+    }
+
+    private async Task<JToken> RestorePlanAsync(SaveRestorePlan plan, GameInstallValidation game)
+    {
         IReadOnlyList<IUpdateGameProcess> processes = GameUpdateShutdownCoordinator.FindRunning(game.ExecutablePath);
         try
         {
@@ -699,7 +795,8 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
             restored.TargetDirectory,
             gameRestarted,
             message,
-            backups = _saveBackups.ListBackups(game.GameRoot, _lifetime)
+            backups = _saveBackups.ListBackups(game.GameRoot, _lifetime),
+            starredSaves = _saveBackups.ListStarredSaves(game.GameRoot, _lifetime)
         });
     }
 
@@ -1570,6 +1667,12 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         return string.IsNullOrWhiteSpace(value)
             ? throw new InvalidOperationException($"缺少参数：{name}")
             : value;
+    }
+
+    private static string? OptionalString(JObject? parameters, string name)
+    {
+        string value = parameters?.Value<string>(name)?.Trim() ?? string.Empty;
+        return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
     private static JToken Serialize(object value) => JToken.FromObject(value, CamelSerializer);

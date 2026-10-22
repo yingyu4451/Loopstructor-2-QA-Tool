@@ -4,6 +4,7 @@ import { mountWithTooltip } from './helpers/mount'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import SavesPage from '../src/pages/SavesPage.vue'
 import { useAppStore } from '../src/stores/app'
+import { useUiStore } from '../src/stores/ui'
 import type { DesktopApi, HostSnapshot, SaveBackupCatalog } from '../src/types'
 
 describe('save archive page', () => {
@@ -34,6 +35,46 @@ describe('save archive page', () => {
     expect(wrapper.text()).toContain('第 1 章 · 第 3 关')
     expect(wrapper.findAll('.save-step-node')).toHaveLength(0)
     expect(wrapper.findAll('.restore-save-button')).toHaveLength(2)
+  })
+
+  it('shows starred saves and stars a backup with a custom name', async () => {
+    const catalog: SaveBackupCatalog = {
+      status: {
+        enabled: true, maximumBackups: 20, backupCount: 1, backupRoot: 'C:\\Backups',
+        latestBackup: '第02章-第004关-20260901-130000', lastMessage: 'ready', pending: false, busy: false,
+      },
+      backups: [
+        { id: '第02章-第004关-20260901-130000', chapter: 2, level: 4, createdAt: '2026-09-01T13:00:00+08:00', fileCount: 5, totalBytes: 2048, isLatest: true },
+      ],
+      starred: [
+        { id: 'a'.repeat(32), name: '精英关前留档', chapter: 2, level: 4, createdAt: '2026-09-01T13:05:00+08:00', sourceBackupId: '第02章-第004关-20260901-130000', fileCount: 5, totalBytes: 2048 },
+      ],
+    }
+    const starSaveBackup = vi.fn(async () => ({ success: true, starred: { ...catalog.starred![0], name: '新星标' }, starredSaves: [{ ...catalog.starred![0], name: '新星标' }], backups: catalog.backups }))
+    window.loopstructorDesktop = {
+      listSaveBackups: vi.fn(async () => catalog),
+      openSaveBackups: vi.fn(),
+      starSaveBackup,
+    } as unknown as DesktopApi
+    const store = useAppStore()
+    store.applySnapshot(snapshot())
+    const ui = useUiStore()
+    vi.spyOn(ui, 'prompt').mockResolvedValue('新星标')
+
+    const wrapper = mountWithTooltip(SavesPage)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('星标存档')
+    expect(wrapper.text()).toContain('精英关前留档')
+    expect(wrapper.text()).toContain('1 个星标')
+
+    const starButton = wrapper.find('.save-row-actions .icon-button')
+    expect(starButton.exists()).toBe(true)
+    await starButton.trigger('click')
+    await flushPromises()
+
+    expect(starSaveBackup).toHaveBeenCalledWith('第02章-第004关-20260901-130000', '新星标')
+    expect(wrapper.text()).toContain('新星标')
   })
 })
 

@@ -187,9 +187,29 @@ export interface SaveBackupEntry {
   isLatest: boolean
 }
 
+export interface StarredSaveEntry {
+  id: string
+  name: string
+  chapter: number
+  level: number
+  createdAt: string
+  sourceBackupId: string
+  fileCount: number
+  totalBytes: number
+}
+
 export interface SaveBackupCatalog {
   backups: SaveBackupEntry[]
+  starred?: StarredSaveEntry[]
   status: SaveBackupStatus
+}
+
+export interface StarredSaveActionResponse {
+  success: boolean
+  starred?: StarredSaveEntry
+  starredSaves?: StarredSaveEntry[]
+  backups?: SaveBackupEntry[]
+  message?: string
 }
 
 export interface SaveRestoreResponse {
@@ -199,6 +219,7 @@ export interface SaveRestoreResponse {
   gameRestarted: boolean
   message: string
   backups: SaveBackupEntry[]
+  starredSaves?: StarredSaveEntry[]
 }
 
 export interface HostSnapshot {
@@ -283,6 +304,12 @@ export interface DesktopApi {
   openSaveBackups(): Promise<{ path: string }>
   listSaveBackups(): Promise<SaveBackupCatalog>
   restoreSaveBackup(backupId: string): Promise<SaveRestoreResponse>
+  starSaveBackup(backupId: string, name?: string): Promise<StarredSaveActionResponse>
+  starActiveSave(name?: string): Promise<StarredSaveActionResponse>
+  renameStarredSave(starredId: string, name: string): Promise<StarredSaveActionResponse>
+  deleteStarredSave(starredId: string): Promise<StarredSaveActionResponse>
+  restoreStarredSave(starredId: string): Promise<SaveRestoreResponse>
+  openStarredSaves(): Promise<{ path: string }>
   clearLogs(): Promise<{ success: boolean }>
   minimize(): Promise<void>
   toggleMaximize(): Promise<void>

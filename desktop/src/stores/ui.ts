@@ -16,12 +16,23 @@ interface ConfirmDialog {
   resolve: (value: boolean) => void
 }
 
+interface PromptDialog {
+  title: string
+  message: string
+  value: string
+  placeholder: string
+  confirmText: string
+  cancelText: string
+  resolve: (value: string | null) => void
+}
+
 export const useUiStore = defineStore('ui', {
   state: () => ({
     toastQueue: [] as ToastMessage[],
     activeToast: undefined as ToastMessage | undefined,
     toastSequence: 0,
     confirmDialog: undefined as ConfirmDialog | undefined,
+    promptDialog: undefined as PromptDialog | undefined,
     busyCount: 0,
   }),
   getters: {
@@ -56,6 +67,24 @@ export const useUiStore = defineStore('ui', {
     resolveConfirm(value: boolean) {
       const dialog = this.confirmDialog
       this.confirmDialog = undefined
+      dialog?.resolve(value)
+    },
+    prompt(options: Partial<Omit<PromptDialog, 'resolve'>> & Pick<PromptDialog, 'title' | 'message'>) {
+      return new Promise<string | null>((resolve) => {
+        this.promptDialog = {
+          title: options.title,
+          message: options.message,
+          value: options.value ?? '',
+          placeholder: options.placeholder ?? '输入名称',
+          confirmText: options.confirmText ?? '确定',
+          cancelText: options.cancelText ?? '取消',
+          resolve,
+        }
+      })
+    },
+    resolvePrompt(value: string | null) {
+      const dialog = this.promptDialog
+      this.promptDialog = undefined
       dialog?.resolve(value)
     },
     async run<T>(action: () => Promise<T>, successMessage?: string): Promise<T | undefined> {

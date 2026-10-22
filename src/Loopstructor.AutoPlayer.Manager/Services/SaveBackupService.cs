@@ -16,14 +16,19 @@ public sealed class SaveBackupService
     private static readonly Regex ManagedBackupParts = new(
         @"^第(?<chapter>\d{2,})章-第(?<level>\d{3,})关-(?<date>\d{8})-(?<time>\d{6})(?:-\d{2})?$",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex StarredIdName = new(
+        @"^[0-9a-f]{32}$",
+        RegexOptions.CultureInvariant | RegexOptions.Compiled);
     private static readonly TimeSpan DefaultSettleDelay = TimeSpan.FromSeconds(2);
     private const string SourceMetadataName = ".save-backup-source.json";
+    private const string StarredDirectoryName = "starred";
+    private const string StarredMetadataName = ".starred-save.json";
+    private const int MaximumStarredNameLength = 40;
     private const int MaximumFileCount = 5_000;
     private const long MaximumTotalBytes = 2L * 1024 * 1024 * 1024;
 
     private readonly string _baseRoot;
-    private readonly TimeSpan _settleDelay;
-    private string _backupRoot = string.Empty;
+    private readonly TimeSpan _settleDelay;    private string _backupRoot = string.Empty;
     private string _observedStep = string.Empty;
     private string _lastObservedFingerprint = string.Empty;
     private string _pendingStep = string.Empty;
@@ -97,22 +102,101 @@ public sealed class SaveBackupService
     public SaveRestorePlan CreateRestorePlan(string? gameRoot, string backupId, string? activeSaveRoot)
     {
         string backupRoot = EnsureBackupRoot(gameRoot);
-        string normalizedId = backupId?.Trim() ?? string.Empty;
-        if (!ManagedBackupName.IsMatch(normalizedId)
-            || !string.Equals(Path.GetFileName(normalizedId), normalizedId, StringComparison.Ordinal))
-            throw new InvalidOperationException("所选存档不属于 AutoPlayer 管理的备份。");
-
-        string backupDirectory = Path.GetFullPath(Path.Combine(backupRoot, normalizedId));
-        if (!IsDirectChild(backupRoot, backupDirectory)
-            || !Directory.Exists(backupDirectory)
-            || new DirectoryInfo(backupDirectory).Attributes.HasFlag(FileAttributes.ReparsePoint))
-            throw new InvalidOperationException("所选存档不存在或目录状态不安全。");
-
+        string normalizedId = NormalizeBackupId(backupId);
+        string backupDirectory = ResolveManagedBackupDirectory(backupRoot, normalizedId);
         string target = ResolveActiveSaveRoot(backupRoot, activeSaveRoot);
         ValidateRestoreTarget(target, backupRoot);
         IReadOnlyList<SourceFile> files = CaptureSourceFiles(backupDirectory, CancellationToken.None);
         if (files.Count == 0) throw new InvalidOperationException("所选备份为空，不能用于读档。");
         return new SaveRestorePlan(normalizedId, backupDirectory, target);
+    }
+
+    public string EnsureStarredRoot(string? gameRoot)
+    {
+        string path = Path.Combine(EnsureBackupRoot(gameRoot), StarredDirectoryName);
+        Directory.CreateDirectory(path);
+        return path;
+    }
+
+    public IReadOnlyList<StarredSaveEntry> ListStarredSaves(string? gameRoot, CancellationToken cancellationToken = default)
+    {
+        string root = EnsureStarredRoot(gameRoot);
+        List<StarredSaveEntry> entries = new();
+        foreach (DirectoryInfo directory in new DirectoryInfo(root).EnumerateDirectories())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if ((directory.Attributes & FileAttributes.ReparsePoint) != 0) continue;
+            if (!StarredIdName.IsMatch(directory.Name)) continue;
+            entries.Add(BuildStarredEntry(directory, cancellationToken));
+        }
+        return entries
+            .OrderByDescending(entry => entry.CreatedAt)
+            .ThenByDescending(entry => entry.Id, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    public StarredSaveEntry StarBackup(string? gameRoot, string backupId, string? name, CancellationToken cancellationToken = default)
+    {
+        string backupRoot = EnsureBackupRoot(gameRoot);
+        string normalizedId = NormalizeBackupId(backupId);
+        string source = ResolveManagedBackupDirectory(backupRoot, normalizedId);
+        Match match = ManagedBackupParts.Match(normalizedId);
+        return CreateStarredCopy(
+            gameRoot,
+            source,
+            normalizedId,
+            ParsePart(match, "chapter"),
+            ParsePart(match, "level"),
+            name,
+            cancellationToken);
+    }
+
+    public StarredSaveEntry StarActiveSave(
+        string? gameRoot,
+        string? name,
+        string? activeSaveRoot,
+        int chapter,
+        int level,
+        CancellationToken cancellationToken = default)
+    {
+        string backupRoot = EnsureBackupRoot(gameRoot);
+        string source = ResolveActiveSaveRoot(backupRoot, activeSaveRoot);
+        if (!Directory.Exists(source))
+            throw new InvalidOperationException("当前玩家存档目录不存在，无法创建星标存档。");
+        if (PathsOverlap(source, backupRoot))
+            throw new InvalidOperationException("当前玩家存档目录与备份目录重叠，不能创建星标存档。");
+        return CreateStarredCopy(gameRoot, source, string.Empty, chapter, level, name, cancellationToken);
+    }
+
+    public StarredSaveEntry RenameStarred(string? gameRoot, string starredId, string? name)
+    {
+        string starredRoot = EnsureStarredRoot(gameRoot);
+        string directory = ResolveStarredDirectory(starredRoot, starredId);
+        StarredSaveMetadata metadata = LoadStarredMetadata(directory);
+        metadata.Name = NormalizeStarredName(name, metadata.Chapter, metadata.Level, metadata.CreatedAtUtc);
+        SaveStarredMetadata(directory, metadata);
+        return BuildStarredEntry(new DirectoryInfo(directory), CancellationToken.None);
+    }
+
+    public bool DeleteStarred(string? gameRoot, string starredId)
+    {
+        string starredRoot = EnsureStarredRoot(gameRoot);
+        string directory = ResolveStarredDirectory(starredRoot, starredId);
+        Directory.Delete(directory, true);
+        return true;
+    }
+
+    public SaveRestorePlan CreateStarredRestorePlan(string? gameRoot, string starredId, string? activeSaveRoot)
+    {
+        string backupRoot = EnsureBackupRoot(gameRoot);
+        string directory = ResolveStarredDirectory(EnsureStarredRoot(gameRoot), starredId);
+        StarredSaveMetadata metadata = LoadStarredMetadata(directory);
+        IReadOnlyList<SourceFile> files = CaptureSourceFiles(directory, CancellationToken.None);
+        if (files.Count == 0) throw new InvalidOperationException("星标存档为空，不能用于读档。");
+        string target = ResolveActiveSaveRoot(backupRoot, activeSaveRoot);
+        ValidateRestoreTarget(target, backupRoot);
+        string label = string.IsNullOrWhiteSpace(metadata.Name) ? "星标存档" : metadata.Name;
+        return new SaveRestorePlan(label, directory, target);
     }
 
     public async Task<SaveRestoreResult> RestoreAsync(SaveRestorePlan plan, CancellationToken cancellationToken)
@@ -555,6 +639,158 @@ public sealed class SaveBackupService
             throw new InvalidOperationException("当前玩家存档目录不满足安全恢复条件。");
     }
 
+    private static string NormalizeBackupId(string? backupId)
+    {
+        string normalized = backupId?.Trim() ?? string.Empty;
+        if (!ManagedBackupName.IsMatch(normalized)
+            || !string.Equals(Path.GetFileName(normalized), normalized, StringComparison.Ordinal))
+            throw new InvalidOperationException("所选存档不属于 AutoPlayer 管理的备份。");
+        return normalized;
+    }
+
+    private static string ResolveManagedBackupDirectory(string backupRoot, string backupId)
+    {
+        string directory = Path.GetFullPath(Path.Combine(backupRoot, backupId));
+        if (!IsDirectChild(backupRoot, directory)
+            || !Directory.Exists(directory)
+            || new DirectoryInfo(directory).Attributes.HasFlag(FileAttributes.ReparsePoint))
+            throw new InvalidOperationException("所选存档不存在或目录状态不安全。");
+        return directory;
+    }
+
+    private StarredSaveEntry CreateStarredCopy(
+        string? gameRoot,
+        string sourceDirectory,
+        string sourceBackupId,
+        int chapter,
+        int level,
+        string? name,
+        CancellationToken cancellationToken)
+    {
+        string starredRoot = EnsureStarredRoot(gameRoot);
+        IReadOnlyList<SourceFile> before = CaptureSourceFiles(sourceDirectory, cancellationToken);
+        if (before.Count == 0)
+            throw new IOException("存档目录为空，无法创建星标存档。");
+        string staging = Path.Combine(starredRoot, ".pending-" + Guid.NewGuid().ToString("N"));
+        string finalName = Guid.NewGuid().ToString("N");
+        string finalPath = Path.Combine(starredRoot, finalName);
+        try
+        {
+            Directory.CreateDirectory(staging);
+            CopyFiles(before, staging, cancellationToken);
+            IReadOnlyList<SourceFile> after = CaptureSourceFiles(sourceDirectory, cancellationToken);
+            if (!string.Equals(Fingerprint(before), Fingerprint(after), StringComparison.OrdinalIgnoreCase))
+                throw new IOException("存档仍在写入，星标保存已取消，请稍后重试。");
+            DateTime createdAt = DateTime.UtcNow;
+            StarredSaveMetadata metadata = new()
+            {
+                Name = NormalizeStarredName(name, chapter, level, createdAt),
+                Chapter = chapter,
+                Level = level,
+                CreatedAtUtc = createdAt,
+                SourceBackupId = sourceBackupId
+            };
+            SaveStarredMetadata(staging, metadata);
+            Directory.Move(staging, finalPath);
+            staging = string.Empty;
+            return new StarredSaveEntry
+            {
+                Id = finalName,
+                Name = metadata.Name,
+                Chapter = chapter,
+                Level = level,
+                CreatedAt = metadata.CreatedAtUtc.ToLocalTime(),
+                SourceBackupId = sourceBackupId,
+                FileCount = before.Count,
+                TotalBytes = before.Sum(file => file.Length)
+            };
+        }
+        finally
+        {
+            if (!string.IsNullOrEmpty(staging) && Directory.Exists(staging))
+            {
+                try
+                {
+                    Directory.Delete(staging, true);
+                }
+                catch (IOException)
+                {
+                }
+                catch (UnauthorizedAccessException)
+                {
+                }
+            }
+        }
+    }
+
+    private static StarredSaveEntry BuildStarredEntry(DirectoryInfo directory, CancellationToken cancellationToken)
+    {
+        StarredSaveMetadata metadata = LoadStarredMetadata(directory.FullName);
+        IReadOnlyList<SourceFile> files = CaptureSourceFiles(directory.FullName, cancellationToken);
+        DateTime createdAtUtc = metadata.CreatedAtUtc == default ? directory.CreationTimeUtc : metadata.CreatedAtUtc;
+        string name = string.IsNullOrWhiteSpace(metadata.Name)
+            ? NormalizeStarredName(null, metadata.Chapter, metadata.Level, createdAtUtc)
+            : metadata.Name;
+        return new StarredSaveEntry
+        {
+            Id = directory.Name,
+            Name = name,
+            Chapter = metadata.Chapter,
+            Level = metadata.Level,
+            CreatedAt = createdAtUtc.ToLocalTime(),
+            SourceBackupId = metadata.SourceBackupId,
+            FileCount = files.Count,
+            TotalBytes = files.Sum(file => file.Length)
+        };
+    }
+
+    private static string NormalizeStarredName(string? name, int chapter, int level, DateTime createdAtUtc)
+    {
+        DateTime local = createdAtUtc == default ? DateTime.Now : createdAtUtc.ToLocalTime();
+        string fallback = chapter > 0 && level > 0
+            ? $"第{chapter:D2}章-第{level:D3}关-{local:yyyyMMdd-HHmmss}"
+            : $"星标存档-{local:yyyyMMdd-HHmmss}";
+        string trimmed = (name ?? string.Empty).Trim();
+        trimmed = new string(trimmed.Where(character => !char.IsControl(character)).ToArray()).Trim();
+        if (trimmed.Length == 0) trimmed = fallback;
+        return trimmed.Length > MaximumStarredNameLength ? trimmed[..MaximumStarredNameLength] : trimmed;
+    }
+
+    private static string ResolveStarredDirectory(string starredRoot, string? starredId)
+    {
+        string id = starredId?.Trim() ?? string.Empty;
+        if (!StarredIdName.IsMatch(id) || !string.Equals(Path.GetFileName(id), id, StringComparison.Ordinal))
+            throw new InvalidOperationException("所选星标存档不存在或标识无效。");
+        string directory = Path.GetFullPath(Path.Combine(starredRoot, id));
+        if (!IsDirectChild(starredRoot, directory)
+            || !Directory.Exists(directory)
+            || new DirectoryInfo(directory).Attributes.HasFlag(FileAttributes.ReparsePoint))
+            throw new InvalidOperationException("所选星标存档不存在或目录状态不安全。");
+        return directory;
+    }
+
+    private static StarredSaveMetadata LoadStarredMetadata(string directory)
+    {
+        string path = Path.Combine(directory, StarredMetadataName);
+        try
+        {
+            if (!File.Exists(path)) return new StarredSaveMetadata();
+            return JsonConvert.DeserializeObject<StarredSaveMetadata>(File.ReadAllText(path)) ?? new StarredSaveMetadata();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return new StarredSaveMetadata();
+        }
+    }
+
+    private static void SaveStarredMetadata(string directory, StarredSaveMetadata metadata)
+    {
+        string path = Path.Combine(directory, StarredMetadataName);
+        string temporary = path + ".tmp-" + Guid.NewGuid().ToString("N");
+        File.WriteAllText(temporary, JsonConvert.SerializeObject(metadata, Formatting.Indented));
+        File.Move(temporary, path, true);
+    }
+
     private static bool IsDirectChild(string root, string candidate) =>
         string.Equals(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(candidate)),
             Path.TrimEndingDirectorySeparator(Path.GetFullPath(root)), StringComparison.OrdinalIgnoreCase);
@@ -631,6 +867,27 @@ public sealed class SaveBackupService
     {
         public string SourceRoot { get; set; } = string.Empty;
     }
+
+    private sealed class StarredSaveMetadata
+    {
+        public string Name { get; set; } = string.Empty;
+        public int Chapter { get; set; }
+        public int Level { get; set; }
+        public DateTime CreatedAtUtc { get; set; }
+        public string SourceBackupId { get; set; } = string.Empty;
+    }
+}
+
+public sealed class StarredSaveEntry
+{
+    public string Id { get; init; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
+    public int Chapter { get; init; }
+    public int Level { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public string SourceBackupId { get; init; } = string.Empty;
+    public int FileCount { get; init; }
+    public long TotalBytes { get; init; }
 }
 
 public sealed class SaveBackupEntry

@@ -5,6 +5,7 @@ import TitleBar from './components/TitleBar.vue'
 import RailSidebar from './components/RailSidebar.vue'
 import AppToast from './components/AppToast.vue'
 import AppModal from './components/AppModal.vue'
+import AppPrompt from './components/AppPrompt.vue'
 import GamePage from './pages/GamePage.vue'
 import SavesPage from './pages/SavesPage.vue'
 import AutoplayPage from './pages/AutoplayPage.vue'
@@ -86,6 +87,7 @@ onBeforeUnmount(() => {
     </div>
     <AppToast />
     <AppModal />
+    <AppPrompt />
     <div v-if="ui.busy" class="busy-indicator" aria-label="正在处理"><span /><span /><span /></div>
   </div>
 </template>

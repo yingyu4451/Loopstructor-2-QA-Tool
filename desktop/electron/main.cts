@@ -409,6 +409,15 @@ function registerIpc(): void {
   ipcMain.handle('diagnostics:openEvidence', () => invoke('diagnostics.openEvidence'))
   ipcMain.handle('backups:open', () => invoke('backups.open'))
   ipcMain.handle('backups:list', () => invoke('backups.list'))
+  ipcMain.handle('backups:star', (_event, backupId: string, name?: string) => invoke('backups.star', { backupId, name }))
+  ipcMain.handle('backups:starActive', (_event, name?: string) => invoke('backups.starActive', { name }))
+  ipcMain.handle('backups:renameStarred', (_event, starredId: string, name: string) => invoke('backups.renameStarred', { starredId, name }))
+  ipcMain.handle('backups:deleteStarred', (_event, starredId: string) => invoke('backups.deleteStarred', { starredId }))
+  ipcMain.handle('backups:restoreStarred', (_event, starredId: string) => {
+    if (!host) throw new Error('.NET Host 尚未启动。')
+    return host.invoke('backups.restoreStarred', { starredId }, 120000)
+  })
+  ipcMain.handle('backups:openStarred', () => invoke('backups.openStarred'))
   ipcMain.handle('backups:restore', (_event, backupId: string) => {
     if (!host) throw new Error('.NET Host 尚未启动。')
     return host.invoke('backups.restore', { backupId }, 120000)

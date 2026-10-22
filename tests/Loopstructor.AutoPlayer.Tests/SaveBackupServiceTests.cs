@@ -159,6 +159,80 @@ public sealed class SaveBackupServiceTests : IDisposable
         Assert.Contains("不属于", error.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task StarBackup_SurvivesAutomaticRetentionAndKeepsTheName()
+    {
+        string source = Path.Combine(_root, "game-save");
+        Directory.CreateDirectory(source);
+        File.WriteAllText(Path.Combine(source, "progress.json"), "one");
+        SaveBackupService service = new(Path.Combine(_root, "backups"), TimeSpan.Zero);
+        ManagerSettings settings = new() { AutomaticSaveBackupEnabled = true, MaximumSaveBackups = 1 };
+        await ObserveStep(service, settings, source, chapter: 1, level: 2);
+        SaveBackupEntry first = Assert.Single(service.ListBackups(_root));
+
+        StarredSaveEntry starred = service.StarBackup(_root, first.Id, "第一章留档");
+        Assert.Equal("第一章留档", starred.Name);
+        Assert.True(Directory.Exists(Path.Combine(service.EnsureStarredRoot(_root), starred.Id)));
+
+        File.WriteAllText(Path.Combine(source, "progress.json"), "two");
+        await ObserveStep(service, settings, source, chapter: 1, level: 3);
+        File.WriteAllText(Path.Combine(source, "progress.json"), "three");
+        await ObserveStep(service, settings, source, chapter: 2, level: 1);
+
+        Assert.Single(service.ListBackups(_root));
+        StarredSaveEntry surviving = Assert.Single(service.ListStarredSaves(_root));
+        Assert.Equal("第一章留档", surviving.Name);
+        Assert.Equal((1, 2), (surviving.Chapter, surviving.Level));
+        Assert.Equal("one", File.ReadAllText(Path.Combine(service.EnsureStarredRoot(_root), surviving.Id, "progress.json")));
+    }
+
+    [Fact]
+    public async Task StarActiveSave_CapturesCurrentSave_AndRestoresIt()
+    {
+        string source = Path.Combine(_root, "game-save");
+        Directory.CreateDirectory(source);
+        File.WriteAllText(Path.Combine(source, "progress.json"), "manual-star");
+        SaveBackupService service = new(Path.Combine(_root, "backups"), TimeSpan.Zero);
+
+        StarredSaveEntry starred = service.StarActiveSave(_root, "  精英关前  ", source, 3, 7);
+
+        Assert.Equal("精英关前", starred.Name);
+        Assert.Equal((3, 7), (starred.Chapter, starred.Level));
+        Assert.Equal(1, starred.FileCount);
+        File.WriteAllText(Path.Combine(source, "progress.json"), "changed");
+        SaveRestorePlan plan = service.CreateStarredRestorePlan(_root, starred.Id, source);
+        SaveRestoreResult result = await service.RestoreAsync(plan, CancellationToken.None);
+        Assert.True(result.Success);
+        Assert.Equal("manual-star", File.ReadAllText(Path.Combine(source, "progress.json")));
+    }
+
+    [Fact]
+    public void RenameStarred_AndDeleteStarred_UpdateTheListing()
+    {
+        string source = Path.Combine(_root, "game-save");
+        Directory.CreateDirectory(source);
+        File.WriteAllText(Path.Combine(source, "progress.json"), "x");
+        SaveBackupService service = new(Path.Combine(_root, "backups"), TimeSpan.Zero);
+        StarredSaveEntry starred = service.StarActiveSave(_root, "旧名字", source, 0, 0);
+
+        StarredSaveEntry renamed = service.RenameStarred(_root, starred.Id, "  新名字  ");
+
+        Assert.Equal("新名字", renamed.Name);
+        Assert.Equal("新名字", Assert.Single(service.ListStarredSaves(_root)).Name);
+
+        Assert.True(service.DeleteStarred(_root, starred.Id));
+        Assert.Empty(service.ListStarredSaves(_root));
+    }
+
+    [Fact]
+    public void StarredCommands_RejectInvalidIds()
+    {
+        SaveBackupService service = new(Path.Combine(_root, "backups"), TimeSpan.Zero);
+
+        Assert.Throws<InvalidOperationException>(() => service.DeleteStarred(_root, "..\\escape"));
+        Assert.Throws<InvalidOperationException>(() => service.RenameStarred(_root, "not-a-valid-id", "name"));
+    }
+
     private static async Task ObserveStep(
         SaveBackupService service,
         ManagerSettings settings,
