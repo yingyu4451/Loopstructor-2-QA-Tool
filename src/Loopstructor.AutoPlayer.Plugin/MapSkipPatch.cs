@@ -225,6 +225,70 @@ internal static class MapSkipPatch
         _lastDiagnostic = string.Empty;
     }
 
+    /// <summary>
+    /// 撤销补丁并复位安装状态，供 Unity Editor 运行控制结束或重新进入 Play Mode 时释放 Harmony。
+    /// </summary>
+    public static void Uninstall(Harmony harmony)
+    {
+        try
+        {
+            Reset();
+        }
+        catch (Exception exception)
+        {
+            LogDiagnostic("重置地图跳关补丁失败：" + Unwrap(exception).Message);
+        }
+
+        try
+        {
+            UnpatchHarmony(harmony);
+        }
+        catch (Exception exception)
+        {
+            LogDiagnostic("撤销地图跳关补丁失败：" + Unwrap(exception).Message);
+        }
+
+        Installed = false;
+    }
+
+    /// <summary>
+    /// HarmonyX 与 Lib.Harmony 的撤销 API 不同（前者 UnpatchSelf/UnpatchAll，后者静态 UnpatchID），
+    /// 这里用反射兼容两份运行时。
+    /// </summary>
+    private static void UnpatchHarmony(Harmony harmony)
+    {
+        Type harmonyType = typeof(Harmony);
+        foreach (MethodInfo method in harmonyType.GetMethods(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (string.Equals(method.Name, "UnpatchSelf", StringComparison.Ordinal) && method.GetParameters().Length == 0)
+            {
+                method.Invoke(harmony, null);
+                return;
+            }
+        }
+
+        foreach (MethodInfo method in harmonyType.GetMethods(BindingFlags.Public | BindingFlags.Static))
+        {
+            ParameterInfo[] parameters = method.GetParameters();
+            if (string.Equals(method.Name, "UnpatchID", StringComparison.Ordinal)
+                && parameters.Length == 1
+                && parameters[0].ParameterType == typeof(string))
+            {
+                method.Invoke(null, new object[] { harmony.Id });
+                return;
+            }
+        }
+
+        foreach (MethodInfo method in harmonyType.GetMethods(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (string.Equals(method.Name, "UnpatchAll", StringComparison.Ordinal) && method.GetParameters().Length == 0)
+            {
+                method.Invoke(harmony, null);
+                return;
+            }
+        }
+    }
+
     private static bool BeforeMapNodeLeftDown(object __instance)
     {
         if (!Enabled || IsUnityNull(__instance)) return true;

@@ -37,7 +37,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.91
+./scripts/package.ps1 -Version 0.6.92
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -47,8 +47,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.91-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.91-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.92-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.92-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -63,15 +63,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.91",
+  "version": "0.6.92",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.91-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.92-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.85",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.90-to-0.6.91-win-x64.delta.zip",
+      "fromVersion": "0.6.91",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.91-to-0.6.92-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -135,8 +135,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.91
-git push origin v0.6.91
+git tag v0.6.92
+git push origin v0.6.92
 ```
 
 ## 升级 BepInEx
@@ -167,6 +167,18 @@ git push origin v0.6.91
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.92
+
+- 功能平台对齐：此前有三个功能被 Editor Play Mode 显式拒绝，只在 BepInEx Player 插件中可用。现在 Unity Editor Play Mode 运行层也支持地图自由跳转、游戏内 `F`/`F1` 快捷键与获取池切换：
+  - 地图自由跳转：Editor 运行层用工程自带的 `0Harmony 2.4.1.0` 安装同一份 `MapSkipPatch`，进入/退出 Play Mode 时安装与撤销，场景切换时复位；
+  - 游戏内快捷键：Editor 运行层链接同一份 `GameHotkeyReader`，在 Play Mode 内轮询 Unity Input System 的 `F`/`F1`，分别触发清怪与结束波次；
+  - 获取池切换：Editor 运行层直接复用 Player 的 `ConfiguredVehicleValues`/`ConfiguredRelicValues`/`ConfiguredDisposableValues` 读取逻辑，切换后目录立即按配置池过滤。
+- Host 作弊设置下发改为按当前通道选择目标：连接 Player 插件时走命名管道，连接 Unity Editor Bridge 时走回环 HTTP；自动开启作弊、游戏内快捷键、获取池模式与常驻作弊项在两种通道下都会生效，通道变化或重连后自动重新同步。
+- 修复「遗物配置池与全部池一模一样」：根因是 Editor 模式下 `SetCatalogPoolMode` 被拒绝，Editor 运行控制始终停留在全部池；现在 Editor 也会真正切换到配置池（`catalogVersion` 仍为 7）。
+- Editor 运行层退出或重新进入 Play Mode 时会撤销 Harmony 补丁、关闭快捷键并复位获取池模式，避免遗留状态。
+- 自动游玩仍只在 Player 插件模式提供（依赖 BepInEx 的运行时宿主与存档隔离链路）。
+- .NET 测试 665 项、桌面单元测试 31 项、Playwright E2E 4 项，Release 构建 0 警告。
 
 ### 0.6.91
 

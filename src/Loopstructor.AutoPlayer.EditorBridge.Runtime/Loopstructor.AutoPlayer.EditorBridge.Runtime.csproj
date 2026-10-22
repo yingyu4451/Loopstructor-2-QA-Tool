@@ -9,8 +9,12 @@
     <ProjectReference Include="..\Loopstructor.AutoPlayer.Core\Loopstructor.AutoPlayer.Core.csproj" />
     <PackageReference Include="UnityEngine.Modules" Version="2022.3.62" IncludeAssets="compile" PrivateAssets="all" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.2" IncludeAssets="compile" PrivateAssets="all" />
+    <!-- Editor 工程自带 0Harmony 2.4.1.0（Assets/Plugins/ActFramework_ByHZR），这里只引用编译期程序集。 -->
+    <PackageReference Include="Lib.Harmony" Version="2.4.1" IncludeAssets="compile" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\Loopstructor.AutoPlayer.Plugin\CheatRuntimeBridge.cs" Link="Runtime\CheatRuntimeBridge.cs" />
+    <Compile Include="..\Loopstructor.AutoPlayer.Plugin\GameHotkeyReader.cs" Link="Runtime\GameHotkeyReader.cs" />
+    <Compile Include="..\Loopstructor.AutoPlayer.Plugin\MapSkipPatch.cs" Link="Runtime\MapSkipPatch.cs" />
   </ItemGroup>
 </Project>

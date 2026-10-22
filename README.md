@@ -45,13 +45,13 @@ Loopstructor-2-QA-Tool.exe (Launcher)
 ./scripts/bootstrap.ps1
 ./scripts/build.ps1 -Configuration Release
 ./scripts/test.ps1 -Configuration Release -NoRestore -NoBuild
-./scripts/package.ps1 -Version 0.6.91
+./scripts/package.ps1 -Version 0.6.92
 ```
 
 - `build.ps1` 构建解决方案与 `desktop`，输出在各项目 `bin`/`dist` 目录。
 - `test.ps1` 依次运行：解决方案测试（TRX 输出到 `artifacts\TestResults`）、`Verification` 控制台校验、`pnpm typecheck`、`pnpm lint`、`pnpm test`。
 - `desktop` 的 Playwright E2E 由 `pnpm test:e2e` 单独运行（CI 会执行；本地需要可交互的桌面会话）。
-- `package.ps1` 需要 Node/pnpm 与 7-Zip，输出到 `artifacts\release\`：`Loopstructor-2-QA-Tool-0.6.91-win-x64.zip`、对应的 `.sha256` 和 `autoplayer-update-manifest.json`。`-SkipBuild` 可复用已有构建产物。
+- `package.ps1` 需要 Node/pnpm 与 7-Zip，输出到 `artifacts\release\`：`Loopstructor-2-QA-Tool-0.6.92-win-x64.zip`、对应的 `.sha256` 和 `autoplayer-update-manifest.json`。`-SkipBuild` 可复用已有构建产物。
 - 加 `-SkipBuild` 前必须先完成一次对应版本号的 Release 构建，否则包内二进制版本校验会失败。
 
 ## 使用发布包
@@ -110,6 +110,7 @@ Loopstructor-2-QA-Tool\
 - 获取池：战车、道具、遗物目录可在「全部池」与「游戏配置池」之间切换。游戏配置池只显示当前版本奖励配置里真正可获取的内容：战车取奖励配置的 Tag 映射（当前版本 14 个家族，自动包含各星级），遗物取奖励主池、可重复获取备用池与 BOSS/精英关奖励，消耗品取道具奖励配置。读取失败时该类别回退全部池，并在池开关状态里说明原因。
 - 常驻启动：在「战斗」页勾选的基地无敌、地图自由跳转、显示敌人 ID、显示 Buff 会持久保存；连接游戏并启用作弊后由 Host 自动恢复，失败按项重试。
 - 能力覆盖：载具与消耗品、弹射点（背包/场地）、遗物、敌人查询与修改、覆盖层显示、结束波次、清怪、跳过奖励弹窗、基地无敌、地图节点自由跳转、刷怪、弹射点捕获、游戏内快捷键、获取池切换。命令以 `cheat.` 为前缀，共 37 个，具体以插件返回的 `capabilities` 为准。
+- 平台覆盖：除自动游玩（依赖 BepInEx 运行时宿主与存档隔离）外，上述作弊能力在 BepInEx Player 插件与 Unity Editor Play Mode 连接下都可用；Host 会把自动开启作弊、游戏内快捷键、获取池模式和常驻启动项下发到当前连接的通道。
 
 ## 存档备份
 
@@ -183,4 +184,4 @@ Plugin 端日志由 Host 合并显示；游戏处于非 Development Build 时不
 
 ## 版本
 
-当前版本 0.6.91。版本记录见 [docs/release.md](docs/release.md#版本记录)，发布流程与检查表见同一文档。
+当前版本 0.6.92。版本记录见 [docs/release.md](docs/release.md#版本记录)，发布流程与检查表见同一文档。

@@ -1,3 +1,5 @@
+using System;
+using HarmonyLib;
 using Loopstructor.AutoPlayer.Core;
 using Loopstructor.AutoPlayer.Plugin;
 using Newtonsoft.Json;
@@ -112,7 +114,14 @@ internal sealed class EditorCheatRuntimeHost : MonoBehaviour
 
 internal sealed class EditorCheatRuntime : IDisposable
 {
+    private const string HarmonyId = "com.loopstructor.qa-editor-bridge.map-skip";
+
     private readonly CheatRuntimeBridge m_bridge = new();
+    private readonly GameHotkeyReader m_hotkeys = new();
+    private Harmony? m_harmony;
+    private bool m_mapSkipInstalled;
+    private bool m_hotkeysEnabled;
+    private string m_hotkeyResolutionError = string.Empty;
     private bool m_enabled;
     private bool m_disposed;
 
@@ -128,6 +137,7 @@ internal sealed class EditorCheatRuntime : IDisposable
         }
 
         m_enabled = true;
+        TryInstallMapSkip();
         RegisterEvents();
         message = "Unity Editor Play Mode 运行控制已启动。";
         return true;
@@ -143,7 +153,7 @@ internal sealed class EditorCheatRuntime : IDisposable
             if (string.Equals(command, CheatCommands.SetEnabled, StringComparison.Ordinal))
             {
                 m_enabled = arguments.Value<bool?>("enabled") != false;
-                if (!m_enabled) m_bridge.ResetTransientFeatures();
+                if (!m_enabled) ResetEditorEffects();
                 return EditorCheatResponse.From(CheatExecutionResult.Ok(
                     m_enabled ? "Editor 运行控制已启用。" : "Editor 运行控制已停用。",
                     BuildState()));
@@ -187,15 +197,9 @@ internal sealed class EditorCheatRuntime : IDisposable
                 CheatCommands.RemoveSpawnPoint => m_bridge.RemoveSpawnPoint(arguments),
                 CheatCommands.ClearSpawnPoints => m_bridge.ClearSpawnPoints(),
                 CheatCommands.SpawnEnemy => m_bridge.SpawnEnemy(arguments),
-                CheatCommands.SetMapSkipEnabled => CheatExecutionResult.Fail(
-                    "Editor Bridge 不注入 Harmony，地图自由跳转仅在 Player 插件模式可用。",
-                    "EDITOR_PATCH_UNAVAILABLE"),
-                CheatCommands.SetHotkeysEnabled => CheatExecutionResult.Fail(
-                    "游戏内快捷键只在 Player 插件模式可用，Editor 运行控制不注册游戏按键。",
-                    "EDITOR_HOTKEY_UNAVAILABLE"),
-                CheatCommands.SetCatalogPoolMode => CheatExecutionResult.Fail(
-                    "获取池切换只在 Player 插件模式可用，Editor 运行控制沿用全部池。",
-                    "EDITOR_POOL_MODE_UNAVAILABLE"),
+                CheatCommands.SetMapSkipEnabled => SetMapSkipEnabled(arguments),
+                CheatCommands.SetHotkeysEnabled => SetHotkeysEnabled(arguments),
+                CheatCommands.SetCatalogPoolMode => m_bridge.SetCatalogPoolMode(arguments.Value<string?>("mode")),
                 _ => CheatExecutionResult.Fail("未知的作弊命令：" + command, "UNKNOWN_CHEAT_COMMAND")
             };
             return EditorCheatResponse.From(result);
@@ -214,6 +218,8 @@ internal sealed class EditorCheatRuntime : IDisposable
         m_bridge.TickGrantAllRelics();
         m_bridge.TickRemoveAllRelics();
         m_bridge.TickEnemyOverlays();
+        if (m_hotkeysEnabled) PollHotkeys();
+        if (MapSkipPatch.Enabled) MapSkipPatch.Tick();
     }
 
     public void Draw()
@@ -228,8 +234,132 @@ internal sealed class EditorCheatRuntime : IDisposable
         UnregisterEvents();
         m_bridge.CancelGrantAllRelics("Editor Play Mode 已结束。");
         m_bridge.CancelRemoveAllRelics("Editor Play Mode 已结束。");
-        m_bridge.ResetTransientFeatures();
+        ResetEditorEffects();
         SpawnPointCaptureInputPatch.Detach();
+        if (m_harmony != null)
+        {
+            MapSkipPatch.Uninstall(m_harmony);
+            m_harmony = null;
+        }
+
+        m_mapSkipInstalled = false;
+        m_hotkeysEnabled = false;
+        m_bridge.ResetCatalogPoolMode();
+    }
+
+    private void ResetEditorEffects()
+    {
+        m_bridge.ResetTransientFeatures();
+        MapSkipPatch.Reset();
+        m_hotkeysEnabled = false;
+        m_hotkeyResolutionError = string.Empty;
+        m_bridge.ResetCatalogPoolMode();
+    }
+
+    private CheatExecutionResult SetHotkeysEnabled(JObject arguments)
+    {
+        bool enabled = arguments.Value<bool?>("enabled") != false;
+        m_hotkeysEnabled = enabled;
+        m_hotkeyResolutionError = string.Empty;
+        if (!enabled)
+        {
+            return CheatExecutionResult.Changed(
+                "游戏内快捷键已关闭。",
+                new JObject { ["hotkeysEnabled"] = false, ["hotkeysAvailable"] = m_hotkeys.IsReady });
+        }
+
+        bool resolved = m_hotkeys.TryResolve(out string reason);
+        if (!resolved)
+        {
+            m_hotkeyResolutionError = reason;
+            Debug.LogWarning("[QA EditorBridge] 游戏内快捷键已开启，但游戏输入系统尚未就绪：" + reason);
+        }
+
+        string message = resolved
+            ? "游戏内快捷键已开启：F 清除场上敌人，F1 结束当前波次。"
+            : "游戏内快捷键已开启，但游戏输入系统尚未就绪，进入战斗后会自动重试：" + reason;
+        return CheatExecutionResult.Changed(
+            message,
+            new JObject { ["hotkeysEnabled"] = true, ["hotkeysAvailable"] = resolved });
+    }
+
+    private CheatExecutionResult SetMapSkipEnabled(JObject arguments)
+    {
+        bool enabled = arguments.Value<bool?>("enabled") == true;
+        if (enabled && !m_mapSkipInstalled) EnsureMapSkipInstalled();
+        if (!MapSkipPatch.SetEnabled(enabled))
+        {
+            return CheatExecutionResult.Fail(
+                "地图自由跳转当前不可用：当前游戏版本缺少地图节点或按钮入口。",
+                "EDITOR_MAP_SKIP_UNAVAILABLE");
+        }
+
+        return CheatExecutionResult.Changed(
+            enabled
+                ? "地图自由跳转已开启，可以选择当前进度之后的任意节点。"
+                : "地图自由跳转已关闭，地图可达性已恢复。",
+            new JObject { ["mapSkipEnabled"] = MapSkipPatch.Enabled });
+    }
+
+    private void EnsureMapSkipInstalled()
+    {
+        if (!m_mapSkipInstalled) TryInstallMapSkip();
+    }
+
+    private void TryInstallMapSkip()
+    {
+        try
+        {
+            m_harmony ??= new Harmony(HarmonyId);
+            m_mapSkipInstalled = MapSkipPatch.Install(m_harmony, line => Debug.Log("[QA EditorBridge] " + line));
+        }
+        catch (Exception exception)
+        {
+            m_mapSkipInstalled = false;
+            Debug.LogWarning(
+                "[QA EditorBridge] 地图自由跳转补丁安装失败：" + CheatRuntimeBridge.Unwrap(exception).Message);
+        }
+    }
+
+    private void PollHotkeys()
+    {
+        if (!m_hotkeys.TryResolve(out string reason))
+        {
+            if (!string.Equals(m_hotkeyResolutionError, reason, StringComparison.Ordinal))
+            {
+                m_hotkeyResolutionError = reason;
+                Debug.LogWarning("[QA EditorBridge] 游戏内快捷键暂不可用：" + reason);
+            }
+
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(m_hotkeyResolutionError))
+        {
+            m_hotkeyResolutionError = string.Empty;
+            Debug.Log("[QA EditorBridge] 游戏内快捷键已就绪：F 清除场上敌人，F1 结束当前波次。");
+        }
+
+        if (m_hotkeys.WasPressedThisFrame(GameHotkey.SkipWave)) TriggerHotkey(CheatCommands.EndWave, "F1");
+        if (m_hotkeys.WasPressedThisFrame(GameHotkey.ClearEnemies)) TriggerHotkey(CheatCommands.ClearEnemies, "F");
+    }
+
+    private void TriggerHotkey(string command, string keyName)
+    {
+        try
+        {
+            CheatExecutionResult result = string.Equals(command, CheatCommands.EndWave, StringComparison.Ordinal)
+                ? m_bridge.EndWave()
+                : m_bridge.ClearEnemies();
+            if (result.Success) Debug.Log("[QA EditorBridge] 游戏内快捷键 " + keyName + "：" + result.Message);
+            else Debug.Log("[QA EditorBridge] 游戏内快捷键 " + keyName + " 未生效：" + result.Message);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning(
+                "[QA EditorBridge] 游戏内快捷键 " + keyName + " 执行失败：" +
+                CheatRuntimeBridge.Unwrap(exception).Message);
+        }
     }
 
     private JObject BuildState()
@@ -241,12 +371,15 @@ internal sealed class EditorCheatRuntime : IDisposable
             ["enemyIdsVisible"] = m_bridge.EnemyIdsVisible,
             ["enemyBuffsVisible"] = m_bridge.EnemyBuffsVisible,
             ["baseGodMode"] = m_bridge.BaseGodModeRequested,
-            ["mapSkipEnabled"] = false,
+            ["mapSkipEnabled"] = MapSkipPatch.Enabled,
+            ["hotkeysEnabled"] = m_hotkeysEnabled,
+            ["hotkeysAvailable"] = m_hotkeys.IsReady,
+            ["catalogPoolMode"] = m_bridge.CatalogPoolMode,
             ["spawnPointCapture"] = m_bridge.SpawnPointCaptureData(),
             ["fieldCatapultDeleteMode"] = m_bridge.FieldCatapultDeleteMode,
             ["protocolVersion"] = Protocol.CheatCurrentVersion,
             ["availabilityReason"] = IsAvailable ? string.Empty : "Editor 运行控制不可用。",
-            ["capabilities"] = JArray.FromObject(CheatCommands.All.Where(command => command != CheatCommands.SetMapSkipEnabled))
+            ["capabilities"] = JArray.FromObject(CheatCommands.All)
         };
         if (IsAvailable)
         {
@@ -284,5 +417,6 @@ internal sealed class EditorCheatRuntime : IDisposable
         m_bridge.CancelGrantAllRelics("游戏场景已切换。");
         m_bridge.CancelRemoveAllRelics("游戏场景已切换。");
         m_bridge.ResetTransientFeatures();
+        MapSkipPatch.Reset();
     }
 }

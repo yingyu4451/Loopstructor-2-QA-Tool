@@ -753,6 +753,15 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         if (!string.IsNullOrWhiteSpace(_selectedEditorInstanceId))
         {
             await PollEditorAsync();
+            if (_trusted && _editorTrustedInstance != null)
+            {
+                await EnsureDefaultCheatEnabledAsync();
+                await ApplyGameHotkeysAsync();
+                await ApplyCatalogPoolModeAsync();
+                await ApplyPersistentCheatsAsync();
+                await EmitSnapshotAsync();
+            }
+
             return;
         }
 
@@ -843,7 +852,11 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
                               || !string.Equals(_editorTrustedInstance.Token, instance.Token, StringComparison.Ordinal)
                               || !string.Equals(_editorTrustedInstance.AssemblySha256, instance.AssemblySha256, StringComparison.OrdinalIgnoreCase);
         _editorTrustedInstance = instance;
-        if (sessionChanged) _status = null;
+        if (sessionChanged)
+        {
+            _status = null;
+            ResetCheatApplicationMarkers();
+        }
         if (!connection.RuntimeReady)
         {
             InvalidateTrust();
@@ -931,6 +944,7 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
 
     private async Task EnsureDefaultCheatEnabledAsync()
     {
+        if (IsEditorCheatChannel) return;
         if (!_trusted || _session == null || DateTime.UtcNow < _nextAutomaticCheatEnableUtc) return;
         bool available = _status?.CheatAvailable == true || _hello?.CheatAvailable == true;
         bool authorized = _status?.CheatSessionAuthorized == true || _hello?.CheatSessionAuthorized == true;
@@ -980,13 +994,7 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
     /// </summary>
     private async Task ApplyGameHotkeysAsync()
     {
-        if (!_trusted || _session == null)
-        {
-            _cheatHotkeysApplied = false;
-            return;
-        }
-
-        if (_status?.CheatModeEnabled != true && _hello?.CheatModeEnabled != true)
+        if (!TryResolveCheatTarget() || !CheatModeIsEnabled)
         {
             _cheatHotkeysApplied = false;
             return;
@@ -995,20 +1003,18 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         bool desired = _settings.GameHotkeysEnabled;
         if (_cheatHotkeysApplied && _cheatHotkeysDesired == desired) return;
 
-        PipeCallResult call = await _pipeClient.SendCheatAsync(
-            _session,
+        (bool TransportSuccess, ControlResponse? Response, string Error) delivery = await SendCheatToTargetAsync(
             CheatCommands.SetHotkeysEnabled,
-            new JObject { ["enabled"] = desired },
-            _lifetime);
-        if (!call.TransportSuccess)
+            new JObject { ["enabled"] = desired });
+        if (!delivery.TransportSuccess)
         {
             _cheatHotkeysApplied = false;
             _connectionLabel = "等待插件响应";
-            _connectionReason = call.Error;
+            _connectionReason = delivery.Error;
             return;
         }
 
-        ControlResponse response = call.Response!;
+        ControlResponse response = delivery.Response!;
         if (response.Status != null) _status = response.Status;
         _cheatHotkeysDesired = desired;
         _cheatHotkeysApplied = true;
@@ -1038,13 +1044,7 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
     /// </summary>
     private async Task ApplyCatalogPoolModeAsync()
     {
-        if (!_trusted || _session == null)
-        {
-            _catalogPoolModeApplied = string.Empty;
-            return;
-        }
-
-        if (_status?.CheatModeEnabled != true && _hello?.CheatModeEnabled != true)
+        if (!TryResolveCheatTarget() || !CheatModeIsEnabled)
         {
             _catalogPoolModeApplied = string.Empty;
             return;
@@ -1054,20 +1054,18 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         _settings.CatalogPoolMode = desired;
         if (string.Equals(_catalogPoolModeApplied, desired, StringComparison.Ordinal)) return;
 
-        PipeCallResult call = await _pipeClient.SendCheatAsync(
-            _session,
+        (bool TransportSuccess, ControlResponse? Response, string Error) delivery = await SendCheatToTargetAsync(
             CheatCommands.SetCatalogPoolMode,
-            new JObject { ["mode"] = desired },
-            _lifetime);
-        if (!call.TransportSuccess)
+            new JObject { ["mode"] = desired });
+        if (!delivery.TransportSuccess)
         {
             _catalogPoolModeApplied = string.Empty;
             _connectionLabel = "等待插件响应";
-            _connectionReason = call.Error;
+            _connectionReason = delivery.Error;
             return;
         }
 
-        ControlResponse response = call.Response!;
+        ControlResponse response = delivery.Response!;
         if (response.Status != null) _status = response.Status;
         _catalogPoolModeApplied = desired;
         if (response.Success)
@@ -1096,13 +1094,7 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
     /// </summary>
     private async Task ApplyPersistentCheatsAsync()
     {
-        if (!_trusted || _session == null)
-        {
-            _persistentCheatsApplied.Clear();
-            return;
-        }
-
-        if (_status?.CheatModeEnabled != true && _hello?.CheatModeEnabled != true)
+        if (!TryResolveCheatTarget() || !CheatModeIsEnabled)
         {
             _persistentCheatsApplied.Clear();
             return;
@@ -1155,16 +1147,17 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
                 continue;
             }
 
-            PipeCallResult call = await _pipeClient.SendCheatAsync(_session, command, arguments, _lifetime);
-            if (!call.TransportSuccess)
+            (bool TransportSuccess, ControlResponse? Response, string Error) delivery =
+                await SendCheatToTargetAsync(command, arguments);
+            if (!delivery.TransportSuccess)
             {
                 InvalidateTrust();
                 _connectionLabel = "等待插件响应";
-                _connectionReason = call.Error;
+                _connectionReason = delivery.Error;
                 return;
             }
 
-            ControlResponse response = call.Response!;
+            ControlResponse response = delivery.Response!;
             if (response.Status != null) _status = response.Status;
             if (!response.Success)
             {
@@ -1182,6 +1175,61 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
             _persistentCheatsApplied.Add(option);
             AddLog("cheat", "常驻作弊项已恢复：" + label + "。", emit: false);
         }
+    }
+
+    /// <summary>当前是否通过 Unity Editor Bridge 控制游戏。</summary>
+    private bool IsEditorCheatChannel => !string.IsNullOrWhiteSpace(_selectedEditorInstanceId);
+
+    /// <summary>当前作弊通道是否已建立经过验证的下发目标。</summary>
+    private bool TryResolveCheatTarget() =>
+        IsEditorCheatChannel
+            ? _trusted && _editorTrustedInstance != null
+            : _trusted && _session != null;
+
+    /// <summary>当前通道的作弊模式是否已启用。Editor 运行时在进入 Play Mode 时即启用。</summary>
+    private bool CheatModeIsEnabled =>
+        IsEditorCheatChannel
+            ? _status?.CheatModeEnabled != false
+            : _status?.CheatModeEnabled == true || _hello?.CheatModeEnabled == true;
+
+    /// <summary>把一条作弊命令下发到当前通道（Player 插件或 Unity Editor Bridge）。</summary>
+    private async Task<(bool TransportSuccess, ControlResponse? Response, string Error)> SendCheatToTargetAsync(
+        string command,
+        JObject arguments)
+    {
+        if (IsEditorCheatChannel)
+        {
+            if (!_trusted || _editorTrustedInstance == null)
+                return (false, null, "尚未与 Unity Editor 建立安全连接。");
+            PipeCallResult editorCall = await _editorBridgeClient.SendCheatAsync(
+                _editorTrustedInstance,
+                command,
+                arguments,
+                _lifetime);
+            if (!editorCall.TransportSuccess) return (false, null, editorCall.Error);
+            ControlResponse editorResponse = editorCall.Response!;
+            if (editorResponse.Data != null) ApplyEditorState(editorResponse.Data);
+            editorResponse.Status ??= _status;
+            if (editorResponse.Status != null) _status = editorResponse.Status;
+            return (true, editorResponse, string.Empty);
+        }
+
+        if (!_trusted || _session == null) return (false, null, "尚未与当前游戏建立安全连接。");
+        PipeCallResult call = await _pipeClient.SendCheatAsync(_session, command, arguments, _lifetime);
+        return (call.TransportSuccess, call.Response, call.Error);
+    }
+
+    /// <summary>通道或会话变化后清空已下发的作弊设置标记，等待重新下发。</summary>
+    private void ResetCheatApplicationMarkers()
+    {
+        _cheatHotkeysApplied = false;
+        _cheatHotkeysDesired = false;
+        _lastHotkeyApplyError = string.Empty;
+        _catalogPoolModeApplied = string.Empty;
+        _lastCatalogPoolApplyError = string.Empty;
+        _persistentCheatsApplied.Clear();
+        _persistentCheatErrors.Clear();
+        _nextPersistentCheatApplyUtc = default;
     }
 
     private void PrepareInstalledSession(bool selectProfile, bool replaceExisting = true)
@@ -1296,14 +1344,7 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         _pollConnectedLastTime = false;
         _nextAutomaticCheatEnableUtc = default;
         _lastAutomaticCheatEnableError = string.Empty;
-        _cheatHotkeysApplied = false;
-        _cheatHotkeysDesired = false;
-        _lastHotkeyApplyError = string.Empty;
-        _catalogPoolModeApplied = string.Empty;
-        _lastCatalogPoolApplyError = string.Empty;
-        _persistentCheatsApplied.Clear();
-        _persistentCheatErrors.Clear();
-        _nextPersistentCheatApplyUtc = default;
+        ResetCheatApplicationMarkers();
         _connectionLabel = "等待游戏连接";
         _connectionReason = string.Empty;
     }
@@ -1314,15 +1355,15 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         _editorTrustedInstance = null;
         _editorConnection = null;
         _editorMissingSinceUtc = null;
+        _status = null;
+        ResetCheatApplicationMarkers();
     }
 
     private void InvalidateTrust()
     {
         _trusted = false;
         _hello = null;
-        _cheatHotkeysApplied = false;
-        _catalogPoolModeApplied = string.Empty;
-        _persistentCheatsApplied.Clear();
+        ResetCheatApplicationMarkers();
         if (_session != null) _session.ProcessInstanceId = string.Empty;
     }
 
