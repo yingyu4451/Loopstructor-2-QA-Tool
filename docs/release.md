@@ -29,10 +29,32 @@
 ```
 
 - `bootstrap.ps1` 只安装固定 SDK 到 `.dotnet`，若已存在同版本则跳过。
-- `build.ps1` 参数：`-Configuration`（Debug/Release，默认 Release）、`-Version`（覆盖编译版本，发布时使用）、`-NoRestore`。它还原并构建解决方案，然后构建 `desktop`（renderer + main）。
-- `test.ps1` 参数：`-Configuration`、`-NoRestore`、`-NoBuild`。依次执行：解决方案测试（TRX 输出到 `artifacts\TestResults`）、`Verification` 控制台校验、`pnpm typecheck`、`pnpm lint`、`pnpm test`。
-- `desktop` 单独命令：`pnpm build`、`pnpm typecheck`、`pnpm lint`、`pnpm test`、`pnpm test:e2e`（Playwright，会先构建）。
+- `build.ps1` 参数：`-Configuration`（Debug/Release，默认 Release）、`-Version`（覆盖编译版本，发布时使用）、`-NoRestore`、`-SkipPnpmInstall`、`-SkipDotnetBuild`（只改桌面端时跳过 .NET 构建）、`-SkipDesktopBuild`（只改 C# 时跳过桌面端构建）。
+- `test.ps1` 参数：`-Configuration`、`-NoRestore`、`-NoBuild`、`-SkipDotnet`（只改桌面端时跳过 .NET 测试）、`-SkipDesktop`（只改 C# 时跳过桌面端检查）、`-DotnetFilter`（传给 `dotnet test --filter`）。默认依次执行：解决方案测试（TRX 输出到 `artifacts\TestResults`）、`Verification` 控制台校验、`pnpm typecheck`、`pnpm lint`、`pnpm test`。
+- `desktop` 单独命令：`pnpm build`、`pnpm typecheck`、`pnpm lint`、`pnpm test`、`pnpm test:e2e`（Playwright，会先构建）；单个 spec 用 `pnpm exec playwright test e2e/desktop.spec.ts -g "<用例名>"`。
 - CI 额外运行 `pnpm test:e2e`；本地运行该命令需要可交互的桌面会话。
+
+### 内循环提速（实测，2026-10-23）
+
+典型小改动的固定等待时间（本机实测，热缓存）：
+
+| 步骤 | 命令 | 耗时 |
+| --- | --- | --- |
+| 全量构建 | `build.ps1 -SkipPnpmInstall` | ~23 s |
+| 只构建桌面端 | `build.ps1 -SkipPnpmInstall -SkipDotnetBuild` | ~4 s |
+| 只构建 C# | `build.ps1 -SkipPnpmInstall -SkipDesktopBuild` | ~2 s（增量） |
+| 全量测试 | `test.ps1 -NoRestore -NoBuild` | ~107 s（其中 .NET 约 60–90 s） |
+| 只测桌面端 | `test.ps1 -NoRestore -NoBuild -SkipDotnet` | ~13 s |
+| 只测 C#（全量） | `test.ps1 -NoRestore -NoBuild -SkipDesktop` | ~63 s |
+| 只测 C#（过滤） | `test.ps1 -NoRestore -NoBuild -SkipDesktop -DotnetFilter "FullyQualifiedName~SaveBackupServiceTests"` | ~5–10 s |
+| 全量 E2E | `cd desktop; pnpm exec playwright test` | ~38 s |
+| 单个 E2E 用例 | `cd desktop; pnpm exec playwright test e2e/desktop.spec.ts -g "<用例名>"` | ~10–18 s |
+| 本地整包 | `package.ps1 -Version <版本> -SkipBuild` | ~63 s |
+
+- 只改界面/桌面逻辑时，内循环用「桌面端构建 + `-SkipDotnet` 测试 = ~17 s」，E2E 只跑相关 spec，发布前再跑一次全量。
+- 只改 C# 时用「`-SkipDesktopBuild` 构建 + `-SkipDesktop` + `-DotnetFilter` 定向测试」，全量 .NET 测试留给发布前。
+- 提交 + 推送（含 GitHub TLS 偶发重试）通常 ~10 s；Release 流水线是主要固定开销（见下）。
+
 
 ## 本地打包
 
@@ -103,9 +125,17 @@ autoplayer-update-manifest.json
   2. `package.ps1 -Version $env:PACKAGE_VERSION -SkipBuild` 生成整包、SHA-256 与 schema 3 清单。
   3. 仅在标签触发时：按 `v*` 版本倒序查找上一个已发布（非 draft、非 prerelease）版本，下载其整包与清单，校验 schema/版本/RID/文件名/大小/SHA-256，再用 `Verification --verify-release-package` 校验包结构；全部通过才作为增量基线。
   4. 有基线时运行 `package-delta.ps1` 生成增量包，并运行 `verify-release-assets.ps1` 校验整包与增量包布局。
-  5. 上传可运行目录为 workflow artifact（保留 30 天），重新下载并校验必需文件、根目录、发布标记、无退役 `updater\` 目录、无嵌套 zip。必需文件包含 `payload/bepinex/winhttp.dll`、`payload/bepinex/doorstop_config.ini`、`payload/bepinex/BepInEx/core/BepInEx.dll`、`payload/plugin/Loopstructor.AutoPlayer.Plugin.dll`、`payload/plugin/Loopstructor.AutoPlayer.Core.dll`、`payload/plugin/Loopstructor.AutoPlayer.Plugin.deps.json`；`payload/plugin` 下出现 `*.pdb` 或 `*.xml` 直接失败。
+  5. 直接校验本地 staging 目录 `artifacts\package\Loopstructor-2-QA-Tool`（必需文件、根目录、发布标记、无退役 `updater\` 目录、无嵌套 zip），通过后再上传可运行目录为 workflow artifact（保留 30 天）。必需文件包含 `payload/bepinex/winhttp.dll`、`payload/bepinex/doorstop_config.ini`、`payload/bepinex/BepInEx/core/BepInEx.dll`、`payload/plugin/Loopstructor.AutoPlayer.Plugin.dll`、`payload/plugin/Loopstructor.AutoPlayer.Core.dll`、`payload/plugin/Loopstructor.AutoPlayer.Plugin.deps.json`；`payload/plugin` 下出现 `*.pdb` 或 `*.xml` 直接失败。
   6. 发布：已存在同名 Release 且不是 draft 时直接失败，不覆盖；已存在 draft 时删除重建；先上传除清单外的全部资产，最后上传清单，最后把 draft 发布为正式 Release。
 - 版本号解析使用仓库 `scripts/common.ps1` 的规范化语义版本比较（忽略构建元数据，预发布序号按数值比较）。
+
+### 流水线耗时与压缩参数（实测，2026-10-23）
+
+- Release 整条流水线约 6–7 分钟（0.6.93：401 s）。主要步骤：Package 114 s、Electron smoke 48 s、Test 40 s、Build 35 s、安装 pnpm 33 s、增量基线解析 18 s、发布 14 s。
+- 7-Zip 参数从 `-mpass=3`（单线程）改为 `-mpass=1 -mmt=on`：本机整包打包从 ~105 s 降到 ~63 s，整包体积增加约 1 MB（+0.5%）。`package.ps1` 与 `package-delta.ps1` 已同步。
+- 增量包只压缩变更文件（约 2.7 MB），压缩参数对增量包耗时影响很小，但仍与整包保持一致。
+- 小改动不用每次发版：多个改动攒批后一次发布，可省下每次约 6–7 分钟的流水线等待。
+
 
 ## 发布检查表
 

@@ -235,7 +235,7 @@ function New-MaximumCompressionZip {
     if (Test-Path -LiteralPath $Destination) { Remove-Item -LiteralPath $Destination -Force }
     $arguments = @(
         'a', '-tzip', $Destination, "@$ListPath", '-scsUTF-8', '-mm=Deflate', '-mx=9', '-mfb=258',
-        '-mpass=3', '-mtc=off', '-mtm=off', '-mta=off', '-bd', '-bb0', '-y'
+        '-mpass=1', '-mmt=on', '-mtc=off', '-mtm=off', '-mta=off', '-bd', '-bb0', '-y'
     )
     Push-Location $sourceParent
     try {

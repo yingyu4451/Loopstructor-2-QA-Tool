@@ -53,6 +53,7 @@ Loopstructor-2-QA-Tool.exe (Launcher)
 - `desktop` 的 Playwright E2E 由 `pnpm test:e2e` 单独运行（CI 会执行；本地需要可交互的桌面会话）。
 - `package.ps1` 需要 Node/pnpm 与 7-Zip，输出到 `artifacts\release\`：`Loopstructor-2-QA-Tool-0.6.93-win-x64.zip`、对应的 `.sha256` 和 `autoplayer-update-manifest.json`。`-SkipBuild` 可复用已有构建产物。
 - 加 `-SkipBuild` 前必须先完成一次对应版本号的 Release 构建，否则包内二进制版本校验会失败。
+- 内循环提速：只改桌面端用 `build.ps1 -SkipPnpmInstall -SkipDotnetBuild` + `test.ps1 -NoRestore -NoBuild -SkipDotnet`（约 17 秒）；只改 C# 用 `-SkipDesktopBuild` / `-SkipDesktop`，可用 `-DotnetFilter` 定向测试。实测耗时与发布流水线开销见 [docs/release.md](docs/release.md)。
 
 ## 使用发布包
 
