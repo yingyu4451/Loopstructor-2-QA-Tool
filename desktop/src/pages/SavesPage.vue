@@ -149,7 +149,7 @@ async function restoreStarred(entry: StarredSaveEntry) {
 
     <section class="card mechanical-section starred-save-section">
       <header class="section-heading save-history-heading">
-        <div class="heading-with-icon"><Star :size="22" /><div><h2>星标存档</h2><p>独立保存、不会被自动清理，可以随时命名和读档。</p></div></div>
+        <div class="heading-with-icon"><Star :size="22" /><div><h2>星标存档</h2><p>所有游戏版本共用、不会被自动清理，可以随时命名和读档。</p></div></div>
         <div class="backup-actions">
           <span class="starred-counter">{{ starred.length }} 个星标</span>
           <button v-tooltip="'打开星标存档目录'" class="btn btn-square btn-ghost btn-sm icon-button" aria-label="打开星标存档目录" @click="store.openStarredSaves()"><FolderOpen :size="17" /></button>

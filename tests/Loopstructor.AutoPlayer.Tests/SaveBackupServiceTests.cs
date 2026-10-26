@@ -172,7 +172,7 @@ public sealed class SaveBackupServiceTests : IDisposable
 
         StarredSaveEntry starred = service.StarBackup(_root, first.Id, "第一章留档");
         Assert.Equal("第一章留档", starred.Name);
-        Assert.True(Directory.Exists(Path.Combine(service.EnsureStarredRoot(_root), starred.Id)));
+        Assert.True(Directory.Exists(Path.Combine(service.EnsureStarredRoot(), starred.Id)));
 
         File.WriteAllText(Path.Combine(source, "progress.json"), "two");
         await ObserveStep(service, settings, source, chapter: 1, level: 3);
@@ -180,10 +180,10 @@ public sealed class SaveBackupServiceTests : IDisposable
         await ObserveStep(service, settings, source, chapter: 2, level: 1);
 
         Assert.Single(service.ListBackups(_root));
-        StarredSaveEntry surviving = Assert.Single(service.ListStarredSaves(_root));
+        StarredSaveEntry surviving = Assert.Single(service.ListStarredSaves());
         Assert.Equal("第一章留档", surviving.Name);
         Assert.Equal((1, 2), (surviving.Chapter, surviving.Level));
-        Assert.Equal("one", File.ReadAllText(Path.Combine(service.EnsureStarredRoot(_root), surviving.Id, "progress.json")));
+        Assert.Equal("one", File.ReadAllText(Path.Combine(service.EnsureStarredRoot(), surviving.Id, "progress.json")));
     }
 
     [Fact]
@@ -215,13 +215,13 @@ public sealed class SaveBackupServiceTests : IDisposable
         SaveBackupService service = new(Path.Combine(_root, "backups"), TimeSpan.Zero);
         StarredSaveEntry starred = service.StarActiveSave(_root, "旧名字", source, 0, 0);
 
-        StarredSaveEntry renamed = service.RenameStarred(_root, starred.Id, "  新名字  ");
+        StarredSaveEntry renamed = service.RenameStarred(starred.Id, "  新名字  ");
 
         Assert.Equal("新名字", renamed.Name);
-        Assert.Equal("新名字", Assert.Single(service.ListStarredSaves(_root)).Name);
+        Assert.Equal("新名字", Assert.Single(service.ListStarredSaves()).Name);
 
-        Assert.True(service.DeleteStarred(_root, starred.Id));
-        Assert.Empty(service.ListStarredSaves(_root));
+        Assert.True(service.DeleteStarred(starred.Id));
+        Assert.Empty(service.ListStarredSaves());
     }
 
     [Fact]
@@ -229,8 +229,59 @@ public sealed class SaveBackupServiceTests : IDisposable
     {
         SaveBackupService service = new(Path.Combine(_root, "backups"), TimeSpan.Zero);
 
-        Assert.Throws<InvalidOperationException>(() => service.DeleteStarred(_root, "..\\escape"));
-        Assert.Throws<InvalidOperationException>(() => service.RenameStarred(_root, "not-a-valid-id", "name"));
+        Assert.Throws<InvalidOperationException>(() => service.DeleteStarred("..\\escape"));
+        Assert.Throws<InvalidOperationException>(() => service.RenameStarred("not-a-valid-id", "name"));
+    }
+
+    [Fact]
+    public async Task StarredSaves_AreSharedAcrossGameRoots()
+    {
+        string firstGame = Path.Combine(_root, "game-a");
+        string secondGame = Path.Combine(_root, "game-b");
+        Directory.CreateDirectory(firstGame);
+        Directory.CreateDirectory(secondGame);
+        File.WriteAllText(Path.Combine(firstGame, "progress.json"), "first");
+        File.WriteAllText(Path.Combine(secondGame, "progress.json"), "second");
+        SaveBackupService service = new(Path.Combine(_root, "backups"), TimeSpan.Zero);
+
+        StarredSaveEntry first = service.StarActiveSave(firstGame, "A 版本", firstGame, 1, 1);
+        StarredSaveEntry second = service.StarActiveSave(secondGame, "B 版本", secondGame, 2, 2);
+
+        Assert.NotEqual(service.EnsureBackupRoot(firstGame), service.EnsureBackupRoot(secondGame));
+        Assert.Equal(2, service.ListStarredSaves().Count);
+        Assert.True(Directory.Exists(Path.Combine(service.EnsureStarredRoot(), first.Id)));
+        Assert.True(Directory.Exists(Path.Combine(service.EnsureStarredRoot(), second.Id)));
+
+        SaveRestorePlan plan = service.CreateStarredRestorePlan(firstGame, second.Id, firstGame);
+        SaveRestoreResult result = await service.RestoreAsync(plan, CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Equal("second", File.ReadAllText(Path.Combine(firstGame, "progress.json")));
+    }
+
+    [Fact]
+    public void LegacyPerGameStarredSaves_AreMigratedIntoTheSharedRoot()
+    {
+        string baseRoot = Path.Combine(_root, "backups");
+        string gameRoot = Path.Combine(_root, "game-a");
+        Directory.CreateDirectory(gameRoot);
+        string scope = Protocol.HashGameRoot(gameRoot).Substring(0, 16);
+        string legacyRoot = Path.Combine(baseRoot, scope, "starred");
+        string id = new('a', 32);
+        Directory.CreateDirectory(Path.Combine(legacyRoot, id));
+        File.WriteAllText(Path.Combine(legacyRoot, id, "progress.json"), "legacy");
+        File.WriteAllText(
+            Path.Combine(legacyRoot, id, ".starred-save.json"),
+            "{\"Name\":\"旧星标\",\"Chapter\":3,\"Level\":5,\"CreatedAtUtc\":\"2026-01-01T00:00:00Z\",\"SourceBackupId\":\"\"}");
+        SaveBackupService service = new(baseRoot, TimeSpan.Zero);
+
+        StarredSaveEntry migrated = Assert.Single(service.ListStarredSaves());
+
+        Assert.Equal("旧星标", migrated.Name);
+        Assert.Equal((3, 5), (migrated.Chapter, migrated.Level));
+        Assert.True(Directory.Exists(Path.Combine(service.EnsureStarredRoot(), id)));
+        Assert.False(Directory.Exists(legacyRoot));
+        Assert.Equal("legacy", File.ReadAllText(Path.Combine(service.EnsureStarredRoot(), id, "progress.json")));
     }
 
     private static async Task ObserveStep(

@@ -254,7 +254,7 @@ export const useAppStore = defineStore('app', {
       const ui = useUiStore()
       const name = await ui.prompt({
         title: '保存为星标存档',
-        message: `把第 ${backup.chapter} 章、第 ${backup.level} 关的备份另存为星标存档。星标存档不会被自动清理，可以随时读档。`,
+        message: `把第 ${backup.chapter} 章、第 ${backup.level} 关的备份另存为星标存档。星标存档不会被自动清理、所有游戏版本共用，可以随时读档。`,
         value: `第${String(backup.chapter).padStart(2, '0')}章-第${String(backup.level).padStart(3, '0')}关`,
         confirmText: '保存星标',
         placeholder: '给星标存档起个名字',
@@ -270,7 +270,7 @@ export const useAppStore = defineStore('app', {
       const ui = useUiStore()
       const name = await ui.prompt({
         title: '立即保存当前存档为星标',
-        message: '把游戏正在使用的玩家存档复制一份到独立的星标目录。星标存档不会被自动清理，可以随时读档。',
+        message: '把游戏正在使用的玩家存档复制一份到独立的星标目录（所有游戏版本共用）。星标存档不会被自动清理，可以随时读档。',
         value: '星标存档',
         confirmText: '保存星标',
         placeholder: '给星标存档起个名字',

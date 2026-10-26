@@ -651,7 +651,7 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
     {
         string gameRoot = _game?.GameRoot ?? _settings.GameRoot;
         IReadOnlyList<SaveBackupEntry> backups = _saveBackups.ListBackups(gameRoot, _lifetime);
-        IReadOnlyList<StarredSaveEntry> starred = _saveBackups.ListStarredSaves(gameRoot, _lifetime);
+        IReadOnlyList<StarredSaveEntry> starred = _saveBackups.ListStarredSaves(_lifetime);
         return Serialize(new
         {
             backups,
@@ -672,7 +672,7 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
             success = true,
             starred,
             backups = _saveBackups.ListBackups(gameRoot, _lifetime),
-            starredSaves = _saveBackups.ListStarredSaves(gameRoot, _lifetime)
+            starredSaves = _saveBackups.ListStarredSaves(_lifetime)
         });
     }
 
@@ -697,37 +697,35 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
             success = true,
             starred,
             backups = _saveBackups.ListBackups(game.GameRoot, _lifetime),
-            starredSaves = _saveBackups.ListStarredSaves(game.GameRoot, _lifetime)
+            starredSaves = _saveBackups.ListStarredSaves(_lifetime)
         });
     }
 
     private JToken RenameStarredSave(string starredId, string? name)
     {
-        string gameRoot = _game?.GameRoot ?? _settings.GameRoot;
-        StarredSaveEntry starred = _saveBackups.RenameStarred(gameRoot, starredId, name);
+        StarredSaveEntry starred = _saveBackups.RenameStarred(starredId, name);
         return Serialize(new
         {
             success = true,
             starred,
-            starredSaves = _saveBackups.ListStarredSaves(gameRoot, _lifetime)
+            starredSaves = _saveBackups.ListStarredSaves(_lifetime)
         });
     }
 
     private JToken DeleteStarredSave(string starredId)
     {
-        string gameRoot = _game?.GameRoot ?? _settings.GameRoot;
-        _saveBackups.DeleteStarred(gameRoot, starredId);
+        _saveBackups.DeleteStarred(starredId);
         AddLog("backup", $"已删除星标存档 {starredId}。", emit: false);
         return Serialize(new
         {
             success = true,
-            starredSaves = _saveBackups.ListStarredSaves(gameRoot, _lifetime)
+            starredSaves = _saveBackups.ListStarredSaves(_lifetime)
         });
     }
 
     private JToken OpenStarredSaveDirectory()
     {
-        string path = _saveBackups.EnsureStarredRoot(_settings.GameRoot);
+        string path = _saveBackups.EnsureStarredRoot();
         Process.Start(new ProcessStartInfo("explorer.exe")
         {
             ArgumentList = { path },
@@ -796,7 +794,7 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
             gameRestarted,
             message,
             backups = _saveBackups.ListBackups(game.GameRoot, _lifetime),
-            starredSaves = _saveBackups.ListStarredSaves(game.GameRoot, _lifetime)
+            starredSaves = _saveBackups.ListStarredSaves(_lifetime)
         });
     }
 

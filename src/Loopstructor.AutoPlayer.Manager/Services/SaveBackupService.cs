@@ -19,6 +19,9 @@ public sealed class SaveBackupService
     private static readonly Regex StarredIdName = new(
         @"^[0-9a-f]{32}$",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex GameScopeName = new(
+        @"^[0-9a-f]{16}$",
+        RegexOptions.CultureInvariant | RegexOptions.Compiled);
     private static readonly TimeSpan DefaultSettleDelay = TimeSpan.FromSeconds(2);
     private const string SourceMetadataName = ".save-backup-source.json";
     private const string StarredDirectoryName = "starred";
@@ -111,16 +114,72 @@ public sealed class SaveBackupService
         return new SaveRestorePlan(normalizedId, backupDirectory, target);
     }
 
-    public string EnsureStarredRoot(string? gameRoot)
+    /// <summary>
+    /// 星标存档统一存放在数据根目录下，与具体游戏版本/安装目录无关，所有版本共用。
+    /// </summary>
+    public string EnsureStarredRoot()
     {
-        string path = Path.Combine(EnsureBackupRoot(gameRoot), StarredDirectoryName);
+        string path = Path.Combine(_baseRoot, StarredDirectoryName);
         Directory.CreateDirectory(path);
+        MigrateLegacyStarredDirectories(path);
         return path;
     }
 
-    public IReadOnlyList<StarredSaveEntry> ListStarredSaves(string? gameRoot, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// 0.6.93 及更早版本把星标存在各游戏版本自己的备份目录里，这里把它们迁移到共用目录。
+    /// </summary>
+    private void MigrateLegacyStarredDirectories(string starredRoot)
     {
-        string root = EnsureStarredRoot(gameRoot);
+        try
+        {
+            if (!Directory.Exists(_baseRoot)) return;
+            foreach (string scopeDirectory in Directory.EnumerateDirectories(_baseRoot))
+            {
+                DirectoryInfo scope = new(scopeDirectory);
+                if (!GameScopeName.IsMatch(scope.Name)) continue;
+                string legacyRoot = Path.Combine(scopeDirectory, StarredDirectoryName);
+                if (!Directory.Exists(legacyRoot)) continue;
+                foreach (string legacyEntry in Directory.EnumerateDirectories(legacyRoot))
+                {
+                    string id = Path.GetFileName(legacyEntry);
+                    if (!StarredIdName.IsMatch(id)) continue;
+                    string destination = Path.Combine(starredRoot, id);
+                    if (Directory.Exists(destination)) continue;
+                    try
+                    {
+                        Directory.Move(legacyEntry, destination);
+                    }
+                    catch (IOException)
+                    {
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                    }
+                }
+
+                try
+                {
+                    if (!Directory.EnumerateFileSystemEntries(legacyRoot).Any()) Directory.Delete(legacyRoot);
+                }
+                catch (IOException)
+                {
+                }
+                catch (UnauthorizedAccessException)
+                {
+                }
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
+    public IReadOnlyList<StarredSaveEntry> ListStarredSaves(CancellationToken cancellationToken = default)
+    {
+        string root = EnsureStarredRoot();
         List<StarredSaveEntry> entries = new();
         foreach (DirectoryInfo directory in new DirectoryInfo(root).EnumerateDirectories())
         {
@@ -142,7 +201,6 @@ public sealed class SaveBackupService
         string source = ResolveManagedBackupDirectory(backupRoot, normalizedId);
         Match match = ManagedBackupParts.Match(normalizedId);
         return CreateStarredCopy(
-            gameRoot,
             source,
             normalizedId,
             ParsePart(match, "chapter"),
@@ -165,12 +223,12 @@ public sealed class SaveBackupService
             throw new InvalidOperationException("当前玩家存档目录不存在，无法创建星标存档。");
         if (PathsOverlap(source, backupRoot))
             throw new InvalidOperationException("当前玩家存档目录与备份目录重叠，不能创建星标存档。");
-        return CreateStarredCopy(gameRoot, source, string.Empty, chapter, level, name, cancellationToken);
+        return CreateStarredCopy(source, string.Empty, chapter, level, name, cancellationToken);
     }
 
-    public StarredSaveEntry RenameStarred(string? gameRoot, string starredId, string? name)
+    public StarredSaveEntry RenameStarred(string starredId, string? name)
     {
-        string starredRoot = EnsureStarredRoot(gameRoot);
+        string starredRoot = EnsureStarredRoot();
         string directory = ResolveStarredDirectory(starredRoot, starredId);
         StarredSaveMetadata metadata = LoadStarredMetadata(directory);
         metadata.Name = NormalizeStarredName(name, metadata.Chapter, metadata.Level, metadata.CreatedAtUtc);
@@ -178,9 +236,9 @@ public sealed class SaveBackupService
         return BuildStarredEntry(new DirectoryInfo(directory), CancellationToken.None);
     }
 
-    public bool DeleteStarred(string? gameRoot, string starredId)
+    public bool DeleteStarred(string starredId)
     {
-        string starredRoot = EnsureStarredRoot(gameRoot);
+        string starredRoot = EnsureStarredRoot();
         string directory = ResolveStarredDirectory(starredRoot, starredId);
         Directory.Delete(directory, true);
         return true;
@@ -189,7 +247,7 @@ public sealed class SaveBackupService
     public SaveRestorePlan CreateStarredRestorePlan(string? gameRoot, string starredId, string? activeSaveRoot)
     {
         string backupRoot = EnsureBackupRoot(gameRoot);
-        string directory = ResolveStarredDirectory(EnsureStarredRoot(gameRoot), starredId);
+        string directory = ResolveStarredDirectory(EnsureStarredRoot(), starredId);
         StarredSaveMetadata metadata = LoadStarredMetadata(directory);
         IReadOnlyList<SourceFile> files = CaptureSourceFiles(directory, CancellationToken.None);
         if (files.Count == 0) throw new InvalidOperationException("星标存档为空，不能用于读档。");
@@ -659,7 +717,6 @@ public sealed class SaveBackupService
     }
 
     private StarredSaveEntry CreateStarredCopy(
-        string? gameRoot,
         string sourceDirectory,
         string sourceBackupId,
         int chapter,
@@ -667,7 +724,7 @@ public sealed class SaveBackupService
         string? name,
         CancellationToken cancellationToken)
     {
-        string starredRoot = EnsureStarredRoot(gameRoot);
+        string starredRoot = EnsureStarredRoot();
         IReadOnlyList<SourceFile> before = CaptureSourceFiles(sourceDirectory, cancellationToken);
         if (before.Count == 0)
             throw new IOException("存档目录为空，无法创建星标存档。");

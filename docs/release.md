@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.93
+./scripts/package.ps1 -Version 0.6.94
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.93-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.93-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.94-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.94-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.93",
+  "version": "0.6.94",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.93-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.94-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.92",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.92-to-0.6.93-win-x64.delta.zip",
+      "fromVersion": "0.6.93",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.93-to-0.6.94-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.93
-git push origin v0.6.93
+git tag v0.6.94
+git push origin v0.6.94
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,14 @@ git push origin v0.6.93
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.94
+
+- 星标存档改为**所有游戏版本共用**：统一存放在 `save-backups\starred\<32 位十六进制 id>`，不再按游戏版本或安装目录分开；普通自动备份仍按游戏版本隔离。
+- 自动迁移：首次读取星标列表时，把旧版本存放在 `save-backups\<game-id>\starred\` 下的星标目录移动到共用目录（重名跳过、空目录清理），原有名称与元数据不变。
+- 星标名称、重命名、删除与读档流程不变；读档仍走「正常关闭游戏 → 事务替换存档 → 自动重启」。
+- 界面文案与确认提示标注「所有游戏版本共用」；README 的存档备份章节同步路径与迁移说明。
+- 测试：.NET 671、desktop 32、node:test 8、E2E 4；Release 构建 0 警告。
 
 ### 0.6.93
 
