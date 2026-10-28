@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.94
+./scripts/package.ps1 -Version 0.6.95
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.94-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.94-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.95-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.95-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.94",
+  "version": "0.6.95",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.94-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.95-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.93",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.93-to-0.6.94-win-x64.delta.zip",
+      "fromVersion": "0.6.94",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.94-to-0.6.95-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.94
-git push origin v0.6.94
+git tag v0.6.95
+git push origin v0.6.95
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,15 @@ git push origin v0.6.94
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.95
+
+- 修复「安装 QA 工具后游戏 1% low 帧很低」：常驻玩家模式下运行时每秒调用一次存档路径探测，其中的 `AccessTools.TypeByName("ActFramework_ByHZR.Save.SaveManager")` 没有缓存，每次都要枚举全部装配件并扫描数万个类型；实测主线程单次约 93–108ms、探测期间 0 帧渲染，10 秒窗口累计约 0.8–1.0 秒尖峰，1% low 因此被拉到 15fps 上下（无工具时该图 121 FPS / Low 90）。
+- `SaveIsolationPatch.TryResolveRuntimeSaveFolder` 现在在补丁未安装时立即返回、零反射；玩家模式从不安装存档隔离补丁，这条路径此前等于每秒空烧一次全类型扫描。
+- `SaveManager` 的 `Instance`/`GetSaveFolderPath` 只在首次调用时解析并缓存，解析失败也写负缓存，不再重复全类型扫描；`ProbeRuntimeSaveFolder` 复用同一份缓存。
+- 自动游玩控制器在玩家模式跳过每秒存档探测；该结果只进入状态快照，玩家模式没有实际用途。
+- 新增 `SaveIsolationPatchContractTests`（4 项 Mono.Cecil IL 契约）：未安装时提前返回、探测函数不再直接调用 `AccessTools`、契约只解析一次并缓存、`Tick` 先判 `IsPlayerMode` 再探测。
+- 测试：.NET 675、desktop 32、node:test 8；Release 构建 0 警告。
 
 ### 0.6.94
 

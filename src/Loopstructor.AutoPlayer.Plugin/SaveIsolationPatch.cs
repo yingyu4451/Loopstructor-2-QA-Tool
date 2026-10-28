@@ -10,6 +10,9 @@ internal static class SaveIsolationPatch
 {
     private static readonly object Sync = new();
     private static string s_profileRoot = string.Empty;
+    private static MethodInfo? s_saveManagerGetter;
+    private static MethodInfo? s_saveManagerGetPath;
+    private static bool s_saveManagerResolutionFailed;
 
     public static bool Installed { get; private set; }
     public static bool Applied { get; private set; }
@@ -50,6 +53,39 @@ internal static class SaveIsolationPatch
         return true;
     }
 
+    /// <summary>
+    /// Resolves the SaveManager reflection contract exactly once. AccessTools.TypeByName
+    /// enumerates every loaded assembly and every type until it finds a match; the player
+    /// build measured 75-108 ms per call, so a per-second path probe must never repeat it.
+    /// Failures are cached as well: a missing contract must not keep rescanning assemblies.
+    /// </summary>
+    private static bool TryEnsureSaveManagerHandles()
+    {
+        if (s_saveManagerGetter != null && s_saveManagerGetPath != null) return true;
+        if (s_saveManagerResolutionFailed) return false;
+
+        try
+        {
+            Type? type = AccessTools.TypeByName("ActFramework_ByHZR.Save.SaveManager");
+            MethodInfo? getter = type == null ? null : AccessTools.PropertyGetter(type, "Instance");
+            MethodInfo? getPath = type == null ? null : AccessTools.Method(type, "GetSaveFolderPath", Type.EmptyTypes);
+            if (getter == null || getPath == null)
+            {
+                s_saveManagerResolutionFailed = true;
+                return false;
+            }
+
+            s_saveManagerGetter = getter;
+            s_saveManagerGetPath = getPath;
+            return true;
+        }
+        catch (Exception)
+        {
+            s_saveManagerResolutionFailed = true;
+            return false;
+        }
+    }
+
     public static void ProbeRuntimeSaveFolder()
     {
         lock (Sync)
@@ -58,19 +94,16 @@ internal static class SaveIsolationPatch
 
             try
             {
-                Type? type = AccessTools.TypeByName("ActFramework_ByHZR.Save.SaveManager");
-                MethodInfo? getter = type == null ? null : AccessTools.PropertyGetter(type, "Instance");
-                MethodInfo? getPath = type == null ? null : AccessTools.Method(type, "GetSaveFolderPath", Type.EmptyTypes);
-                if (getter == null || getPath == null)
+                if (!TryEnsureSaveManagerHandles())
                 {
                     VerificationFailed = true;
                     VerificationError = "SaveManager 验证契约不可用。";
                     return;
                 }
 
-                object? instance = getter.Invoke(null, null);
+                object? instance = s_saveManagerGetter!.Invoke(null, null);
                 if (instance == null) return;
-                string? actualPath = getPath.Invoke(instance, null) as string;
+                string? actualPath = s_saveManagerGetPath!.Invoke(instance, null) as string;
                 if (string.IsNullOrWhiteSpace(actualPath)) return;
 
                 string fullPath = Path.GetFullPath(actualPath);
@@ -106,13 +139,17 @@ internal static class SaveIsolationPatch
     public static bool TryResolveRuntimeSaveFolder(out string saveRoot)
     {
         saveRoot = string.Empty;
+        // Player mode never installs this patch, so it cannot redirect saves either. Returning
+        // before any reflection keeps the once-per-second call free (a full type scan here used
+        // to cost ~75-108 ms of main-thread time and produced the 1% low frame collapse).
+        if (!Installed) return false;
+        if (!TryEnsureSaveManagerHandles()) return false;
+
         try
         {
-            Type? type = AccessTools.TypeByName("ActFramework_ByHZR.Save.SaveManager");
-            MethodInfo? getter = type == null ? null : AccessTools.PropertyGetter(type, "Instance");
-            MethodInfo? getPath = type == null ? null : AccessTools.Method(type, "GetSaveFolderPath", Type.EmptyTypes);
-            object? instance = getter?.Invoke(null, null);
-            string? path = instance == null ? null : getPath?.Invoke(instance, null) as string;
+            object? instance = s_saveManagerGetter!.Invoke(null, null);
+            if (instance == null) return false;
+            string? path = s_saveManagerGetPath!.Invoke(instance, null) as string;
             if (string.IsNullOrWhiteSpace(path)) return false;
 
             string fullPath = Path.GetFullPath(path);

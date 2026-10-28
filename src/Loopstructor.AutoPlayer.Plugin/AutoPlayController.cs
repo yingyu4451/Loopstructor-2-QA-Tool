@@ -773,11 +773,13 @@ internal sealed class AutoPlayController
     public void Tick()
     {
         _freshFullWaveQueryIssued = false;
-        if (Time.realtimeSinceStartup >= _nextSaveProbeAt)
+        // Player mode never installs the save isolation patch, so the once-per-second path
+        // probe can only burn main-thread time: AccessTools.TypeByName measured 75-108 ms
+        // per call and was the source of the periodic 1% low frame collapse.
+        if (!_activation.IsPlayerMode && Time.realtimeSinceStartup >= _nextSaveProbeAt)
         {
             _nextSaveProbeAt = Time.realtimeSinceStartup + 1f;
-            if (!_activation.IsPlayerMode
-                && !SaveIsolationPatch.Verified
+            if (!SaveIsolationPatch.Verified
                 && !SaveIsolationPatch.VerificationFailed)
             {
                 SaveIsolationPatch.ProbeRuntimeSaveFolder();
