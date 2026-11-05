@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Loopstructor.AutoPlayer.Core;
 using Loopstructor.AutoPlayer.Manager.Models;
 using Newtonsoft.Json;
 
@@ -51,6 +52,7 @@ public sealed class GameLauncher
         {
             _configWriter.Write(game.GameRoot, game.AssemblySha256);
             RotatePreviousLog(session.LogPath);
+            RotateGameErrorLog(session.LogPath);
             ProcessStartInfo startInfo = CreateStartInfo(game, session);
 
             Process? process = Process.Start(startInfo);
@@ -117,6 +119,24 @@ public sealed class GameLauncher
 
         string previous = Path.Combine(directory, "Player.previous.log");
         File.Move(current, previous, overwrite: true);
+    }
+
+    /// <summary>
+    /// 上一局遗留的 game-errors.log 与 Player.log 共用同一个 artifact 目录，Host 在新会话启动后会把
+    /// 整份旧文件当成"新报错"回放。启动前先轮转，保证新会话只看到本局产生的错误。
+    /// </summary>
+    internal static void RotateGameErrorLog(string logPath)
+    {
+        string current = Path.GetFullPath(logPath);
+        string directory = Path.GetDirectoryName(current)
+            ?? throw new InvalidOperationException("Player.log 缺少父目录。");
+        Directory.CreateDirectory(directory);
+
+        string errorLog = Path.Combine(directory, Protocol.GameErrorLogFileName);
+        if (!File.Exists(errorLog)) return;
+
+        string previous = Path.Combine(directory, "game-errors.previous.log");
+        File.Move(errorLog, previous, overwrite: true);
     }
 
     private static void WriteLaunchMetadata(ActivationSession session, GameInstallValidation game)

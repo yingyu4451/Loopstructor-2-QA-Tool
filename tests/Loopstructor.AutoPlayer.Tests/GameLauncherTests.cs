@@ -115,4 +115,49 @@ public sealed class GameLauncherTests
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
     }
+
+    [Fact]
+    public void RotateGameErrorLog_MovesPreviousSessionErrorsAsideSoTheyAreNotReplayed()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "Loopstructor.AutoPlayer.GameErrorRotationTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            string playerLog = Path.Combine(root, "Player.log");
+            string current = Path.Combine(root, Protocol.GameErrorLogFileName);
+            string previous = Path.Combine(root, "game-errors.previous.log");
+            File.WriteAllText(current, "[old session] NullReferenceException");
+            File.WriteAllText(previous, "even older session");
+
+            GameLauncher.RotateGameErrorLog(playerLog);
+
+            Assert.False(File.Exists(current));
+            Assert.Equal("[old session] NullReferenceException", File.ReadAllText(previous));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void RotateGameErrorLog_IsANoOpWhenThePreviousSessionProducedNoGameErrors()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "Loopstructor.AutoPlayer.GameErrorRotationTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            string playerLog = Path.Combine(root, "Player.log");
+
+            GameLauncher.RotateGameErrorLog(playerLog);
+
+            Assert.Empty(Directory.GetFileSystemEntries(root));
+            Assert.False(File.Exists(Path.Combine(root, Protocol.GameErrorLogFileName)));
+            Assert.False(File.Exists(Path.Combine(root, "game-errors.previous.log")));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
 }
