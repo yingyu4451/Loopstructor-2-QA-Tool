@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.96
+./scripts/package.ps1 -Version 0.6.97
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.96-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.96-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.97-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.97-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.96",
+  "version": "0.6.97",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.96-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.97-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.95",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.95-to-0.6.96-win-x64.delta.zip",
+      "fromVersion": "0.6.96",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.96-to-0.6.97-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.96
-git push origin v0.6.96
+git tag v0.6.97
+git push origin v0.6.97
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,14 @@ git push origin v0.6.96
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.97
+
+- 修复「自动备份在 0.6.95 之后完全停止、存档页一直显示 0 / 20、保存好的存档为空」：0.6.95 为消除 1% low，把存档路径解析改成「隔离补丁未安装就直接返回」，而玩家模式（ResidentPlayer）本来就不安装补丁，导致状态里的 `ActiveSaveRoot` 永远为空，`SaveBackupService` 每次观察都直接跳过，不再产生任何自动备份。
+- `SaveIsolationPatch.TryResolveRuntimeSaveFolder` 不再依赖 `Installed`：玩家模式也解析真实存档目录；`SaveManager` 的 `Instance`/`GetSaveFolderPath` 仍然只解析一次并缓存（失败写负缓存），每秒调用的成本只是一次缓存命中。
+- `ProbeRuntimeSaveFolder`（隔离目录校验）仍只在 QA 模式运行；玩家模式不安装任何存档重定向挂钩，存档写入路径不会被改写。
+- `SaveIsolationPatchContractTests` 更新为玩家模式回归契约：路径解析不依赖 `Installed`、玩家模式分支只跳过隔离探测、解析结果写回 `_activeSaveRoot`；`SaveBackupServiceTests` 新增 1 项：`ActiveSaveRoot` 为空时等待、解析后立刻补出快照。
+- 测试：.NET 678、desktop 32、node:test 8；Release 构建 0 警告。
 
 ### 0.6.96
 

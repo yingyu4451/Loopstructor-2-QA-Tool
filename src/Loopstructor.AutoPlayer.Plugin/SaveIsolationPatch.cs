@@ -139,10 +139,10 @@ internal static class SaveIsolationPatch
     public static bool TryResolveRuntimeSaveFolder(out string saveRoot)
     {
         saveRoot = string.Empty;
-        // Player mode never installs this patch, so it cannot redirect saves either. Returning
-        // before any reflection keeps the once-per-second call free (a full type scan here used
-        // to cost ~75-108 ms of main-thread time and produced the 1% low frame collapse).
-        if (!Installed) return false;
+        // Path resolution also runs in player mode: the auto-backup service needs the real save
+        // folder even though this patch is not installed there. SaveManager handles are cached
+        // once (see TryEnsureSaveManagerHandles), so this per-second call no longer rescans
+        // assemblies; the old full type scan cost ~75-108 ms and caused the 1% low collapse.
         if (!TryEnsureSaveManagerHandles()) return false;
 
         try

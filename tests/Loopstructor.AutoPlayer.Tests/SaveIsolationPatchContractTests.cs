@@ -5,11 +5,12 @@ namespace Loopstructor.AutoPlayer.Tests;
 
 /// <summary>
 /// 回归覆盖：安装 QA 工具后游戏 1% low 帧骤降。
-/// 玩家模式（ResidentPlayer）不安装存档隔离补丁，但 AutoPlayController.Tick 仍每秒调用
-/// SaveIsolationPatch.TryResolveRuntimeSaveFolder；该方法每次都重新执行 AccessTools.TypeByName，
-/// 在真实玩家构建里单次实测 75–108ms（全类型扫描，0 帧渲染），形成每秒一次的主线程尖峰，
-/// 10 秒窗口最慢 1% 帧被拉低到约 16fps。
-/// 约定：未安装补丁直接返回；SaveManager 契约只解析一次并缓存（失败也缓存）；Tick 中玩家模式跳过存档探测。
+/// 玩家模式（ResidentPlayer）不安装存档隔离补丁，但 AutoPlayController.Tick 仍需要解析真实存档
+/// 目录供自动备份使用；历史缺陷是该方法每次都重新执行 AccessTools.TypeByName，在真实玩家构建里
+/// 单次实测 75–108ms（全类型扫描，0 帧渲染），形成每秒一次的主线程尖峰，10 秒窗口最慢 1% 帧
+/// 被拉低到约 16fps。0.6.95 用「未安装就返回」修掉尖峰，却让玩家模式永远拿不到存档目录、
+/// 自动备份从 0.6.95 起停止；0.6.97 改为 SaveManager 契约只解析一次并缓存（失败也缓存）。
+/// 约定：路径解析在玩家模式也必须生效；隔离探测（ProbeRuntimeSaveFolder）仍只在 QA 模式运行。
 /// </summary>
 public sealed class SaveIsolationPatchContractTests
 {
@@ -19,19 +20,15 @@ public sealed class SaveIsolationPatchContractTests
     private const string AccessToolsType = "HarmonyLib.AccessTools";
 
     [Fact]
-    public void TryResolveRuntimeSaveFolder_ReturnsImmediatelyWhenThePatchIsNotInstalled()
+    public void TryResolveRuntimeSaveFolder_ResolvesThePathEvenWhenTheIsolationPatchIsNotInstalled()
     {
         using AssemblyDefinition plugin = Read("Loopstructor.AutoPlayer.Plugin.dll");
         MethodDefinition resolve = RequireMethod(RequireType(plugin, PatchType), "TryResolveRuntimeSaveFolder");
-        IReadOnlyList<Instruction> body = Body(resolve);
+        MethodReference[] calls = Calls(resolve).ToArray();
 
-        int installedCheck = FindCall(body, PatchType, "get_Installed");
-        Assert.True(installedCheck >= 0, "未安装补丁时必须先检查 Installed，玩家模式应零反射返回。");
-
-        int firstReflectionInvoke = FindCall(body, "System.Reflection.MethodBase", "Invoke");
-        Assert.True(
-            firstReflectionInvoke < 0 || installedCheck < firstReflectionInvoke,
-            "Installed 守卫必须位于任何反射 Invoke 之前。");
+        Assert.DoesNotContain(calls, call => call.DeclaringType.FullName == AccessToolsType);
+        Assert.DoesNotContain(calls, IsCall(PatchType, "get_Installed"));
+        Assert.Contains(calls, IsCall(PatchType, "TryEnsureSaveManagerHandles"));
     }
 
     [Fact]
@@ -67,21 +64,53 @@ public sealed class SaveIsolationPatchContractTests
     }
 
     [Fact]
-    public void AutoPlayController_Tick_SkipsTheSaveProbeInPlayerMode()
+    public void AutoPlayController_Tick_KeepsResolvingTheSaveRootInPlayerMode()
     {
         using AssemblyDefinition plugin = Read("Loopstructor.AutoPlayer.Plugin.dll");
         MethodDefinition tick = RequireMethod(RequireType(plugin, ControllerType), "Tick");
-        IReadOnlyList<Instruction> body = Body(tick);
+        Instruction[] instructions = Body(tick).ToArray();
 
-        int playerModeCheck = FindCall(body, ActivationType, "get_IsPlayerMode");
-        Assert.True(playerModeCheck >= 0, "Tick 必须显式判断玩家模式。");
+        int playerModeCheck = FindCall(instructions, ActivationType, "get_IsPlayerMode");
+        Assert.True(playerModeCheck >= 0, "Tick 必须显式判断玩家模式（隔离探测只在 QA 模式运行）。");
 
-        int resolveCall = FindCall(body, PatchType, "TryResolveRuntimeSaveFolder");
-        Assert.True(resolveCall >= 0, "非玩家模式仍需要解析隔离存档路径。");
-        Assert.True(playerModeCheck < resolveCall, "存档探测必须放在玩家模式判定之后。");
+        int probeCall = FindCall(instructions, PatchType, "ProbeRuntimeSaveFolder");
+        Assert.True(probeCall >= 0, "QA 模式仍需要隔离探测。");
+        Assert.True(playerModeCheck < probeCall, "隔离探测必须放在玩家模式判定之后。");
 
-        int probeCall = FindCall(body, PatchType, "ProbeRuntimeSaveFolder");
-        Assert.True(probeCall < 0 || playerModeCheck < probeCall, "存档目录探测必须放在玩家模式判定之后。");
+        int resolveCall = FindCall(instructions, PatchType, "TryResolveRuntimeSaveFolder");
+        Assert.True(resolveCall >= 0, "玩家模式也需要解析真实存档目录供自动备份使用。");
+        Assert.True(probeCall < resolveCall, "存档路径解析必须在隔离探测之后无条件执行。");
+
+        // 玩家模式判定产生的第一条分支必须跳到「路径解析或更早」的位置，
+        // 说明被跳过的是隔离探测，而不是存档路径解析。
+        int branchIndex = -1;
+        for (int index = playerModeCheck + 1; index < instructions.Length; index++)
+        {
+            if (instructions[index].OpCode.FlowControl is FlowControl.Branch or FlowControl.Cond_Branch)
+            {
+                branchIndex = index;
+                break;
+            }
+        }
+
+        Assert.True(branchIndex > 0, "玩家模式判定后应当存在跳过隔离探测的分支。");
+        Assert.True(
+            instructions[branchIndex].Operand is Instruction,
+            "玩家模式分支必须携带跳转目标。");
+        Instruction branchTarget = (Instruction)instructions[branchIndex].Operand!;
+        int targetIndex = Array.IndexOf(instructions, branchTarget);
+        Assert.True(
+            targetIndex >= 0 && targetIndex <= resolveCall,
+            "玩家模式分支不得跳过存档路径解析（自动备份依赖该值）。");
+
+        int assignIndex = instructions
+            .Select((instruction, index) => (instruction, index))
+            .Where(pair => pair.instruction.OpCode.Code == Code.Stfld
+                && pair.instruction.Operand is FieldReference field
+                && field.Name == "_activeSaveRoot")
+            .Select(pair => pair.index)
+            .FirstOrDefault(-1);
+        Assert.True(assignIndex > resolveCall, "解析成功后必须把真实存档目录写回 _activeSaveRoot。");
     }
 
 

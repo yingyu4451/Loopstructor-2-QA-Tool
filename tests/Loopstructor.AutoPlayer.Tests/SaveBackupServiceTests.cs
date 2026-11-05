@@ -284,6 +284,24 @@ public sealed class SaveBackupServiceTests : IDisposable
         Assert.Equal("legacy", File.ReadAllText(Path.Combine(service.EnsureStarredRoot(), id, "progress.json")));
     }
 
+    [Fact]
+    public async Task ResidentPlayer_WaitsForTheResolvedSaveRootBeforeBackingUp()
+    {
+        string source = Path.Combine(_root, "game-save");
+        Directory.CreateDirectory(source);
+        File.WriteAllText(Path.Combine(source, "progress.json"), "one");
+        SaveBackupService service = new(Path.Combine(_root, "backups"), TimeSpan.Zero);
+        ManagerSettings settings = new() { AutomaticSaveBackupEnabled = true, MaximumSaveBackups = 10 };
+
+        AutoPlayerStatus unresolved = Status(source, 1, 2);
+        unresolved.ActiveSaveRoot = string.Empty;
+        Assert.Null(await service.ObserveAsync(unresolved, settings, Path.GetDirectoryName(source), CancellationToken.None));
+        Assert.Equal(0, service.Snapshot(true, 10).BackupCount);
+
+        await ObserveStep(service, settings, source, chapter: 1, level: 2);
+        Assert.Equal(1, service.Snapshot(true, 10).BackupCount);
+    }
+
     private static async Task ObserveStep(
         SaveBackupService service,
         ManagerSettings settings,
