@@ -3,7 +3,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import path from 'node:path'
 import fs from 'node:fs'
-import { HostClient } from './host-client.cjs'
+import { cleanupOrphanedHosts, HostClient } from './host-client.cjs'
 import {
   applyUpdateAndScheduleManagerExit,
   createElectronUpdaterCleanupHandoffPlan,
@@ -110,6 +110,9 @@ app.whenReady().then(() => {
   const managerDirectory = path.dirname(process.execPath)
   const developmentRoot = path.resolve(__dirname, '..', '..')
   const distributionRoot = app.isPackaged ? path.dirname(managerDirectory) : developmentRoot
+  // A previously crashed or force-killed Manager can leave its .NET Host behind. Reap those
+  // orphans before starting a new one so repeated launches never stack Host processes.
+  cleanupOrphanedHosts(managerDirectory, message => console.warn(message))
   host = new HostClient(managerDirectory, distributionRoot)
   try {
     host.start(process.pid)

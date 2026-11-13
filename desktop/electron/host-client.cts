@@ -1,4 +1,4 @@
-import { ChildProcessWithoutNullStreams, spawn } from 'node:child_process'
+import { ChildProcessWithoutNullStreams, spawn, spawnSync } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import { EventEmitter } from 'node:events'
 import path from 'node:path'
@@ -38,6 +38,105 @@ export async function stopChildProcess(
   if (await waitForProcessExit(child, gracefulTimeoutMs)) return
   child.kill()
   await waitForProcessExit(child, forcedTimeoutMs)
+}
+
+export interface HostProcessEntry {
+  processId: number
+  parentProcessId: number
+  executablePath: string | null
+}
+
+export function parseHostProcessList(raw: string): HostProcessEntry[] {
+  const text = raw.trim()
+  if (!text) return []
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    return []
+  }
+
+  const rows = Array.isArray(parsed) ? parsed : [parsed]
+  const entries: HostProcessEntry[] = []
+  for (const row of rows) {
+    if (row === null || typeof row !== 'object') continue
+    const source = row as Record<string, unknown>
+    const processId = Number(source.ProcessId ?? source.processId)
+    const parentProcessId = Number(source.ParentProcessId ?? source.parentProcessId)
+    const executablePathValue = source.ExecutablePath ?? source.executablePath
+    if (!Number.isInteger(processId) || processId <= 0) continue
+    entries.push({
+      processId,
+      parentProcessId: Number.isInteger(parentProcessId) && parentProcessId >= 0 ? parentProcessId : 0,
+      executablePath:
+        typeof executablePathValue === 'string' && executablePathValue.length > 0 ? executablePathValue : null,
+    })
+  }
+  return entries
+}
+
+export function selectOrphanedHosts(
+  entries: readonly HostProcessEntry[],
+  managerDirectory: string,
+  isProcessAlive: (processId: number) => boolean,
+): HostProcessEntry[] {
+  const expectedDirectory = path.resolve(managerDirectory).toLowerCase()
+  return entries.filter((entry) => {
+    if (!entry.executablePath) return false
+    if (path.dirname(path.resolve(entry.executablePath)).toLowerCase() !== expectedDirectory) return false
+    if (entry.parentProcessId > 0 && isProcessAlive(entry.parentProcessId)) return false
+    return true
+  })
+}
+
+function isWindowsProcessAlive(processId: number): boolean {
+  if (processId <= 0) return false
+  try {
+    process.kill(processId, 0)
+    return true
+  } catch (error) {
+    // EPERM means the process exists but we may not signal it — still alive.
+    return (error as NodeJS.ErrnoException).code === 'EPERM'
+  }
+}
+
+const hostProcessQuery =
+  "Get-CimInstance Win32_Process -Filter \"Name='Loopstructor.AutoPlayer.Host.exe'\" | Select-Object ProcessId,ParentProcessId,ExecutablePath | ConvertTo-Json -Compress"
+
+export function cleanupOrphanedHosts(
+  managerDirectory: string,
+  log: (message: string) => void = () => {},
+): number {
+  if (process.platform !== 'win32') return 0
+
+  let stdout: string
+  try {
+    const result = spawnSync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', hostProcessQuery],
+      { encoding: 'utf8', windowsHide: true, timeout: 15000 },
+    )
+    stdout = typeof result.stdout === 'string' ? result.stdout : ''
+  } catch {
+    return 0
+  }
+
+  const entries = parseHostProcessList(stdout)
+  const orphans = selectOrphanedHosts(entries, managerDirectory, isWindowsProcessAlive)
+  for (const orphan of orphans) {
+    try {
+      spawnSync('taskkill.exe', ['/F', '/PID', String(orphan.processId)], {
+        encoding: 'utf8',
+        windowsHide: true,
+        timeout: 10000,
+      })
+      log(`已清理上次运行遗留的 Host 进程 ${orphan.processId}（父进程 ${orphan.parentProcessId} 已退出）。`)
+    } catch {
+      // Killing an orphan is best-effort; it must never block Manager start-up.
+    }
+  }
+  return orphans.length
 }
 
 export class HostClient extends EventEmitter {

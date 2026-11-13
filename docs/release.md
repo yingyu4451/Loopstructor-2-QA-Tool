@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.97
+./scripts/package.ps1 -Version 0.6.98
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.97-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.97-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.98-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.98-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.97",
+  "version": "0.6.98",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.97-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.98-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.96",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.96-to-0.6.97-win-x64.delta.zip",
+      "fromVersion": "0.6.97",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.97-to-0.6.98-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.97
-git push origin v0.6.97
+git tag v0.6.98
+git push origin v0.6.98
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,13 @@ git push origin v0.6.97
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.98
+
+- 修复「关闭工具后 Host 仍在后台、多次启动会累积多个 Host」：Host 增加父进程每秒轮询看门狗，在 `WaitForExitAsync` 之外再检查一次父进程是否存活；父进程消失、句柄失效或 PID 被复用时 1 秒内自行退出，不会留下常驻进程。
+- Manager 启动时清理上次运行遗留的孤儿 Host：只处理与本安装 `manager` 目录相同、且父进程已不存在的 `Loopstructor.AutoPlayer.Host.exe`，强杀并写入诊断日志，避免反复打开工具时后台进程叠加。
+- `host-client` 新增 2 项 node:test：PowerShell 进程列表解析（单个对象与数组两种形状）、孤儿筛选（仅同目录且父进程已退出）。
+- 测试：.NET 678、desktop vitest 32、node:test 10；Release 构建 0 警告。
 
 ### 0.6.97
 

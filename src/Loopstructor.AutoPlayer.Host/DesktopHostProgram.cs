@@ -120,8 +120,35 @@ internal static class DesktopHostProgram
         try
         {
             using Process process = Process.GetProcessById(processId);
-            await process.WaitForExitAsync(lifetime.Token);
-            lifetime.Cancel();
+            Task waitForExit = process.WaitForExitAsync(lifetime.Token);
+            // Belt and braces: also poll the parent every second. WaitForExitAsync can miss the exit
+            // when the parent handle is inherited through a launcher, and a stale Host would then
+            // keep its named pipe, log tailers and game polling alive forever.
+            while (!lifetime.IsCancellationRequested)
+            {
+                Task delay = Task.Delay(TimeSpan.FromSeconds(1), lifetime.Token);
+                Task finished = await Task.WhenAny(waitForExit, delay).ConfigureAwait(false);
+                if (finished == waitForExit || process.HasExited)
+                {
+                    lifetime.Cancel();
+                    return;
+                }
+
+                try
+                {
+                    using Process probe = Process.GetProcessById(processId);
+                    if (probe.HasExited)
+                    {
+                        lifetime.Cancel();
+                        return;
+                    }
+                }
+                catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+                {
+                    lifetime.Cancel();
+                    return;
+                }
+            }
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
         {

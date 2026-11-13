@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
+import path from 'node:path'
 import test from 'node:test'
-import { stopChildProcess } from './host-client.cjs'
+import { parseHostProcessList, selectOrphanedHosts, stopChildProcess } from './host-client.cjs'
 
 class FakeChildProcess extends EventEmitter {
   exitCode: number | null = null
@@ -48,4 +49,58 @@ test('terminates the owned Host when graceful shutdown times out', async () => {
 
   assert.equal(child.exitCode, 1)
   assert.equal(child.killCalls, 1)
+})
+
+test('parses the PowerShell host process list in both object and array shapes', () => {
+  const single = JSON.stringify({
+    ProcessId: 4242,
+    ParentProcessId: 1111,
+    ExecutablePath: 'C:\\Tools\\manager\\Loopstructor.AutoPlayer.Host.exe',
+  })
+  assert.deepEqual(parseHostProcessList(single), [
+    {
+      processId: 4242,
+      parentProcessId: 1111,
+      executablePath: 'C:\\Tools\\manager\\Loopstructor.AutoPlayer.Host.exe',
+    },
+  ])
+
+  const multiple = JSON.stringify([
+    { ProcessId: 1, ParentProcessId: 10, ExecutablePath: 'C:\\A\\Loopstructor.AutoPlayer.Host.exe' },
+    { ProcessId: 2, ParentProcessId: 20, ExecutablePath: null },
+  ])
+  assert.equal(parseHostProcessList(multiple).length, 2)
+  assert.equal(parseHostProcessList(multiple)[1].executablePath, null)
+  assert.deepEqual(parseHostProcessList('   '), [])
+  assert.deepEqual(parseHostProcessList('not json'), [])
+})
+
+test('selects only Hosts that live in this manager directory and lost their parent', () => {
+  const managerDirectory = path.join('C:\\', 'Tools', 'manager')
+  const entries = [
+    {
+      processId: 1,
+      parentProcessId: 100,
+      executablePath: path.join(managerDirectory, 'Loopstructor.AutoPlayer.Host.exe'),
+    },
+    {
+      processId: 2,
+      parentProcessId: 200,
+      executablePath: path.join(managerDirectory, 'Loopstructor.AutoPlayer.Host.exe'),
+    },
+    {
+      processId: 3,
+      parentProcessId: 300,
+      executablePath: path.join('C:\\', 'Other', 'Loopstructor.AutoPlayer.Host.exe'),
+    },
+    { processId: 4, parentProcessId: 400, executablePath: null },
+  ]
+
+  const aliveParents = new Set([100, 300])
+  const orphans = selectOrphanedHosts(entries, managerDirectory, (processId) => aliveParents.has(processId))
+
+  assert.deepEqual(
+    orphans.map((entry) => entry.processId),
+    [2],
+  )
 })
