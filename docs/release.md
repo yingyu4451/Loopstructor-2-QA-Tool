@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.99
+./scripts/package.ps1 -Version 0.6.100
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.99-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.99-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.100-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.100-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.99",
+  "version": "0.6.100",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.99-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.100-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.98",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.98-to-0.6.99-win-x64.delta.zip",
+      "fromVersion": "0.6.99",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.99-to-0.6.100-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.99
-git push origin v0.6.99
+git tag v0.6.100
+git push origin v0.6.100
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,13 @@ git push origin v0.6.99
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.100
+
+- 「游戏与插件」页把启动条也并进同一张卡：连接状态与「启动游戏」放在插件块下方的分隔行里，页面只剩「游戏与插件 / Unity Editor」两段，不再有独立的底部吸附启动条。
+- 删除不再使用的 `.launch-band` 样式与吸顶规则，启动行改用 `.launch-row`，分隔线随插件启用状态转绿。
+- desktop vitest 更新为：启动按钮必须位于 `.game-location` 卡内、插件未启用时保持禁用、页面只剩 2 个直接 section。
+- 测试：.NET 678、desktop vitest 33、node:test 10；Release 构建 0 警告。
 
 ### 0.6.99
 

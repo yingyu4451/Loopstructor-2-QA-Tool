@@ -71,6 +71,13 @@ onBeforeUnmount(() => {
           <button class="btn btn-error btn-sm button danger compact" :disabled="pluginState === 'notInstalled' || ui.busy" @click="store.uninstallPlugin"><Trash2 :size="16" />卸载</button>
         </div>
       </div>
+      <div class="launch-row" :class="{ ready: pluginState === 'enabled' }">
+        <div class="launch-status">
+          <span class="signal-dot" :class="store.snapshot?.connection.trusted ? 'is-online' : 'is-waiting'" />
+          <div><strong>{{ store.snapshot?.connection.label || '等待连接' }}</strong><small>{{ store.snapshot?.connection.reason || '游戏运行后会自动建立可信连接' }}</small></div>
+        </div>
+        <button class="btn btn-primary button launch" :disabled="pluginState !== 'enabled' || ui.busy" @click="store.launchGame"><Play :size="18" fill="currentColor" />启动游戏</button>
+      </div>
     </section>
 
     <section class="card mechanical-section editor-section">
@@ -107,14 +114,6 @@ onBeforeUnmount(() => {
         </div>
         <EmptyState v-if="editorInstances.length === 0" compact :icon="MonitorCog" title="未发现运行中的 Unity Editor" />
       </div>
-    </section>
-
-    <section class="launch-band" :class="{ ready: pluginState === 'enabled' }">
-      <div>
-        <span class="signal-dot" :class="store.snapshot?.connection.trusted ? 'is-online' : 'is-waiting'" />
-        <div><strong>{{ store.snapshot?.connection.label || '等待连接' }}</strong><small>{{ store.snapshot?.connection.reason || '游戏运行后会自动建立可信连接' }}</small></div>
-      </div>
-      <button class="btn btn-primary button launch" :disabled="pluginState !== 'enabled' || ui.busy" @click="store.launchGame"><Play :size="18" fill="currentColor" />启动游戏</button>
     </section>
   </div>
 </template>

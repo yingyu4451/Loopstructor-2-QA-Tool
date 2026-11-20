@@ -29,7 +29,7 @@ describe('game page controls', () => {
     expect(heading.get('button').classes()).toEqual(expect.arrayContaining(['btn', 'btn-outline']))
   })
 
-  it('keeps the plugin block inside the game build card', () => {
+  it('keeps the plugin block and the launch action inside the game build card', () => {
     const store = useAppStore()
     store.snapshot = {
       protocolVersion: 1,
@@ -43,10 +43,13 @@ describe('game page controls', () => {
     const card = wrapper.get('.game-location')
 
     expect(wrapper.find('.plugin-section').exists()).toBe(false)
+    expect(wrapper.find('.launch-band').exists()).toBe(false)
     expect(card.text()).toContain('游戏与插件')
     expect(card.get('.plugin-block').text()).toContain('AutoPlayer 插件')
     expect(card.get('.plugin-block .action-bar').text()).toContain('安装或修复')
-    expect(wrapper.findAll('.game-page > section').map((section) => section.classes())).toHaveLength(3)
+    expect(card.get('.launch-row button').text()).toContain('启动游戏')
+    expect(card.get('.launch-row button').attributes('disabled')).toBeDefined()
+    expect(wrapper.findAll('.game-page > section')).toHaveLength(2)
   })
 
   it('shows the selected Unity project, Bridge ownership, and Editor instances', () => {

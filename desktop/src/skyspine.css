@@ -489,10 +489,10 @@
 .app-shell[data-skin="skyspine"] .automation-facts strong,
 .app-shell[data-skin="skyspine"] .update-panel strong { color: var(--theme-text); font: 600 12px/1.35 "Segoe UI", "Microsoft YaHei UI", sans-serif; }
 
-.app-shell[data-skin="skyspine"] .validation-strip,
-.app-shell[data-skin="skyspine"] .launch-band { clip-path: none; border: 1px solid var(--theme-line); border-radius: var(--theme-radius-sm); background: var(--theme-surface-deep); box-shadow: none; }.app-shell[data-skin="skyspine"] .validation-strip.valid { border-color: #6ab145; color: #d9f0b9; }
-.app-shell[data-skin="skyspine"] .launch-band.ready { border-color: #6ab145; box-shadow: none; }
-.app-shell[data-skin="skyspine"] .game-page > .launch-band { position: sticky; bottom: 0; z-index: 5; background: #0d0b08f2; backdrop-filter: blur(10px); box-shadow: 0 -10px 24px #00000066; }
+.app-shell[data-skin="skyspine"] .validation-strip { clip-path: none; border: 1px solid var(--theme-line); border-radius: var(--theme-radius-sm); background: var(--theme-surface-deep); box-shadow: none; }
+.app-shell[data-skin="skyspine"] .validation-strip.valid { border-color: #6ab145; color: #d9f0b9; }
+.app-shell[data-skin="skyspine"] .launch-row { border-top: 1px solid var(--theme-line); }
+.app-shell[data-skin="skyspine"] .launch-row.ready { border-top-color: #6ab145; }
 
 .app-shell[data-skin="skyspine"] .type-switcher,
 .app-shell[data-skin="skyspine"] .segmented-control { border: 1px solid var(--theme-line); border-radius: var(--theme-radius-sm); background: var(--theme-surface-deep); box-shadow: none; overflow: hidden; }
