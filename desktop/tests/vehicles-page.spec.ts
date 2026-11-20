@@ -39,6 +39,28 @@ describe('vehicle catalog presentation', () => {
     }
   })
 
+  it('finds vehicles by their built-in initial fetter names', async () => {
+    const store = useAppStore()
+    store.catalog = {
+      vehicles: [
+        { ...vehicle('Shell_HighExplosive_L1', 1, ''), name: '高爆弹', familyKey: 'Shell_HighExplosive', initialFetters: [{ id: 'Fetter_Explode', name: '高爆' }] },
+        { ...vehicle('Shell_ShadowRift_L1', 1, ''), name: '暗影裂隙', familyKey: 'Shell_ShadowRift', initialFetters: [{ id: 'Fetter_Critical', name: '暴击' }] },
+      ],
+      enchantments: [],
+    }
+
+    const wrapper = mountWithTooltip(VehiclesPage, {
+      global: { stubs: { CatalogCard: true, VirtualCatalogGrid: true } },
+    })
+    await wrapper.get('input[name="vehicle-search"]').setValue('高爆')
+    await flushPromises()
+
+    expect(wrapper.findAll('.vehicle-family')).toHaveLength(1)
+    expect(wrapper.text()).toContain('高爆弹')
+    expect(wrapper.text()).not.toContain('暗影裂隙')
+    expect(wrapper.get('.vehicle-family').attributes('title')).toContain('高爆')
+  })
+
   it('bulk-deletes field and backpack vehicles in one click', async () => {
     const store = useAppStore()
     store.connected = true

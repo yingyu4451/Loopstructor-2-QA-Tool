@@ -10,7 +10,7 @@ public sealed class CheatResourceRefactorContractTests
     private const string DisplayPatchType = "Loopstructor.AutoPlayer.Plugin.VehicleEnchantmentDisplayPatch";
 
     [Fact]
-    public void CatalogV7_EnumeratesEveryVehicleTypeWithRuntimeComponent_AndRuntimeCompleteFetterEnum()
+    public void CatalogV8_EnumeratesEveryVehicleTypeWithRuntimeComponent_AndRuntimeCompleteFetterEnum()
     {
         using AssemblyDefinition assembly = ReadPlugin();
         TypeDefinition bridge = RequireType(assembly, BridgeType);
@@ -20,7 +20,7 @@ public sealed class CheatResourceRefactorContractTests
         MethodDefinition vehicleValues = RequireMethod(bridge, "AllVehicleValues");
         MethodDefinition enchantmentValues = RequireMethod(bridge, "AllEnchantmentValues");
 
-        Assert.Contains(7, LoadedInts(catalog));
+        Assert.Contains(8, LoadedInts(catalog));
         Assert.Contains(Calls(catalog), IsCall(BridgeType, "AllVehicleValues"));
         Assert.Contains(Calls(catalog), IsCall(BridgeType, "AllEnchantmentValues"));
         Assert.Contains(Calls(catalog), IsCall(BridgeType, "InvalidateRuntimeCatalogCache"));
@@ -63,6 +63,25 @@ public sealed class CheatResourceRefactorContractTests
         Assert.Contains("fetterWordTextName", LoadedStrings(enchantment));
         Assert.Contains("zh", LoadedStrings(RequireMethod(bridge, "ResolveChineseLocalizedString")));
         Assert.Contains("GetLocalizedString", LoadedStrings(RequireMethod(bridge, "ResolveChineseLocalizedString")));
+
+        // 战车自带羁绊必须进入目录：否则按“高爆”等初始羁绊名搜索对战车无效。
+        MethodDefinition initialFetters = RequireMethod(bridge, "ApplyInitialFetters");
+        Assert.Contains(Calls(vehicle), IsCall(BridgeType, "ApplyInitialFetters"));
+        Assert.Contains("InitFetterModule", LoadedStrings(initialFetters));
+        Assert.Contains("fetterEnum", LoadedStrings(initialFetters));
+        Assert.Contains("initialFetters", LoadedStrings(initialFetters));
+        Assert.Contains("id", LoadedStrings(initialFetters));
+        Assert.Contains("name", LoadedStrings(initialFetters));
+        Assert.Contains(Calls(initialFetters), IsCall(BridgeType, "ResolveFetterDisplayName"));
+        Assert.Contains(
+            Calls(RequireMethod(bridge, "ResolveFetterDisplayName")),
+            IsCall(BridgeType, "GetEnchantmentDetailData"));
+        Assert.Contains(
+            "enchantmentWordTextName",
+            LoadedStrings(RequireMethod(bridge, "ResolveFetterDisplayName")));
+        Assert.Contains(
+            "fetterWordTextName",
+            LoadedStrings(RequireMethod(bridge, "ResolveFetterDisplayName")));
 
         MethodDefinition pointClassifier = RequireMethod(bridge, "IsCatapultPoint");
         Assert.Contains("弹射点", LoadedStrings(pointClassifier));

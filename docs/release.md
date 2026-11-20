@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.103
+./scripts/package.ps1 -Version 0.6.104
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.103-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.103-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.104-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.104-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.103",
+  "version": "0.6.104",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.103-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.104-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.102",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.102-to-0.6.103-win-x64.delta.zip",
+      "fromVersion": "0.6.103",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.103-to-0.6.104-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.103
-git push origin v0.6.103
+git tag v0.6.104
+git push origin v0.6.104
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,14 @@ git push origin v0.6.103
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.104
+
+- 战车目录补上「战车自带羁绊」（`BasicVehicleComponent.InitFetterModule`）：每辆车现在带 `initialFetters: [{ id, name }]`，名称与附魔目录同源（`SO_FetterInfoCfg` 详情；实测 1.457 里 `Explode` 的详情名就是「高爆」）。搜索框之前只匹配车名/枚举/家族，所以按初始羁绊名搜不到车，现在可以。
+- 战车卡片 `title` 显示该家族的初始羁绊；「本次装配」标题在选中后追加「· 初始羁绊 …」。
+- `catalogVersion` 7 → 8。
+- 新增 desktop vitest 1 项（按「高爆」搜索只剩对应家族）与 IL 契约断言（读取 `InitFetterModule`、名称解析走附魔详情、目录版本 8）。
+- 测试：.NET 700、desktop vitest 35、node:test 10；Release 构建 0 警告。
 
 ### 0.6.103
 

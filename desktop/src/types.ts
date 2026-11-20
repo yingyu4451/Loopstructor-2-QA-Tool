@@ -256,6 +256,8 @@ export interface CatalogItem {
   familyOrder?: number
   level?: number
   itemOrder?: number
+  /** 战车自带的初始羁绊（BasicVehicleComponent.InitFetterModule），用于搜索与展示。 */
+  initialFetters?: { id: string; name: string }[]
   tags?: string[]
   count?: number
   [key: string]: unknown

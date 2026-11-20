@@ -512,7 +512,7 @@ internal sealed class CheatRuntimeBridge
 
         return new JObject
         {
-            ["catalogVersion"] = 7,
+            ["catalogVersion"] = 8,
             ["locale"] = "zh",
             ["poolMode"] = _catalogPoolMode,
             ["poolWarnings"] = new JArray(poolWarnings),
@@ -4506,7 +4506,75 @@ internal sealed class CheatRuntimeBridge
         item["familyKey"] = family;
         item["familyOrder"] = familyOrder;
         item["level"] = level;
+        ApplyInitialFetters(item, TryGetMainRazorComponent(value));
         return item;
+    }
+
+    /// <summary>
+    /// 战车自带羁绊（BasicVehicleComponent.InitFetterModule）：游戏里有些车天生带“高爆”等羁绊，
+    /// 面板必须把它一起给出去，否则搜索框按羁绊名找不到这些车。
+    /// </summary>
+    private void ApplyInitialFetters(JObject item, object? component)
+    {
+        JArray fetters = new();
+        HashSet<long> seen = new();
+        if (component != null && _fetterType != null && GetMember(component, "InitFetterModule") is IEnumerable modules)
+        {
+            foreach (object? module in modules)
+            {
+                if (module == null) continue;
+                object? fetter = GetMember(module, "fetterEnum");
+                if (fetter == null || fetter.GetType() != _fetterType) continue;
+                if (IsNoneEnumValue(fetter)) continue;
+                long numeric = Convert.ToInt64(fetter, CultureInfo.InvariantCulture);
+                if (!seen.Add(numeric)) continue;
+                fetters.Add(new JObject
+                {
+                    ["id"] = fetter.ToString(),
+                    ["name"] = ResolveFetterDisplayName(fetter)
+                });
+            }
+        }
+
+        item["initialFetters"] = fetters;
+    }
+
+    /// <summary>按战车类型读取原生主战车组件；读不到时返回 null，不影响其余目录字段。</summary>
+    private object? TryGetMainRazorComponent(object vehicleType)
+    {
+        if (_vehicleDataManagerType == null || _vehicleType == null) return null;
+        try
+        {
+            object manager = GetRequiredSingleton(_vehicleDataManagerType, "VehicleDataManager");
+            MethodInfo? getter = FindMethod(manager.GetType(), "GetMainRazorComponent", _vehicleType);
+            return getter?.Invoke(manager, new[] { vehicleType });
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>羁绊名与附魔目录同源（SO_FetterInfoCfg 的详情），缺详情时退回枚举名。</summary>
+    private string ResolveFetterDisplayName(object value)
+    {
+        try
+        {
+            object? data = GetEnchantmentDetailData(value);
+            string name = ResolveChineseLocalizedString(GetMember(data, "enchantmentWordTextName"));
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                name = ResolveChineseLocalizedString(GetMember(data, "fetterWordTextName"));
+            }
+
+            if (!string.IsNullOrWhiteSpace(name)) return name;
+        }
+        catch (Exception)
+        {
+            // 详情表缺失时仍要能搜索到该车，退回枚举名。
+        }
+
+        return value.ToString() ?? string.Empty;
     }
 
     private JObject BuildEnchantmentCatalogItem(object value)

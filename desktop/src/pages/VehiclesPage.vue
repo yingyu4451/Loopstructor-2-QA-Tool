@@ -32,7 +32,10 @@ const filteredVehicles = computed(() => {
   return vehicles.value.filter((item) => {
     const type = item.typeKey || String(item.enumName || item.id).split('_')[0]
     const matchesType = term ? true : activeType.value === 'all' || activeType.value === type
-    const haystack = [item.name, item.enumName, item.id, item.typeKey, item.familyKey].join(' ').toLocaleLowerCase()
+    const haystack = [
+      item.name, item.enumName, item.id, item.typeKey, item.familyKey,
+      ...(item.initialFetters ?? []).flatMap((fetter) => [fetter.name, fetter.id]),
+    ].join(' ').toLocaleLowerCase()
     return matchesType && (!term || haystack.includes(term))
   })
 })
@@ -53,6 +56,12 @@ const enchantmentItems = computed(() => {
   return store.catalogItems('enchantments').filter((item) => !term || [item.name, item.enumName, item.id].join(' ').toLocaleLowerCase().includes(term))
 })
 const selectedEnchantments = computed(() => store.catalogItems('enchantments').filter((item) => (enchantments.value[item.id] ?? 0) > 0))
+const selectedFetterText = computed(() => (selectedVehicle.value?.initialFetters ?? []).map((fetter) => fetter.name).join('、'))
+
+function initialFetterTitle(items: CatalogItem[]) {
+  const names = [...new Set(items.flatMap((item) => item.initialFetters ?? []).map((fetter) => fetter.name))]
+  return names.length ? `初始羁绊：${names.join('、')}` : ''
+}
 
 function translateType(type: string) {
   return ({ Shell: '炮弹', Link: '链接', Missile: '导弹', Penetrate: '穿透' } as Record<string, string>)[type] || type
@@ -107,7 +116,7 @@ async function clearVehicles(command: string, message: string) {
         >
           <button v-if="!store.connected" class="btn btn-outline btn-sm button secondary compact" @click="store.setRoute('game')">去选择游戏</button>
         </EmptyState>
-        <article v-for="family in families" :key="family.key" class="card vehicle-family" :class="{ selected: family.items.some(item => item.id === selectedVehicle?.id) }">
+        <article v-for="family in families" :key="family.key" class="card vehicle-family" :class="{ selected: family.items.some(item => item.id === selectedVehicle?.id) }" :title="initialFetterTitle(family.items) || undefined">
           <div class="card-body">
             <div class="family-identity">
               <span class="vehicle-game-icon">
@@ -132,7 +141,7 @@ async function clearVehicles(command: string, message: string) {
     </section>
 
     <section class="card vehicle-loadout mechanical-section" :class="{ mutationLocked: store.writeLocked }">
-      <header class="section-heading"><div><h2>本次装配</h2><p>{{ selectedVehicle?.name || selectedVehicle?.enumName || '选择左侧任意形态' }}</p></div></header>
+      <header class="section-heading"><div><h2>本次装配</h2><p>{{ selectedVehicle?.name || selectedVehicle?.enumName || '选择左侧任意形态' }}<span v-if="selectedFetterText"> · 初始羁绊 {{ selectedFetterText }}</span></p></div></header>
       <div class="selected-enchantment-wrap">
         <CatalogCard
           v-for="item in selectedEnchantments"
