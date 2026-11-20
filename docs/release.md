@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.101
+./scripts/package.ps1 -Version 0.6.102
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.101-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.101-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.102-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.102-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.101",
+  "version": "0.6.102",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.101-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.102-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.100",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.100-to-0.6.101-win-x64.delta.zip",
+      "fromVersion": "0.6.101",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.101-to-0.6.102-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.101
-git push origin v0.6.101
+git tag v0.6.102
+git push origin v0.6.102
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,14 @@ git push origin v0.6.101
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.102
+
+- 修复「存档备份名出现不存在的第 04 章」：游戏 1.457 只有 3 个流程大段（`preview_first` / `preview_second` / `demo_free`），工具却把 `RoomMapSpawner.CurrentStage`（地图分页块，35 层 ÷ `mapStageStep` 10 = 4 块）+1 当章节，于是生成「第04章-第034关」。游戏本体与本地化表里也没有「第几章」这个数字文本（含「章」的字符串 0 条）。
+- 新增 `Core/FlowSegmentChapterResolver` 与插件 `FlowChapterReader`：反射 `RunModeRuntime.Instance → Session.GetFlowDocument().context.segmentId`，再按 `Session.m_entry.flowConfig.definition.segments` 的顺序取章节号（1..3）；流程档解析不到时回退原来的地图阶段编号，不影响旧模式。
+- 状态新增 `CurrentFlowChapter`，播放时序与备份命名统一使用它；`Tick` 每秒刷新，`Snapshot` 输出，控制台不再出现第 4 章。
+- 新增 5 项 `FlowSegmentChapterResolverTests` 与 2 项 IL 契约测试（Tick 取值、Snapshot 输出、反射链成员）。
+- 测试：.NET 699、desktop vitest 33、node:test 10；Release 构建 0 警告。
 
 ### 0.6.101
 

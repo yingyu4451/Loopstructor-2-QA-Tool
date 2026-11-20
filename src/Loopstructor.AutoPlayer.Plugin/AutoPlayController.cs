@@ -386,6 +386,7 @@ internal sealed class AutoPlayController
     private int _waveStartAttemptCount;
     private string _pendingWaveFunctionFlowDescription = string.Empty;
     private int _currentMapStage = -1;
+    private int _currentFlowChapter;
     private int _currentMapLayer = -1;
     private float _nextMapProgressProbeAt;
     private bool _openingDefensePreparationActive;
@@ -534,6 +535,7 @@ internal sealed class AutoPlayController
             ResetWaveStartObservation();
             _currentMapStage = -1;
             _currentMapLayer = -1;
+            _currentFlowChapter = 0;
             _nextMapProgressProbeAt = 0f;
             _bridge.ResetMetrics();
             _lastRuntimeResult = null;
@@ -790,6 +792,11 @@ internal sealed class AutoPlayController
             {
                 _activeSaveRoot = saveRoot;
             }
+            // 新版流程存档按大段推进；备份命名用大段序号，避免把地图分页块当成不存在的第 4 章。
+            if (FlowChapterReader.TryGetCurrentChapter(out int flowChapter))
+            {
+                _currentFlowChapter = flowChapter;
+            }
         }
 
         Scene activeSceneInfo = SceneManager.GetActiveScene();
@@ -979,6 +986,7 @@ internal sealed class AutoPlayController
                 WavesCompleted = _wavesCompleted,
                 CurrentMapStage = _currentMapStage,
                 CurrentMapLayer = _currentMapLayer,
+                CurrentFlowChapter = _currentFlowChapter,
                 LastRuntimeCommand = _bridge.LastCommand,
                 LastRuntimeCommandDurationMs = _bridge.LastCommandDurationMs,
                 MaxRuntimeCommand = _bridge.MaxCommand,
@@ -10002,9 +10010,10 @@ internal sealed class AutoPlayController
         MarkProgress();
         if (stageChanged)
         {
+            int chapter = _currentFlowChapter > 0 ? _currentFlowChapter : stage + 1;
             AddTimeline(
                 "chapter",
-                "地图进度已进入第 " + (stage + 1) + " 章，当前层为 " + layer + "。");
+                "地图进度已进入第 " + chapter + " 章，当前层为 " + layer + "。");
         }
     }
 

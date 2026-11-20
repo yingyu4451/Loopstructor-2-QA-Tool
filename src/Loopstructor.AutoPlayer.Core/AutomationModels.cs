@@ -173,7 +173,11 @@ public sealed class AutoPlayerStatus
     public int WavesCompleted { get; set; }
     public int CurrentMapStage { get; set; } = -1;
     public int CurrentMapLayer { get; set; } = -1;
-    public int CurrentChapter => CurrentMapStage >= 0 ? CurrentMapStage + 1 : 0;
+    /// <summary>新版流程存档的当前大段序号（1 起）；0 表示未解析到，回退到地图阶段编号。</summary>
+    public int CurrentFlowChapter { get; set; }
+    public int CurrentChapter => CurrentFlowChapter > 0
+        ? CurrentFlowChapter
+        : CurrentMapStage >= 0 ? CurrentMapStage + 1 : 0;
     public string LastRuntimeCommand { get; set; } = string.Empty;
     public double LastRuntimeCommandDurationMs { get; set; }
     public string MaxRuntimeCommand { get; set; } = string.Empty;
