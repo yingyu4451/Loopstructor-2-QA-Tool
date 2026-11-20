@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.100
+./scripts/package.ps1 -Version 0.6.101
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.100-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.100-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.101-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.101-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.100",
+  "version": "0.6.101",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.100-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.101-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.99",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.99-to-0.6.100-win-x64.delta.zip",
+      "fromVersion": "0.6.100",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.100-to-0.6.101-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.100
-git push origin v0.6.100
+git tag v0.6.101
+git push origin v0.6.101
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,14 @@ git push origin v0.6.100
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.101
+
+- 修复「游戏更新到 1.457 后回档无效、自动备份一直在备份旧目录」：游戏把白模对局存档从 `SaveManager` 的 `%APPDATA%\PoneGames\Gui2_Test` 迁到 `%USERPROFILE%\AppData\LocalLow\PoneGames\Loopstructor 2_ Skyspine\PlayerFlow\slot_<slot>\profile.json`（`FlowSessionFactory.ResolvePath`，是否启用由 `RunModeRuntime.Active` 决定）。插件仍按 `SaveManager.GetSaveFolderPath()` 解析，备份到的 `Game_0/Game` 停在 11/17 的旧内容，回档自然不生效。
+- `SaveIsolationPatch.TryResolveRuntimeSaveFolder` 在 `RunModeRuntime.Active` 为真时优先用新的 PlayerFlow 约定解析当前流程档目录：新增 `Core/FlowSaveSlotResolver`，扫描 `PlayerFlow/slot_*/profile.json` 并取最新写入的那个；旧的 SaveManager 路径保留为回退。
+- QA 隔离模式同时给 `FlowSessionFactory.ResolvePath` 加前缀挂钩，把流程档重定向进隔离根（`<profileRoot>/PlayerFlow/slot_<slot>/profile.json`），避免隔离运行写进真实 LocalLow 存档。
+- 新增 11 项 `FlowSaveSlotResolverTests`（路径约定、slot 合法性、取最新档）与 3 项 IL 契约测试（流程档优先于旧路径、PlayerFlow 布局、隔离挂钩）。
+- 测试：.NET 692、desktop vitest 33、node:test 10；Release 构建 0 警告。
 
 ### 0.6.100
 

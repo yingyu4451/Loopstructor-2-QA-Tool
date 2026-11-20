@@ -114,6 +114,63 @@ public sealed class SaveIsolationPatchContractTests
     }
 
 
+    [Fact]
+    public void TryResolveRuntimeSaveFolder_PrefersTheFlowSaveWhenTheFlowModeIsActive()
+    {
+        using AssemblyDefinition plugin = Read("Loopstructor.AutoPlayer.Plugin.dll");
+        MethodDefinition resolve = RequireMethod(RequireType(plugin, PatchType), "TryResolveRuntimeSaveFolder");
+        Instruction[] instructions = Body(resolve).ToArray();
+
+        int flowModeCall = FindCall(instructions, PatchType, "IsFlowModeActive");
+        int flowResolveCall = FindCall(instructions, PatchType, "TryResolveFlowSaveFolder");
+        int legacyCall = FindCall(instructions, PatchType, "TryEnsureSaveManagerHandles");
+
+        Assert.True(flowModeCall >= 0, "流程模式必须先判断 RunModeRuntime.Active。");
+        Assert.True(flowResolveCall >= 0, "流程模式下必须按 PlayerFlow 约定解析存档目录。");
+        Assert.True(legacyCall > flowResolveCall, "旧的 SaveManager 路径只能作为回退，不能挡住流程档解析。");
+    }
+
+    [Fact]
+    public void FlowSaveResolution_FollowsThePlayerFlowLayout()
+    {
+        using AssemblyDefinition plugin = Read("Loopstructor.AutoPlayer.Plugin.dll");
+        TypeDefinition patch = RequireType(plugin, PatchType);
+        MethodDefinition flow = RequireMethod(patch, "TryResolveFlowSaveFolder");
+
+        Assert.Contains("PlayerFlow", LoadedStrings(flow));
+        Assert.Contains(Calls(flow), call => call.DeclaringType.Name == "FlowSaveSlotResolver");
+        Assert.Contains(
+            Calls(flow),
+            call => call.DeclaringType.Name == "Application" && call.Name == "get_persistentDataPath");
+        Assert.Contains(
+            Calls(RequireMethod(patch, "IsFlowModeActive")),
+            IsCall(AccessToolsType, "TypeByName"));
+        Assert.Contains("MetroTD.GameModeSystem.Whitebox.RunModeRuntime", LoadedStrings(RequireMethod(patch, "IsFlowModeActive")));
+    }
+
+    [Fact]
+    public void Install_AlsoIsolatesThePlayerFlowSavePaths()
+    {
+        using AssemblyDefinition plugin = Read("Loopstructor.AutoPlayer.Plugin.dll");
+        TypeDefinition patch = RequireType(plugin, PatchType);
+
+        Assert.Contains(Calls(RequireMethod(patch, "Install")), IsCall(PatchType, "InstallFlowIsolation"));
+
+        MethodDefinition installFlow = RequireMethod(patch, "InstallFlowIsolation");
+        Assert.Contains("MetroTD.FlowSystem.FlowSessionFactory", LoadedStrings(installFlow));
+        Assert.Contains("ResolvePath", LoadedStrings(installFlow));
+        Assert.Contains(Calls(installFlow), call => call.DeclaringType.Name == "Harmony" && call.Name == "Patch");
+
+        MethodDefinition prefix = RequireMethod(patch, "FlowPathPrefix");
+        Assert.Contains(
+            Calls(prefix),
+            call => call.DeclaringType.Name == "FlowSaveSlotResolver" && call.Name == "ResolveIsolatedProfilePath");
+        Assert.Contains(
+            Calls(prefix),
+            call => call.DeclaringType.Name == "FlowSaveSlotResolver" && call.Name == "IsValidSlot");
+        Assert.DoesNotContain(Calls(prefix), call => call.DeclaringType.FullName == AccessToolsType);
+    }
+
     private static AssemblyDefinition Read(string assemblyName)
     {
         string path = Path.Combine(AppContext.BaseDirectory, assemblyName);

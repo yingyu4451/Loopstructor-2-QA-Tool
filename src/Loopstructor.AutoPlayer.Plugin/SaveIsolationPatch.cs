@@ -3,16 +3,23 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using HarmonyLib;
+using Loopstructor.AutoPlayer.Core;
+using UnityEngine;
 
 namespace Loopstructor.AutoPlayer.Plugin;
 
 internal static class SaveIsolationPatch
 {
+    private const string FlowModeTypeName = "MetroTD.GameModeSystem.Whitebox.RunModeRuntime";
+    private const string FlowFactoryTypeName = "MetroTD.FlowSystem.FlowSessionFactory";
+
     private static readonly object Sync = new();
     private static string s_profileRoot = string.Empty;
     private static MethodInfo? s_saveManagerGetter;
     private static MethodInfo? s_saveManagerGetPath;
     private static bool s_saveManagerResolutionFailed;
+    private static MethodInfo? s_flowModeGetter;
+    private static bool s_flowModeResolutionFailed;
 
     public static bool Installed { get; private set; }
     public static bool Applied { get; private set; }
@@ -48,9 +55,41 @@ internal static class SaveIsolationPatch
             harmony.Patch(target, prefix: new HarmonyMethod(prefix));
         }
 
+        InstallFlowIsolation(harmony, log);
+
         Installed = true;
         log("已为当前激活进程安装存档隔离挂钩：" + s_profileRoot);
         return true;
+    }
+
+    /// <summary>
+    /// 新版流程存档（PlayerFlow）直接拼 Application.persistentDataPath，不经过 SavePathUtility；
+    /// QA 模式必须把这条路径也收进隔离根，否则隔离运行会写进真实存档目录。
+    /// 该方法在旧版本里不存在，缺失时只记录日志，不影响 SaveManager 隔离。
+    /// </summary>
+    private static void InstallFlowIsolation(Harmony harmony, Action<string> log)
+    {
+        Type? factoryType = AccessTools.TypeByName(FlowFactoryTypeName);
+        MethodInfo? resolvePath = factoryType == null
+            ? null
+            : AccessTools.Method(factoryType, "ResolvePath", new[] { typeof(string), typeof(string) });
+        MethodInfo? flowPrefix = AccessTools.Method(typeof(SaveIsolationPatch), nameof(FlowPathPrefix));
+        if (resolvePath == null || flowPrefix == null)
+        {
+            log("当前游戏版本没有可隔离的流程存档入口；流程存档将沿用真实 persistentDataPath。");
+            return;
+        }
+
+        harmony.Patch(resolvePath, prefix: new HarmonyMethod(flowPrefix));
+        log("已为当前激活进程安装流程存档隔离挂钩：" + Path.Combine(s_profileRoot, FlowSaveSlotResolver.FlowDirectoryName));
+    }
+
+    private static bool FlowPathPrefix(ref string __result, string slot)
+    {
+        // 非法标识交回游戏原方法，保持它自己的报错语义。
+        if (!FlowSaveSlotResolver.IsValidSlot(slot)) return true;
+        __result = FlowSaveSlotResolver.ResolveIsolatedProfilePath(s_profileRoot, slot).Replace('\\', '/');
+        return false;
     }
 
     /// <summary>
@@ -136,9 +175,76 @@ internal static class SaveIsolationPatch
         }
     }
 
+    /// <summary>流程模式（白模 RunModeRuntime）是否激活；旧版本没有该类型时恒为 false。</summary>
+    private static bool IsFlowModeActive()
+    {
+        if (s_flowModeGetter == null)
+        {
+            if (s_flowModeResolutionFailed) return false;
+            try
+            {
+                Type? type = AccessTools.TypeByName(FlowModeTypeName);
+                MethodInfo? getter = type == null ? null : AccessTools.PropertyGetter(type, "Active");
+                if (getter == null)
+                {
+                    s_flowModeResolutionFailed = true;
+                    return false;
+                }
+
+                s_flowModeGetter = getter;
+            }
+            catch (Exception)
+            {
+                s_flowModeResolutionFailed = true;
+                return false;
+            }
+        }
+
+        try
+        {
+            return s_flowModeGetter!.Invoke(null, null) is true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>按 PlayerFlow 约定解析当前流程档目录；QA 隔离模式下限定在隔离根内。</summary>
+    private static bool TryResolveFlowSaveFolder(out string saveRoot)
+    {
+        saveRoot = string.Empty;
+        string playerFlowRoot;
+        if (!string.IsNullOrEmpty(s_profileRoot))
+        {
+            playerFlowRoot = Path.Combine(s_profileRoot, FlowSaveSlotResolver.FlowDirectoryName);
+        }
+        else
+        {
+            string persistentDataPath;
+            try
+            {
+                persistentDataPath = Application.persistentDataPath;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(persistentDataPath)) return false;
+            playerFlowRoot = FlowSaveSlotResolver.ResolvePlayerFlowRoot(persistentDataPath);
+        }
+
+        return FlowSaveSlotResolver.TrySelectNewestSlot(playerFlowRoot, out saveRoot);
+    }
+
     public static bool TryResolveRuntimeSaveFolder(out string saveRoot)
     {
         saveRoot = string.Empty;
+        // 1.457 起白模对局存档迁到 PlayerFlow；流程模式激活时必须优先按新约定解析，
+        // 否则自动备份与回档仍指向已经停写的 SaveManager 目录。
+        if (IsFlowModeActive() && TryResolveFlowSaveFolder(out saveRoot)) return true;
+
         // Path resolution also runs in player mode: the auto-backup service needs the real save
         // folder even though this patch is not installed there. SaveManager handles are cached
         // once (see TryEnsureSaveManagerHandles), so this per-second call no longer rescans
