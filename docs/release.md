@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.108
+./scripts/package.ps1 -Version 0.6.109
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.108-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.108-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.109-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.109-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.108",
+  "version": "0.6.109",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.108-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.109-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.107",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.107-to-0.6.108-win-x64.delta.zip",
+      "fromVersion": "0.6.108",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.108-to-0.6.109-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.108
-git push origin v0.6.108
+git tag v0.6.109
+git push origin v0.6.109
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,13 @@ git push origin v0.6.108
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.109
+
+- 战车类型页签补全中文名：之前插件里只硬编码了 `Shell/Link/Penetrate/Missile` 四项，其余类型（UAV、Melee、Support…）直接显示枚举前缀。现在覆盖 `VehicleType` 全部族：炮弹 / 连锁 / 穿透 / 导弹 / 近战 / 无人机 / 抛射 / 冲击 / 支援 / 两仪 / 召唤 / 怪物 / 列车 / 无；战车页的兜底翻译表同步更新（并把 `Link` 的旧译「链接」统一成「连锁」）。
+- 说明：游戏本身没有这些分类的中文表（它的自动化接口同样只给 `attackFamily:Melee` 这类英文标签），分类是工具侧的概念，中文名取自游戏内同一概念的现有用词（近战攻击、释放无人机、抛射/冲击/召唤羁绊等）。
+- 新增 desktop vitest 1 项（目录缺 `typeName` 时页签显示中文）与 IL 断言（中文表覆盖近战/无人机/抛射/冲击/支援/两仪/召唤/怪物）。
+- 测试：.NET 706、desktop vitest 39、node:test 10；Release 构建 0 警告。
 
 ### 0.6.108
 

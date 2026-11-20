@@ -107,6 +107,25 @@ describe('vehicle catalog presentation', () => {
     expect(chip.text()).toBe('连锁')
   })
 
+  it('labels vehicle type tabs in Chinese when the catalog omits typeName', () => {
+    const store = useAppStore()
+    store.catalog = {
+      vehicles: [
+        { ...vehicle('Melee_R04_L1', 1, ''), typeKey: 'Melee', typeName: undefined, familyKey: 'Melee_R04' },
+        { ...vehicle('UAV_D02_L1', 1, ''), typeKey: 'UAV', typeName: undefined, familyKey: 'UAV_D02' },
+        { ...vehicle('Support_Attack_L1', 1, ''), typeKey: 'Support', typeName: undefined, familyKey: 'Support_Attack' },
+      ],
+      enchantments: [],
+    }
+
+    const wrapper = mountWithTooltip(VehiclesPage, {
+      global: { stubs: { CatalogCard: true, VirtualCatalogGrid: true } },
+    })
+
+    const labels = wrapper.findAll('.type-switcher button').map((button) => button.text())
+    expect(labels).toEqual(['全部', '近战', '无人机', '支援'])
+  })
+
   it('bulk-deletes field and backpack vehicles in one click', async () => {
     const store = useAppStore()
     store.connected = true

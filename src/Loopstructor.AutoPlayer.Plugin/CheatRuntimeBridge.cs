@@ -39,7 +39,17 @@ internal sealed class CheatRuntimeBridge
             ["Shell"] = "炮弹",
             ["Link"] = "连锁",
             ["Penetrate"] = "穿透",
-            ["Missile"] = "导弹"
+            ["Missile"] = "导弹",
+            ["Melee"] = "近战",
+            ["UAV"] = "无人机",
+            ["Projectile"] = "抛射",
+            ["ShockWave"] = "冲击",
+            ["Support"] = "支援",
+            ["DualForms"] = "两仪",
+            ["Summon"] = "召唤",
+            ["Monster"] = "怪物",
+            ["Train"] = "列车",
+            ["None"] = "无"
         };
     private static readonly IReadOnlyDictionary<string, string> BattleAttributeFallbackNames =
         new Dictionary<string, string>(StringComparer.Ordinal)

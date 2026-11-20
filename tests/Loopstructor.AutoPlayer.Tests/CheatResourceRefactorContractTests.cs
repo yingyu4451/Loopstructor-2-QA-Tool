@@ -59,6 +59,13 @@ public sealed class CheatResourceRefactorContractTests
             Assert.Contains(field, LoadedStrings(vehicle));
         }
 
+        // 分类页签直接用目录里的中文名：UAV/Melee 等也必须给中文，不能回退到枚举前缀。
+        string[] typeLabels = LoadedStrings(RequireMethod(bridge, ".cctor")).ToArray();
+        foreach (string expected in new[] { "近战", "无人机", "抛射", "冲击", "支援", "两仪", "召唤", "怪物" })
+        {
+            Assert.Contains(expected, typeLabels);
+        }
+
         Assert.Contains("enchantmentWordTextName", LoadedStrings(enchantment));
         Assert.Contains("fetterWordTextName", LoadedStrings(enchantment));
         Assert.Contains("zh", LoadedStrings(RequireMethod(bridge, "ResolveChineseLocalizedString")));

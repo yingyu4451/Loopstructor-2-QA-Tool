@@ -73,7 +73,11 @@ function shapeLabel(level?: number) {
   return level === 1 ? '一星' : level === 2 ? '二星' : level === 3 ? '三星' : '未知形态'
 }
 function translateType(type: string) {
-  return ({ Shell: '炮弹', Link: '链接', Missile: '导弹', Penetrate: '穿透' } as Record<string, string>)[type] || type
+  return ({
+    Shell: '炮弹', Link: '连锁', Penetrate: '穿透', Missile: '导弹', Melee: '近战',
+    UAV: '无人机', Projectile: '抛射', ShockWave: '冲击', Support: '支援',
+    DualForms: '两仪', Summon: '召唤', Monster: '怪物', Train: '列车', None: '无',
+  } as Record<string, string>)[type] || type
 }
 function vehicleImage(item: CatalogItem) {
   if (item.iconDataUrl) return item.iconDataUrl
