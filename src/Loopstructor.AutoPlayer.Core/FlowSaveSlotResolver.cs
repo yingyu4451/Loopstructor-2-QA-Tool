@@ -37,9 +37,14 @@ public static class FlowSaveSlotResolver
     }
 
     /// <summary>选择 PlayerFlow 下 profile.json 最新写入的流程档目录。</summary>
-    public static bool TrySelectNewestSlot(string? playerFlowRoot, out string saveRoot)
+    public static bool TrySelectNewestSlot(string? playerFlowRoot, out string saveRoot) =>
+        TrySelectNewestSlot(playerFlowRoot, out saveRoot, out _);
+
+    /// <summary>选择最新流程档目录，并给出 profile.json 的最后写入时间（用于与旧存档比较新旧）。</summary>
+    public static bool TrySelectNewestSlot(string? playerFlowRoot, out string saveRoot, out DateTime profileWriteUtc)
     {
         saveRoot = string.Empty;
+        profileWriteUtc = DateTime.MinValue;
         if (string.IsNullOrWhiteSpace(playerFlowRoot) || !Directory.Exists(playerFlowRoot)) return false;
 
         string? newest = null;
@@ -65,6 +70,7 @@ public static class FlowSaveSlotResolver
 
         if (newest == null) return false;
         saveRoot = Path.GetFullPath(newest);
+        profileWriteUtc = newestWriteUtc;
         return true;
     }
 }

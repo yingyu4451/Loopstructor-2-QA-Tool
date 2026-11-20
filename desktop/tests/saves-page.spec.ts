@@ -70,6 +70,44 @@ describe('save archive page', () => {
     expect(wrapper.get<HTMLInputElement>('input[name="restart-after-restore"]').element.checked).toBe(false)
   })
 
+  it('refreshes the backup list when the host reports a new backup', async () => {
+    const listSaveBackups = vi.fn(async () => ({
+      status: {
+        enabled: true, maximumBackups: 20, backupCount: 0, backupRoot: 'C:\\Backups',
+        latestBackup: '', lastMessage: '', pending: false, busy: false,
+      },
+      backups: [],
+      starred: [],
+    })) as unknown as DesktopApi['listSaveBackups']
+    window.loopstructorDesktop = {
+      listSaveBackups,
+      openSaveBackups: vi.fn(),
+    } as unknown as DesktopApi
+    const store = useAppStore()
+    const initial = snapshot()
+    initial.saveBackups = {
+      enabled: true, maximumBackups: 20, backupCount: 0, backupRoot: 'C:\\Backups',
+      latestBackup: '', lastMessage: '', pending: false, busy: false,
+    }
+    store.applySnapshot(initial)
+
+    mountWithTooltip(SavesPage)
+    await flushPromises()
+    expect(listSaveBackups).toHaveBeenCalledTimes(1)
+
+    store.applySnapshot({
+      ...initial,
+      saveBackups: {
+        ...initial.saveBackups,
+        backupCount: 1,
+        latestBackup: '第03章-第001关-20261120-170720',
+      },
+    })
+    await flushPromises()
+
+    expect(listSaveBackups).toHaveBeenCalledTimes(2)
+  })
+
   it('shows starred saves and stars a backup with a custom name', async () => {
     const catalog: SaveBackupCatalog = {
       status: {

@@ -10,7 +10,6 @@ namespace Loopstructor.AutoPlayer.Plugin;
 
 internal static class SaveIsolationPatch
 {
-    private const string FlowModeTypeName = "MetroTD.GameModeSystem.Whitebox.RunModeRuntime";
     private const string FlowFactoryTypeName = "MetroTD.FlowSystem.FlowSessionFactory";
 
     private static readonly object Sync = new();
@@ -18,8 +17,6 @@ internal static class SaveIsolationPatch
     private static MethodInfo? s_saveManagerGetter;
     private static MethodInfo? s_saveManagerGetPath;
     private static bool s_saveManagerResolutionFailed;
-    private static MethodInfo? s_flowModeGetter;
-    private static bool s_flowModeResolutionFailed;
 
     public static bool Installed { get; private set; }
     public static bool Applied { get; private set; }
@@ -175,45 +172,11 @@ internal static class SaveIsolationPatch
         }
     }
 
-    /// <summary>流程模式（白模 RunModeRuntime）是否激活；旧版本没有该类型时恒为 false。</summary>
-    private static bool IsFlowModeActive()
-    {
-        if (s_flowModeGetter == null)
-        {
-            if (s_flowModeResolutionFailed) return false;
-            try
-            {
-                Type? type = AccessTools.TypeByName(FlowModeTypeName);
-                MethodInfo? getter = type == null ? null : AccessTools.PropertyGetter(type, "Active");
-                if (getter == null)
-                {
-                    s_flowModeResolutionFailed = true;
-                    return false;
-                }
-
-                s_flowModeGetter = getter;
-            }
-            catch (Exception)
-            {
-                s_flowModeResolutionFailed = true;
-                return false;
-            }
-        }
-
-        try
-        {
-            return s_flowModeGetter!.Invoke(null, null) is true;
-        }
-        catch (Exception)
-        {
-            return false;
-        }
-    }
-
     /// <summary>按 PlayerFlow 约定解析当前流程档目录；QA 隔离模式下限定在隔离根内。</summary>
-    private static bool TryResolveFlowSaveFolder(out string saveRoot)
+    private static bool TryResolveFlowSaveFolder(out string saveRoot, out DateTime profileWriteUtc)
     {
         saveRoot = string.Empty;
+        profileWriteUtc = DateTime.MinValue;
         string playerFlowRoot;
         if (!string.IsNullOrEmpty(s_profileRoot))
         {
@@ -235,16 +198,31 @@ internal static class SaveIsolationPatch
             playerFlowRoot = FlowSaveSlotResolver.ResolvePlayerFlowRoot(persistentDataPath);
         }
 
-        return FlowSaveSlotResolver.TrySelectNewestSlot(playerFlowRoot, out saveRoot);
+        return FlowSaveSlotResolver.TrySelectNewestSlot(playerFlowRoot, out saveRoot, out profileWriteUtc);
     }
 
     public static bool TryResolveRuntimeSaveFolder(out string saveRoot)
     {
         saveRoot = string.Empty;
-        // 1.457 起白模对局存档迁到 PlayerFlow；流程模式激活时必须优先按新约定解析，
-        // 否则自动备份与回档仍指向已经停写的 SaveManager 目录。
-        if (IsFlowModeActive() && TryResolveFlowSaveFolder(out saveRoot)) return true;
+        // 1.457 起白模对局存档迁到 PlayerFlow。RunModeRuntime.Active 在基地/过场阶段会变假，
+        // 不能只靠它切换；这里比较两边「对局存档」的最后写入时间：PlayerFlow 的 profile.json
+        // 对比旧目录 Game_* 里的文件（User/Setting/saveVersion 每次启动都写，不算进度）。
+        bool hasFlow = TryResolveFlowSaveFolder(out string flowRoot, out DateTime flowWrite);
+        DateTime legacyWrite = DateTime.MinValue;
+        string? legacyRoot = null;
+        if (TryResolveSaveManagerFolder(out string resolvedLegacy))
+        {
+            legacyRoot = resolvedLegacy;
+            legacyWrite = SaveRootSelection.GetLegacyRunSaveWriteUtc(legacyRoot);
+        }
 
+        return SaveRootSelection.TryPick(hasFlow ? flowRoot : null, flowWrite, legacyRoot, legacyWrite, out saveRoot);
+    }
+
+    /// <summary>旧的 SaveManager 存档目录；玩家模式也用于自动备份，解析失败时返回 false。</summary>
+    private static bool TryResolveSaveManagerFolder(out string saveRoot)
+    {
+        saveRoot = string.Empty;
         // Path resolution also runs in player mode: the auto-backup service needs the real save
         // folder even though this patch is not installed there. SaveManager handles are cached
         // once (see TryEnsureSaveManagerHandles), so this per-second call no longer rescans

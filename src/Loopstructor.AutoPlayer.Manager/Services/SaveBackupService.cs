@@ -95,11 +95,18 @@ public sealed class SaveBackupService
                 Level = ParsePart(match, "level"),
                 CreatedAt = created,
                 FileCount = files.Count,
-                TotalBytes = files.Sum(file => file.Length),
-                IsLatest = SamePath(directory.FullName, _latestBackup)
+                TotalBytes = files.Sum(file => file.Length)
             });
         }
-        return entries;
+
+        // 目录名按“第X章-第Y关”排序会把新章节排到旧章节前面：第04章的旧档会盖住
+        // 第03章刚生成的新档，界面看起来像“没有新备份”。列表必须按实际时间倒序。
+        List<SaveBackupEntry> ordered = entries
+            .OrderByDescending(entry => entry.CreatedAt)
+            .ThenByDescending(entry => entry.Id, StringComparer.Ordinal)
+            .ToList();
+        for (int index = 0; index < ordered.Count; index++) ordered[index].IsLatest = index == 0;
+        return ordered;
     }
 
     public SaveRestorePlan CreateRestorePlan(string? gameRoot, string backupId, string? activeSaveRoot)
@@ -955,7 +962,7 @@ public sealed class SaveBackupEntry
     public DateTime CreatedAt { get; init; }
     public int FileCount { get; init; }
     public long TotalBytes { get; init; }
-    public bool IsLatest { get; init; }
+    public bool IsLatest { get; set; }
 }
 
 public sealed record SaveRestorePlan(string BackupId, string BackupDirectory, string TargetDirectory);

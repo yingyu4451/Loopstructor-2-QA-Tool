@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.104
+./scripts/package.ps1 -Version 0.6.105
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.104-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.104-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.105-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.105-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.104",
+  "version": "0.6.105",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.104-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.105-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.103",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.103-to-0.6.104-win-x64.delta.zip",
+      "fromVersion": "0.6.104",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.104-to-0.6.105-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.104
-git push origin v0.6.104
+git tag v0.6.105
+git push origin v0.6.105
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,16 @@ git push origin v0.6.104
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.105
+
+- 修复「备份列表一直停在 15:02、看不到新备份、回档无效」，两处原因：
+  1) 列表按**目录名**倒序（`第04章…` 永远排在新生成的 `第03章…` 前面），新备份被压在旧章节下面，界面第一条始终是旧档；现在按 `createdAt` 倒序，只把最新一条标为最新。
+  2) 0.6.101 只在 `RunModeRuntime.Active` 为真时用 PlayerFlow，基地/过场阶段会回退到已经停写的 `Gui2_Test`，备份内容一直是 11/17 的旧档；现在比较两边「对局存档」的最后写入时间（PlayerFlow 的 `profile.json` 对比旧目录 `Game_*`；`User`/`Setting`/`saveVersion` 每次启动都写，不算进度），谁新用谁。
+- 存档页在 Host 报告新的 `backupCount`/`latestBackup` 时自动刷新列表，不再依赖手动点刷新。
+- 游戏目录被移动或删除时（例如换 1.458 构建），Host 主动失效缓存的验证结果并提示「请重新选择游戏目录」，不再把不存在的目录显示成「已验证」。
+- 新增 5 项 Core 测试（选根规则、旧目录只认 `Game_*`）、1 项列表排序测试、1 项存档页自动刷新测试；IL 契约更新为按写入时间选择。
+- 测试：.NET 706、desktop vitest 36、node:test 10；Release 构建 0 警告。
 
 ### 0.6.104
 

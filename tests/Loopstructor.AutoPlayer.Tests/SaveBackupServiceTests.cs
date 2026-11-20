@@ -36,6 +36,26 @@ public sealed class SaveBackupServiceTests : IDisposable
     }
 
     [Fact]
+    public void ListBackups_OrdersByActualTime_NotByChapterName()
+    {
+        SaveBackupService service = new(Path.Combine(_root, "backups"), TimeSpan.Zero);
+        string backupRoot = service.EnsureBackupRoot(_root);
+        string olderChapter = Path.Combine(backupRoot, "第04章-第034关-20261120-150244");
+        string newerChapter = Path.Combine(backupRoot, "第03章-第001关-20261120-170720");
+        Directory.CreateDirectory(olderChapter);
+        Directory.CreateDirectory(newerChapter);
+        File.WriteAllText(Path.Combine(olderChapter, "Game"), "old");
+        File.WriteAllText(Path.Combine(newerChapter, "Game"), "new");
+
+        IReadOnlyList<SaveBackupEntry> backups = service.ListBackups(_root);
+
+        Assert.Equal("第03章-第001关-20261120-170720", backups[0].Id);
+        Assert.True(backups[0].IsLatest, "最新一条必须按时间判定，而不是按章节名排序后的第一条。");
+        Assert.Equal("第04章-第034关-20261120-150244", backups[1].Id);
+        Assert.False(backups[1].IsLatest);
+    }
+
+    [Fact]
     public async Task IsolatedQaStatus_DoesNotBackUpTestProfile()
     {
         string source = Path.Combine(_root, "qa-save");

@@ -852,6 +852,18 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
 
     private async Task PollOnceAsync()
     {
+        // 游戏目录被移动/删除（换新版本构建）后，缓存的验证结果会让界面一直显示“已验证”，
+        // 而存档、插件和备份都还指着旧目录。这里主动失效并提示重新选择。
+        if (_game != null && !Directory.Exists(_game.GameRoot))
+        {
+            AddLog("warn", "原来选择的游戏目录已不存在，请重新选择游戏目录。");
+            _game = null;
+            _pluginStatus = null;
+            _connectionLabel = "等待选择游戏";
+            _connectionReason = "原游戏目录已被移动或删除。";
+            return;
+        }
+
         if (!string.IsNullOrWhiteSpace(_selectedEditorInstanceId))
         {
             await PollEditorAsync();

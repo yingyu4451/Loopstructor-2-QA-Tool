@@ -28,7 +28,7 @@ public sealed class SaveIsolationPatchContractTests
 
         Assert.DoesNotContain(calls, call => call.DeclaringType.FullName == AccessToolsType);
         Assert.DoesNotContain(calls, IsCall(PatchType, "get_Installed"));
-        Assert.Contains(calls, IsCall(PatchType, "TryEnsureSaveManagerHandles"));
+        Assert.Contains(calls, IsCall(PatchType, "TryResolveSaveManagerFolder"));
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class SaveIsolationPatchContractTests
         MethodReference[] calls = Calls(resolve).ToArray();
 
         Assert.DoesNotContain(calls, call => call.DeclaringType.FullName == AccessToolsType);
-        Assert.Contains(calls, IsCall(PatchType, "TryEnsureSaveManagerHandles"));
+        Assert.Contains(calls, IsCall(PatchType, "TryResolveSaveManagerFolder"));
     }
 
     [Fact]
@@ -115,19 +115,26 @@ public sealed class SaveIsolationPatchContractTests
 
 
     [Fact]
-    public void TryResolveRuntimeSaveFolder_PrefersTheFlowSaveWhenTheFlowModeIsActive()
+    public void TryResolveRuntimeSaveFolder_SelectsTheNewerRunSaveBetweenFlowAndLegacy()
     {
         using AssemblyDefinition plugin = Read("Loopstructor.AutoPlayer.Plugin.dll");
         MethodDefinition resolve = RequireMethod(RequireType(plugin, PatchType), "TryResolveRuntimeSaveFolder");
         Instruction[] instructions = Body(resolve).ToArray();
 
-        int flowModeCall = FindCall(instructions, PatchType, "IsFlowModeActive");
         int flowResolveCall = FindCall(instructions, PatchType, "TryResolveFlowSaveFolder");
-        int legacyCall = FindCall(instructions, PatchType, "TryEnsureSaveManagerHandles");
+        int legacyResolveCall = FindCall(instructions, PatchType, "TryResolveSaveManagerFolder");
+        int pickCall = FindCall(instructions, "Loopstructor.AutoPlayer.Core.SaveRootSelection", "TryPick");
 
-        Assert.True(flowModeCall >= 0, "流程模式必须先判断 RunModeRuntime.Active。");
-        Assert.True(flowResolveCall >= 0, "流程模式下必须按 PlayerFlow 约定解析存档目录。");
-        Assert.True(legacyCall > flowResolveCall, "旧的 SaveManager 路径只能作为回退，不能挡住流程档解析。");
+        Assert.True(flowResolveCall >= 0, "必须按 PlayerFlow 约定解析流程档目录。");
+        Assert.True(legacyResolveCall >= 0, "旧 SaveManager 目录仍需解析（玩家模式自动备份要用）。");
+        Assert.True(pickCall > flowResolveCall && pickCall > legacyResolveCall, "两边都解析完再按写入时间挑选。");
+        Assert.Contains(
+            Calls(resolve),
+            call => call.DeclaringType.FullName == "Loopstructor.AutoPlayer.Core.SaveRootSelection"
+                    && call.Name == "GetLegacyRunSaveWriteUtc");
+        Assert.Contains(
+            Calls(RequireMethod(RequireType(plugin, PatchType), "TryResolveSaveManagerFolder")),
+            IsCall(PatchType, "TryEnsureSaveManagerHandles"));
     }
 
     [Fact]
@@ -143,9 +150,9 @@ public sealed class SaveIsolationPatchContractTests
             Calls(flow),
             call => call.DeclaringType.Name == "Application" && call.Name == "get_persistentDataPath");
         Assert.Contains(
-            Calls(RequireMethod(patch, "IsFlowModeActive")),
-            IsCall(AccessToolsType, "TypeByName"));
-        Assert.Contains("MetroTD.GameModeSystem.Whitebox.RunModeRuntime", LoadedStrings(RequireMethod(patch, "IsFlowModeActive")));
+            Calls(flow),
+            call => call.DeclaringType.Name == "FlowSaveSlotResolver" && call.Name == "TrySelectNewestSlot");
+        Assert.DoesNotContain(patch.Methods, method => method.Name == "IsFlowModeActive");
     }
 
     [Fact]

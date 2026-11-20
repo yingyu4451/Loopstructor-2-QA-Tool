@@ -25,7 +25,22 @@ watch(() => store.settings, (settings) => {
   if (settings && !dirty.value) draft.value = cloneSettings(settings)
 })
 
-onMounted(() => store.refreshSaveBackups())
+// 新备份生成时 Host 只推快照；列表本身不会自己更新，这里按 backupCount/latestBackup 变化自动刷新。
+let backupSignal = ''
+watch(() => {
+  const status = store.snapshot?.saveBackups
+  return status ? `${status.backupCount}:${status.latestBackup}` : ''
+}, (signal) => {
+  if (!signal || signal === backupSignal) return
+  backupSignal = signal
+  void store.refreshSaveBackups(false)
+})
+
+onMounted(() => {
+  const status = store.snapshot?.saveBackups
+  backupSignal = status ? `${status.backupCount}:${status.latestBackup}` : ''
+  void store.refreshSaveBackups()
+})
 
 function markDirty() {
   dirty.value = true
