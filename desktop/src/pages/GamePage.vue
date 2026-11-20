@@ -11,6 +11,7 @@ const pluginState = computed(() => store.snapshot?.plugin?.state ?? 'notInstalle
 const pluginStateLabel = computed(() => ({
   enabled: '已启用', disabled: '已停用', incomplete: '需要修复', notInstalled: '未安装',
 }[pluginState.value]))
+const pluginDetail = computed(() => store.snapshot?.plugin?.detail || pluginStateLabel.value || '插件状态未知')
 const editorProject = computed(() => store.snapshot?.editorProject)
 const editorConnection = computed(() => store.snapshot?.editorConnection)
 const editorInstances = computed(() => {
@@ -32,7 +33,7 @@ onBeforeUnmount(() => {
   <div class="page-grid game-page grid min-h-0">
     <section class="mechanical-section card game-location">
       <header class="section-heading">
-        <div class="heading-with-icon"><Gamepad2 :size="21" /><div><h2>游戏构建</h2><p>只连接经过路径、产品身份和程序集指纹验证的 Skyspine。</p></div></div>
+        <div class="heading-with-icon"><Gamepad2 :size="21" /><div><h2>游戏与插件</h2></div></div>
         <button class="btn btn-outline btn-sm button secondary compact" :disabled="ui.busy" @click="store.refreshConnection"><RefreshCw :size="16" />刷新连接</button>
       </header>
       <div class="path-row">
@@ -45,6 +46,30 @@ onBeforeUnmount(() => {
       <div class="validation-strip" :class="store.snapshot?.game ? 'valid' : 'waiting'">
         <ShieldCheck :size="18" />
         <span>{{ store.snapshot?.game ? '游戏构建与运行时合同已验证' : '选择游戏目录后才能管理插件' }}</span>
+      </div>
+      <div class="plugin-block">
+        <div class="plugin-block-head">
+          <div class="heading-with-icon"><PlugZap :size="18" /><strong>AutoPlayer 插件</strong></div>
+          <span
+            class="status-badge"
+            :class="{ online: pluginState === 'enabled', warning: pluginState === 'incomplete' }"
+            :title="pluginDetail"
+          >{{ pluginStateLabel }}</span>
+        </div>
+        <div class="plugin-facts">
+          <div><span>插件版本</span><strong>{{ store.snapshot?.plugin?.pluginVersion || '-' }}</strong></div>
+          <div><span>BepInEx</span><strong>{{ store.snapshot?.plugin?.bepInExCompatible ? '固定版本已验证' : '未验证' }}</strong></div>
+          <div><span>控制通道</span><strong>{{ store.snapshot?.connection.label || '等待 Host' }}</strong></div>
+        </div>
+        <div class="action-bar">
+          <button class="btn btn-primary button primary" :disabled="!store.snapshot?.game || ui.busy" @click="store.installPlugin"><PlugZap :size="17" />安装或修复</button>
+          <button
+            class="btn btn-outline button secondary"
+            :disabled="!store.snapshot?.plugin || pluginState === 'notInstalled' || ui.busy"
+            @click="store.setPluginEnabled(pluginState === 'disabled')"
+          ><Plug :size="17" />{{ pluginState === 'disabled' ? '启用插件' : '停用插件' }}</button>
+          <button class="btn btn-error btn-sm button danger compact" :disabled="pluginState === 'notInstalled' || ui.busy" @click="store.uninstallPlugin"><Trash2 :size="16" />卸载</button>
+        </div>
       </div>
     </section>
 
@@ -81,27 +106,6 @@ onBeforeUnmount(() => {
           <button v-else class="btn btn-error btn-sm button danger compact" :disabled="ui.busy" @click="store.disconnectEditor">断开</button>
         </div>
         <EmptyState v-if="editorInstances.length === 0" compact :icon="MonitorCog" title="未发现运行中的 Unity Editor" />
-      </div>
-    </section>
-
-    <section class="card mechanical-section plugin-section">
-      <header class="section-heading">
-        <div class="heading-with-icon"><PlugZap :size="21" /><div><h2>AutoPlayer 插件</h2><p>{{ store.snapshot?.plugin?.detail || '尚未读取插件状态' }}</p></div></div>
-        <span class="status-badge" :class="{ online: pluginState === 'enabled', warning: pluginState === 'incomplete' }">{{ pluginStateLabel }}</span>
-      </header>
-      <div class="plugin-facts">
-        <div><span>插件版本</span><strong>{{ store.snapshot?.plugin?.pluginVersion || '-' }}</strong></div>
-        <div><span>BepInEx</span><strong>{{ store.snapshot?.plugin?.bepInExCompatible ? '固定版本已验证' : '未验证' }}</strong></div>
-        <div><span>控制通道</span><strong>{{ store.snapshot?.connection.label || '等待 Host' }}</strong></div>
-      </div>
-      <div class="action-bar">
-        <button class="btn btn-primary button primary" :disabled="!store.snapshot?.game || ui.busy" @click="store.installPlugin"><PlugZap :size="17" />安装或修复</button>
-        <button
-          class="btn btn-outline button secondary"
-          :disabled="!store.snapshot?.plugin || pluginState === 'notInstalled' || ui.busy"
-          @click="store.setPluginEnabled(pluginState === 'disabled')"
-        ><Plug :size="17" />{{ pluginState === 'disabled' ? '启用插件' : '停用插件' }}</button>
-        <button class="btn btn-error btn-sm button danger compact" :disabled="pluginState === 'notInstalled' || ui.busy" @click="store.uninstallPlugin"><Trash2 :size="16" />卸载</button>
       </div>
     </section>
 

@@ -29,6 +29,26 @@ describe('game page controls', () => {
     expect(heading.get('button').classes()).toEqual(expect.arrayContaining(['btn', 'btn-outline']))
   })
 
+  it('keeps the plugin block inside the game build card', () => {
+    const store = useAppStore()
+    store.snapshot = {
+      protocolVersion: 1,
+      version: '0.6.76',
+      settings: {} as never,
+      connection: { trusted: false, label: '等待选择游戏', reason: '', cheatAvailable: false, autoplayActive: false },
+      logs: [],
+    }
+
+    const wrapper = mountWithTooltip(GamePage)
+    const card = wrapper.get('.game-location')
+
+    expect(wrapper.find('.plugin-section').exists()).toBe(false)
+    expect(card.text()).toContain('游戏与插件')
+    expect(card.get('.plugin-block').text()).toContain('AutoPlayer 插件')
+    expect(card.get('.plugin-block .action-bar').text()).toContain('安装或修复')
+    expect(wrapper.findAll('.game-page > section').map((section) => section.classes())).toHaveLength(3)
+  })
+
   it('shows the selected Unity project, Bridge ownership, and Editor instances', () => {
     const store = useAppStore()
     store.snapshot = {
