@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.105
+./scripts/package.ps1 -Version 0.6.106
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.105-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.105-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.106-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.106-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.105",
+  "version": "0.6.106",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.105-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.106-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.104",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.104-to-0.6.105-win-x64.delta.zip",
+      "fromVersion": "0.6.105",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.105-to-0.6.106-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.105
-git push origin v0.6.105
+git tag v0.6.106
+git push origin v0.6.106
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,13 @@ git push origin v0.6.105
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.106
+
+- 修复 0.6.105 的 GitHub Release 流水线失败：`PipeControlClientTests.HealthCheck_ResponseLossReturnsAtSingleAttemptDeadline` 只给了 180 ms **连接**超时，CI 机器繁忙时请求还没写进管道就超时，`RequestMayHaveExecuted=false` 让断言假失败。现在连接给 5 s、只把响应等待设 180 ms，并断言错误确实是「响应超时」；另一项健康检查计时断言从 1 s 放宽到 2 s（仍能证明没被 700 ms 长命令阻塞）。
+- 产品行为与 0.6.105 完全相同（存档选根、备份时间排序、列表自动刷新、游戏目录失效提示都在 0.6.105），0.6.106 只为重新发布并让流水线稳定。
+- 本地连跑 15 次 `PipeControlClientTests` 全过。
+- 测试：.NET 706、desktop vitest 36、node:test 10；Release 构建 0 警告。
 
 ### 0.6.105
 

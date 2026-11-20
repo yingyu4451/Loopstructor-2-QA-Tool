@@ -59,7 +59,7 @@ public sealed class PipeControlClientTests
 
         stopwatch.Stop();
         Assert.True(health.TransportSuccess, health.Error);
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(1), $"健康检查被长命令阻塞：{stopwatch.Elapsed}。");
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(2), $"健康检查被长命令阻塞：{stopwatch.Elapsed}。");
         Assert.True((await command).TransportSuccess);
         await Task.WhenAll(firstWorker, secondWorker);
     }
@@ -75,9 +75,11 @@ public sealed class PipeControlClientTests
             session.ProcessId!.Value);
         using NamedPipeServerStream server = CreateServer(pipeName);
         Task worker = ServeWithoutResponseAsync(server);
+        // connect 超时必须给足：CI 上机器忙时 180 ms 连本机管道也会输掉，结果就变成
+        // “根本没写请求”的假失败（RequestMayHaveExecuted=false）。这里只把响应等待设短。
         PipeControlClient client = new(
             timeout: TimeSpan.FromMilliseconds(180),
-            connectTimeout: TimeSpan.FromMilliseconds(180),
+            connectTimeout: TimeSpan.FromSeconds(5),
             pendingTimeout: TimeSpan.FromSeconds(3));
         Stopwatch stopwatch = Stopwatch.StartNew();
 
@@ -85,8 +87,11 @@ public sealed class PipeControlClientTests
 
         stopwatch.Stop();
         Assert.False(result.TransportSuccess);
-        Assert.True(result.RequestMayHaveExecuted);
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(1), $"健康检查错误地进入 pending 恢复循环：{stopwatch.Elapsed}。");
+        Assert.True(
+            result.RequestMayHaveExecuted,
+            "请求必须在写管道之后才超时；这里失败说明连接阶段就超时了（" + result.Error + "）。");
+        Assert.Contains("响应超时", result.Error, StringComparison.Ordinal);
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(2), $"健康检查错误地进入 pending 恢复循环：{stopwatch.Elapsed}。");
         await worker;
     }
 
