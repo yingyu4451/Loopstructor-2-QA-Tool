@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.107
+./scripts/package.ps1 -Version 0.6.108
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.107-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.107-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.108-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.108-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.107",
+  "version": "0.6.108",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.107-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.108-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.106",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.106-to-0.6.107-win-x64.delta.zip",
+      "fromVersion": "0.6.107",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.107-to-0.6.108-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.107
-git push origin v0.6.107
+git tag v0.6.108
+git push origin v0.6.108
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,13 @@ git push origin v0.6.107
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.108
+
+- 战车卡片右侧的初始羁绊改为**图标**（不再显示文字）：插件从 `SO_FetterInfoCfg → FetterDetailData.icon` 导出 22×22 PNG（`cheat-icons/2/<sha256>.png`），Host 校验哈希后内联成 `iconDataUrl`；`initialFetters` 现在带 `iconFile`/`iconSha256`，`catalogVersion` 8 → 9。
+- 图标缺失时退回显示羁绊名（短标签），不会出现空白格；每个图标都有 `title`（羁绊名），整块仍有按星级明细的 `title`，不靠颜色表达状态。
+- 新增 desktop vitest 1 项（无图标时退回文字）与图标渲染断言；IL 契约补 `ExportCatalogIcon`/`iconFile`/`iconSha256` 断言。
+- 测试：.NET 706、desktop vitest 38、node:test 10；Release 构建 0 警告。
 
 ### 0.6.107
 

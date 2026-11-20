@@ -11,6 +11,7 @@ import VirtualCatalogGrid from '../components/VirtualCatalogGrid.vue'
 
 const store = useAppStore()
 const ui = useUiStore()
+type FetterBadge = NonNullable<CatalogItem['initialFetters']>[number]
 const search = ref('')
 const enchantmentSearch = ref('')
 const activeType = ref('all')
@@ -48,12 +49,17 @@ const families = computed(() => {
   }
   return [...groups.entries()].map(([key, items]) => {
     const sorted = items.sort((a, b) => (a.level ?? 999) - (b.level ?? 999) || (a.itemOrder ?? 999) - (b.itemOrder ?? 999))
-    const fetters = [...new Set(sorted.flatMap((item) => item.initialFetters ?? []).map((fetter) => fetter.name))]
+    const fetters = new Map<string, FetterBadge>()
+    for (const item of sorted) {
+      for (const fetter of item.initialFetters ?? []) {
+        if (!fetters.has(fetter.id)) fetters.set(fetter.id, fetter)
+      }
+    }
     const fetterDetail = sorted
       .filter((item) => (item.initialFetters ?? []).length > 0)
       .map((item) => `${shapeLabel(item.level)}：${(item.initialFetters ?? []).map((fetter) => fetter.name).join('、')}`)
       .join('；')
-    return { key, items: sorted, fetters, fetterDetail }
+    return { key, items: sorted, fetters: [...fetters.values()], fetterDetail }
   })
 })
 const enchantmentItems = computed(() => {
@@ -127,7 +133,10 @@ async function clearVehicles(command: string, message: string) {
                 <div><strong>{{ family.items[0].name || family.items[0].fallbackName || family.key }}</strong><small>{{ family.key }}</small></div>
               </div>
               <div v-if="family.fetters.length" class="family-fetters" :title="family.fetterDetail">
-                <span v-for="name in family.fetters" :key="name" class="fetter-chip">{{ name }}</span>
+                <span v-for="fetter in family.fetters" :key="fetter.id" class="fetter-chip" :class="{ 'fetter-chip-text': !fetter.iconDataUrl }" :title="fetter.name">
+                  <img v-if="fetter.iconDataUrl" :src="fetter.iconDataUrl" alt="" width="20" height="20" loading="lazy" />
+                  <span v-else class="fetter-fallback">{{ fetter.name }}</span>
+                </span>
               </div>
             </div>
             <div class="level-buttons">

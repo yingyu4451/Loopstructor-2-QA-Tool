@@ -512,7 +512,7 @@ internal sealed class CheatRuntimeBridge
 
         return new JObject
         {
-            ["catalogVersion"] = 8,
+            ["catalogVersion"] = 9,
             ["locale"] = "zh",
             ["poolMode"] = _catalogPoolMode,
             ["poolWarnings"] = new JArray(poolWarnings),
@@ -4528,10 +4528,32 @@ internal sealed class CheatRuntimeBridge
                 if (IsNoneEnumValue(fetter)) continue;
                 long numeric = Convert.ToInt64(fetter, CultureInfo.InvariantCulture);
                 if (!seen.Add(numeric)) continue;
+                object? detail = null;
+                try
+                {
+                    detail = GetEnchantmentDetailData(fetter);
+                }
+                catch (Exception)
+                {
+                    // 详情表缺失时仍要能搜索到该车，退回枚举名和空图标。
+                }
+
+                CatalogIcon icon = CatalogIcon.None;
+                try
+                {
+                    icon = ExportCatalogIcon(GetMember(detail, "icon") as Sprite);
+                }
+                catch (Exception)
+                {
+                    // 图标导出失败不影响羁绊列表本身。
+                }
+
                 fetters.Add(new JObject
                 {
                     ["id"] = fetter.ToString(),
-                    ["name"] = ResolveFetterDisplayName(fetter)
+                    ["name"] = ResolveFetterDisplayName(fetter, detail),
+                    ["iconFile"] = icon.RelativeFile,
+                    ["iconSha256"] = icon.Sha256
                 });
             }
         }
@@ -4556,11 +4578,10 @@ internal sealed class CheatRuntimeBridge
     }
 
     /// <summary>羁绊名与附魔目录同源（SO_FetterInfoCfg 的详情），缺详情时退回枚举名。</summary>
-    private string ResolveFetterDisplayName(object value)
+    private string ResolveFetterDisplayName(object value, object? data)
     {
         try
         {
-            object? data = GetEnchantmentDetailData(value);
             string name = ResolveChineseLocalizedString(GetMember(data, "enchantmentWordTextName"));
             if (string.IsNullOrWhiteSpace(name))
             {

@@ -10,7 +10,7 @@ public sealed class CheatResourceRefactorContractTests
     private const string DisplayPatchType = "Loopstructor.AutoPlayer.Plugin.VehicleEnchantmentDisplayPatch";
 
     [Fact]
-    public void CatalogV8_EnumeratesEveryVehicleTypeWithRuntimeComponent_AndRuntimeCompleteFetterEnum()
+    public void CatalogV9_EnumeratesEveryVehicleTypeWithRuntimeComponent_AndRuntimeCompleteFetterEnum()
     {
         using AssemblyDefinition assembly = ReadPlugin();
         TypeDefinition bridge = RequireType(assembly, BridgeType);
@@ -20,7 +20,7 @@ public sealed class CheatResourceRefactorContractTests
         MethodDefinition vehicleValues = RequireMethod(bridge, "AllVehicleValues");
         MethodDefinition enchantmentValues = RequireMethod(bridge, "AllEnchantmentValues");
 
-        Assert.Contains(8, LoadedInts(catalog));
+        Assert.Contains(9, LoadedInts(catalog));
         Assert.Contains(Calls(catalog), IsCall(BridgeType, "AllVehicleValues"));
         Assert.Contains(Calls(catalog), IsCall(BridgeType, "AllEnchantmentValues"));
         Assert.Contains(Calls(catalog), IsCall(BridgeType, "InvalidateRuntimeCatalogCache"));
@@ -73,9 +73,15 @@ public sealed class CheatResourceRefactorContractTests
         Assert.Contains("id", LoadedStrings(initialFetters));
         Assert.Contains("name", LoadedStrings(initialFetters));
         Assert.Contains(Calls(initialFetters), IsCall(BridgeType, "ResolveFetterDisplayName"));
+        Assert.Contains(Calls(initialFetters), IsCall(BridgeType, "GetEnchantmentDetailData"));
+        // 面板只显示羁绊图标：详情里的 icon 必须导出成文件并由 Host 内联为 data URL。
+        Assert.Contains(Calls(initialFetters), IsCall(BridgeType, "ExportCatalogIcon"));
+        Assert.Contains("icon", LoadedStrings(initialFetters));
+        Assert.Contains("iconFile", LoadedStrings(initialFetters));
+        Assert.Contains("iconSha256", LoadedStrings(initialFetters));
         Assert.Contains(
             Calls(RequireMethod(bridge, "ResolveFetterDisplayName")),
-            IsCall(BridgeType, "GetEnchantmentDetailData"));
+            IsCall(BridgeType, "GetMember"));
         Assert.Contains(
             "enchantmentWordTextName",
             LoadedStrings(RequireMethod(bridge, "ResolveFetterDisplayName")));

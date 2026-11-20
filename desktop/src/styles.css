@@ -252,8 +252,11 @@ button:disabled, .disabled { color: #6f675d; cursor: not-allowed; }
 .family-identity { display: flex; align-items: center; gap: 8px; min-width: 0; color: #d0a75e; }
 .family-top { min-width: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .family-top > .family-identity { flex: 1 1 auto; }
-.family-fetters { flex: none; max-width: 58%; display: flex; flex-wrap: wrap; justify-content: flex-end; align-content: flex-start; gap: 3px; }
-.fetter-chip { padding: 1px 5px; border: 1px solid #5a4127; background: #241c14; color: #d3ae70; font: 10px/1.4 Bahnschrift, sans-serif; white-space: nowrap; }
+.family-fetters { flex: none; max-width: 58%; display: flex; flex-wrap: wrap; justify-content: flex-end; align-content: flex-start; gap: 4px; }
+.fetter-chip { width: 22px; height: 22px; display: grid; place-items: center; padding: 0; overflow: hidden; border: 1px solid #5a4127; background: #241c14; }
+.fetter-chip img { width: 100%; height: 100%; object-fit: contain; }
+.fetter-chip-text { width: auto; height: 20px; padding: 0 4px; }
+.fetter-fallback { width: auto; padding: 0 3px; color: #d3ae70; font: 10px/1.4 Bahnschrift, sans-serif; white-space: nowrap; }
 .vehicle-game-icon { width: 46px; height: 46px; flex: none; display: grid; place-items: center; overflow: hidden; background: #0f0d0b; border: 1px solid #614729; color: #695d4d; }
 .vehicle-game-icon img { width: 100%; height: 100%; object-fit: contain; }
 .family-identity div { min-width: 0; display: flex; flex-direction: column; }

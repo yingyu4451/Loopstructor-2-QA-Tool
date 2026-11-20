@@ -257,7 +257,7 @@ export interface CatalogItem {
   level?: number
   itemOrder?: number
   /** 战车自带的初始羁绊（BasicVehicleComponent.InitFetterModule），用于搜索与展示。 */
-  initialFetters?: { id: string; name: string }[]
+  initialFetters?: { id: string; name: string; iconDataUrl?: string; iconFile?: string; iconSha256?: string }[]
   tags?: string[]
   count?: number
   [key: string]: unknown

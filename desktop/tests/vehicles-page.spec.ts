@@ -58,15 +58,17 @@ describe('vehicle catalog presentation', () => {
     expect(wrapper.findAll('.vehicle-family')).toHaveLength(1)
     expect(wrapper.text()).toContain('高爆弹')
     expect(wrapper.text()).not.toContain('暗影裂隙')
-    expect(wrapper.get('.family-fetters').text()).toContain('高爆')
+    expect(wrapper.get('.fetter-chip').attributes('title')).toBe('高爆')
   })
 
-  it('shows each family built-in fetters on the right edge of its card', () => {
+  it('shows each family built-in fetters as icons on the right edge of its card', () => {
     const store = useAppStore()
+    const explode = { id: 'Explode', name: '高爆', iconDataUrl: 'data:image/png;base64,AA==' }
+    const critical = { id: 'Critical', name: '暴击', iconDataUrl: 'data:image/png;base64,BB==' }
     store.catalog = {
       vehicles: [
-        { ...vehicle('Shell_HighExplosive_L1', 1, ''), name: '高爆弹', familyKey: 'Shell_HighExplosive', initialFetters: [{ id: 'Fetter_Explode', name: '高爆' }] },
-        { ...vehicle('Shell_HighExplosive_L2', 2, ''), name: '高爆弹', familyKey: 'Shell_HighExplosive', initialFetters: [{ id: 'Fetter_Explode', name: '高爆' }, { id: 'Fetter_Critical', name: '暴击' }] },
+        { ...vehicle('Shell_HighExplosive_L1', 1, ''), name: '高爆弹', familyKey: 'Shell_HighExplosive', initialFetters: [explode] },
+        { ...vehicle('Shell_HighExplosive_L2', 2, ''), name: '高爆弹', familyKey: 'Shell_HighExplosive', initialFetters: [explode, critical] },
         { ...vehicle('Shell_ShadowRift_L1', 1, ''), name: '暗影裂隙', familyKey: 'Shell_ShadowRift', initialFetters: [] },
       ],
       enchantments: [],
@@ -79,10 +81,30 @@ describe('vehicle catalog presentation', () => {
 
     expect(cards).toHaveLength(2)
     const chips = cards[0].findAll('.family-fetters .fetter-chip')
-    expect(chips.map((chip) => chip.text())).toEqual(['高爆', '暴击'])
+    expect(chips.map((chip) => chip.attributes('title'))).toEqual(['高爆', '暴击'])
+    expect(chips.map((chip) => chip.find('img').attributes('src'))).toEqual(['data:image/png;base64,AA==', 'data:image/png;base64,BB=='])
     expect(cards[0].get('.family-fetters').attributes('title')).toBe('一星：高爆；二星：高爆、暴击')
-    expect(cards[0].find('.family-fetters').exists()).toBe(true)
+    expect(cards[0].get('.family-fetters').text()).toBe('')
     expect(cards[1].find('.family-fetters').exists()).toBe(false)
+  })
+
+  it('falls back to the fetter name when an icon is missing', () => {
+    const store = useAppStore()
+    store.catalog = {
+      vehicles: [
+        { ...vehicle('Link_ThunderChain_L1', 1, ''), name: '雷链', familyKey: 'Link_ThunderChain', initialFetters: [{ id: 'Link', name: '连锁' }] },
+      ],
+      enchantments: [],
+    }
+
+    const wrapper = mountWithTooltip(VehiclesPage, {
+      global: { stubs: { CatalogCard: true, VirtualCatalogGrid: true } },
+    })
+
+    const chip = wrapper.get('.fetter-chip')
+    expect(chip.classes()).toContain('fetter-chip-text')
+    expect(chip.find('img').exists()).toBe(false)
+    expect(chip.text()).toBe('连锁')
   })
 
   it('bulk-deletes field and backpack vehicles in one click', async () => {
