@@ -37,6 +37,39 @@ describe('save archive page', () => {
     expect(wrapper.findAll('.restore-save-button')).toHaveLength(2)
   })
 
+  it('toggles whether the game restarts after a restore', async () => {
+    const catalog: SaveBackupCatalog = {
+      status: {
+        enabled: true, maximumBackups: 20, backupCount: 0, backupRoot: 'C:\\Backups',
+        latestBackup: '', lastMessage: 'ready', pending: false, busy: false,
+      },
+      backups: [],
+      starred: [],
+    }
+    const saveSettings = vi.fn(async (settings: unknown) => settings)
+    window.loopstructorDesktop = {
+      listSaveBackups: vi.fn(async () => catalog),
+      openSaveBackups: vi.fn(),
+      saveSettings,
+    } as unknown as DesktopApi
+    const store = useAppStore()
+    store.applySnapshot(snapshot())
+
+    const wrapper = mountWithTooltip(SavesPage)
+    await flushPromises()
+
+    const toggle = wrapper.get<HTMLInputElement>('input[name="restart-after-restore"]')
+    expect(toggle.element.checked).toBe(true)
+    expect(wrapper.get('.header-switch').attributes('title')).toContain('自动启动')
+
+    await toggle.setValue(false)
+    await flushPromises()
+
+    expect(saveSettings).toHaveBeenCalledTimes(1)
+    expect((saveSettings.mock.calls[0][0] as { restartGameAfterRestore?: boolean }).restartGameAfterRestore).toBe(false)
+    expect(wrapper.get<HTMLInputElement>('input[name="restart-after-restore"]').element.checked).toBe(false)
+  })
+
   it('shows starred saves and stars a backup with a custom name', async () => {
     const catalog: SaveBackupCatalog = {
       status: {

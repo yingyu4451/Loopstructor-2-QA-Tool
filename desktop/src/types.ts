@@ -20,6 +20,7 @@ export interface ManagerSettings {
   characterCfgIndex: number
   automaticSaveBackupEnabled?: boolean
   maximumSaveBackups?: number
+  restartGameAfterRestore?: boolean
   activeRoute: RouteKey
   sidebarCollapsed: boolean
   skinId?: SkinId

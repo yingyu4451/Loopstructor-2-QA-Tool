@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.102
+./scripts/package.ps1 -Version 0.6.103
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.102-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.102-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.103-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.103-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.102",
+  "version": "0.6.103",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.102-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.103-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.101",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.101-to-0.6.102-win-x64.delta.zip",
+      "fromVersion": "0.6.102",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.102-to-0.6.103-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.102
-git push origin v0.6.102
+git tag v0.6.103
+git push origin v0.6.103
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,14 @@ git push origin v0.6.102
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.103
+
+- 存档页新增「读档后重启游戏」开关（默认开）：关掉后读档只关闭游戏、替换存档文件，不再自动启动游戏构建，方便在 Unity Editor 里验档或自己决定什么时候启动。
+- `ManagerSettings.RestartGameAfterRestore`（默认 true）持久化到本机设置；`DesktopHostEngine` 读档成功后按它决定是否 `LaunchGame()`，未重启时返回「已恢复 …，按当前设置没有重启游戏」。
+- 存档页的读档说明同步为「Manager 会关闭游戏并替换存档」，开关 title 说明两种行为。
+- 新增 desktop vitest 1 项（开关默认值、切换即持久化）与 .NET 1 项（缺省 true、设置往返）。
+- 测试：.NET 700、desktop vitest 34、node:test 10；Release 构建 0 警告。
 
 ### 0.6.102
 

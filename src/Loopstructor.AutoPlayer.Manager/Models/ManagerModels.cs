@@ -125,6 +125,8 @@ public sealed class ManagerSettings
     public int CharacterCfgIndex { get; set; } = -1;
     public bool AutomaticSaveBackupEnabled { get; set; } = true;
     public int MaximumSaveBackups { get; set; } = 20;
+    /// <summary>读档替换成功后是否自动重启游戏；在 Unity Editor 里验档时可关闭，只替换存档文件。</summary>
+    public bool RestartGameAfterRestore { get; set; } = true;
     public string ActiveRoute { get; set; } = "game";
     public bool SidebarCollapsed { get; set; }
     public string SkinId { get; set; } = "skyspine";

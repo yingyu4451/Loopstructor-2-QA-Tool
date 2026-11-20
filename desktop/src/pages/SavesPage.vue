@@ -19,6 +19,7 @@ const dirty = ref(false)
 const backups = computed(() => store.saveBackupCatalog?.backups ?? [])
 const starred = computed(() => store.saveBackupCatalog?.starred ?? [])
 const status = computed(() => store.saveBackupCatalog?.status ?? store.snapshot?.saveBackups)
+const restartAfterRestore = computed(() => store.snapshot?.settings.restartGameAfterRestore ?? true)
 
 watch(() => store.settings, (settings) => {
   if (settings && !dirty.value) draft.value = cloneSettings(settings)
@@ -86,6 +87,11 @@ async function removeStarred(entry: StarredSaveEntry) {
 async function restoreStarred(entry: StarredSaveEntry) {
   await store.restoreStarredSave(entry)
 }
+
+async function setRestartAfterRestore(enabled: boolean) {
+  if (!store.snapshot) return
+  await store.saveSettings({ ...store.snapshot.settings, restartGameAfterRestore: enabled }, false)
+}
 </script>
 
 <template>
@@ -121,8 +127,14 @@ async function restoreStarred(entry: StarredSaveEntry) {
 
     <section class="card mechanical-section save-history-section">
       <header class="section-heading save-history-heading">
-        <div class="heading-with-icon"><ArchiveClock :size="22" /><div><h2>保存好的存档</h2><p>选择一个快照后，Manager 会关闭游戏、恢复存档并重新启动游戏。</p></div></div>
-        <button v-tooltip="'刷新存档列表'" class="btn btn-square btn-ghost btn-sm icon-button" aria-label="刷新存档列表" @click="store.refreshSaveBackups(true)"><RefreshCw :size="17" /></button>
+        <div class="heading-with-icon"><ArchiveClock :size="22" /><div><h2>保存好的存档</h2><p>选择一个快照后，Manager 会关闭游戏并替换存档。</p></div></div>
+        <div class="save-history-tools">
+          <label class="header-switch" :title="restartAfterRestore ? '读档后会自动启动游戏构建' : '只替换存档文件、不启动游戏，适合在 Unity Editor 里验档'">
+            <input type="checkbox" :checked="restartAfterRestore" name="restart-after-restore" @change="setRestartAfterRestore(!restartAfterRestore)" />
+            <span>读档后重启游戏</span>
+          </label>
+          <button v-tooltip="'刷新存档列表'" class="btn btn-square btn-ghost btn-sm icon-button" aria-label="刷新存档列表" @click="store.refreshSaveBackups(true)"><RefreshCw :size="17" /></button>
+        </div>
       </header>
       <div v-if="backups.length" class="save-history-list">
         <article v-for="backup in backups" :key="backup.id" class="save-history-row">

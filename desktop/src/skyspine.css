@@ -361,6 +361,9 @@
 .app-shell[data-skin="skyspine"] select:focus-visible { border-color: var(--theme-accent); outline: 0; box-shadow: 0 0 0 2px #c9954233; }
 .app-shell[data-skin="skyspine"] .search-box input { color: var(--theme-text); font: inherit; }
 .app-shell[data-skin="skyspine"] .search-box input::placeholder { color: var(--theme-meta); }
+.app-shell[data-skin="skyspine"] .header-switch { color: var(--theme-muted); font: 500 12px/1.2 "Segoe UI", "Microsoft YaHei UI", sans-serif; }
+.app-shell[data-skin="skyspine"] .header-switch:hover { color: var(--theme-text); }
+.app-shell[data-skin="skyspine"] .header-switch input { accent-color: var(--theme-signal); }
 
 .app-shell[data-skin="skyspine"] .radio-card,
 .app-shell[data-skin="skyspine"] .range-field,

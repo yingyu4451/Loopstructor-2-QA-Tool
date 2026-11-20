@@ -384,6 +384,30 @@ public sealed class ManagerSettingsStoreTests
         }
     }
 
+    [Fact]
+    public void RestartGameAfterRestore_DefaultsToTrueAndRoundTripsThroughSavedSettings()
+    {
+        string root = CreateTemporaryDirectory();
+        try
+        {
+            string settingsPath = Path.Combine(root, "settings.json");
+            File.WriteAllText(settingsPath, "{\"RestartGameAfterRestore\":false}");
+            ManagerSettingsStore store = new(settingsPath);
+
+            ManagerSettings loaded = store.Load(out string warning);
+            store.Save(loaded);
+
+            Assert.Empty(warning);
+            Assert.False(loaded.RestartGameAfterRestore);
+            Assert.Contains("\"RestartGameAfterRestore\": false", File.ReadAllText(settingsPath), StringComparison.Ordinal);
+            Assert.True(new ManagerSettings().RestartGameAfterRestore, "缺省必须保持读档后自动重启，避免旧安装行为变化。");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static string CreateTemporaryDirectory()
     {
         string path = Path.Combine(Path.GetTempPath(), "LoopstructorAutoPlayerTests", Guid.NewGuid().ToString("N"));

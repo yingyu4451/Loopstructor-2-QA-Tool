@@ -774,14 +774,21 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         SaveRestoreResult restored = await _saveBackups.RestoreAsync(plan, _lifetime);
         bool gameRestarted = false;
         string message = restored.Message;
-        try
+        if (_settings.RestartGameAfterRestore)
         {
-            LaunchGame();
-            gameRestarted = true;
+            try
+            {
+                LaunchGame();
+                gameRestarted = true;
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or IOException or UnauthorizedAccessException)
+            {
+                message = $"已恢复 {restored.BackupId}，但游戏未能自动启动：{exception.Message}";
+            }
         }
-        catch (Exception exception) when (exception is InvalidOperationException or IOException or UnauthorizedAccessException)
+        else
         {
-            message = $"已恢复 {restored.BackupId}，但游戏未能自动启动：{exception.Message}";
+            message = $"已恢复 {restored.BackupId}，按当前设置没有重启游戏。";
         }
 
         AddLog(gameRestarted ? "success" : "warn", message);
