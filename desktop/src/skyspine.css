@@ -364,6 +364,14 @@
 .app-shell[data-skin="skyspine"] .header-switch { color: var(--theme-muted); font: 500 12px/1.2 "Segoe UI", "Microsoft YaHei UI", sans-serif; }
 .app-shell[data-skin="skyspine"] .header-switch:hover { color: var(--theme-text); }
 .app-shell[data-skin="skyspine"] .header-switch input { accent-color: var(--theme-signal); }
+.app-shell[data-skin="skyspine"] .fetter-chip {
+  padding: 1px 6px;
+  border: 1px solid var(--theme-line);
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-surface-deep);
+  color: var(--theme-brass);
+  font: 500 10px/1.4 "Segoe UI", "Microsoft YaHei UI", sans-serif;
+}
 
 .app-shell[data-skin="skyspine"] .radio-card,
 .app-shell[data-skin="skyspine"] .range-field,

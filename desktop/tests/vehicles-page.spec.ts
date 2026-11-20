@@ -58,7 +58,31 @@ describe('vehicle catalog presentation', () => {
     expect(wrapper.findAll('.vehicle-family')).toHaveLength(1)
     expect(wrapper.text()).toContain('高爆弹')
     expect(wrapper.text()).not.toContain('暗影裂隙')
-    expect(wrapper.get('.vehicle-family').attributes('title')).toContain('高爆')
+    expect(wrapper.get('.family-fetters').text()).toContain('高爆')
+  })
+
+  it('shows each family built-in fetters on the right edge of its card', () => {
+    const store = useAppStore()
+    store.catalog = {
+      vehicles: [
+        { ...vehicle('Shell_HighExplosive_L1', 1, ''), name: '高爆弹', familyKey: 'Shell_HighExplosive', initialFetters: [{ id: 'Fetter_Explode', name: '高爆' }] },
+        { ...vehicle('Shell_HighExplosive_L2', 2, ''), name: '高爆弹', familyKey: 'Shell_HighExplosive', initialFetters: [{ id: 'Fetter_Explode', name: '高爆' }, { id: 'Fetter_Critical', name: '暴击' }] },
+        { ...vehicle('Shell_ShadowRift_L1', 1, ''), name: '暗影裂隙', familyKey: 'Shell_ShadowRift', initialFetters: [] },
+      ],
+      enchantments: [],
+    }
+
+    const wrapper = mountWithTooltip(VehiclesPage, {
+      global: { stubs: { CatalogCard: true, VirtualCatalogGrid: true } },
+    })
+    const cards = wrapper.findAll('.vehicle-family')
+
+    expect(cards).toHaveLength(2)
+    const chips = cards[0].findAll('.family-fetters .fetter-chip')
+    expect(chips.map((chip) => chip.text())).toEqual(['高爆', '暴击'])
+    expect(cards[0].get('.family-fetters').attributes('title')).toBe('一星：高爆；二星：高爆、暴击')
+    expect(cards[0].find('.family-fetters').exists()).toBe(true)
+    expect(cards[1].find('.family-fetters').exists()).toBe(false)
   })
 
   it('bulk-deletes field and backpack vehicles in one click', async () => {

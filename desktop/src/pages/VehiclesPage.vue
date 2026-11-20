@@ -46,10 +46,15 @@ const families = computed(() => {
     if (!groups.has(key)) groups.set(key, [])
     groups.get(key)!.push(item)
   }
-  return [...groups.entries()].map(([key, items]) => ({
-    key,
-    items: items.sort((a, b) => (a.level ?? 999) - (b.level ?? 999) || (a.itemOrder ?? 999) - (b.itemOrder ?? 999)),
-  }))
+  return [...groups.entries()].map(([key, items]) => {
+    const sorted = items.sort((a, b) => (a.level ?? 999) - (b.level ?? 999) || (a.itemOrder ?? 999) - (b.itemOrder ?? 999))
+    const fetters = [...new Set(sorted.flatMap((item) => item.initialFetters ?? []).map((fetter) => fetter.name))]
+    const fetterDetail = sorted
+      .filter((item) => (item.initialFetters ?? []).length > 0)
+      .map((item) => `${shapeLabel(item.level)}：${(item.initialFetters ?? []).map((fetter) => fetter.name).join('、')}`)
+      .join('；')
+    return { key, items: sorted, fetters, fetterDetail }
+  })
 })
 const enchantmentItems = computed(() => {
   const term = enchantmentSearch.value.trim().toLocaleLowerCase()
@@ -58,11 +63,9 @@ const enchantmentItems = computed(() => {
 const selectedEnchantments = computed(() => store.catalogItems('enchantments').filter((item) => (enchantments.value[item.id] ?? 0) > 0))
 const selectedFetterText = computed(() => (selectedVehicle.value?.initialFetters ?? []).map((fetter) => fetter.name).join('、'))
 
-function initialFetterTitle(items: CatalogItem[]) {
-  const names = [...new Set(items.flatMap((item) => item.initialFetters ?? []).map((fetter) => fetter.name))]
-  return names.length ? `初始羁绊：${names.join('、')}` : ''
+function shapeLabel(level?: number) {
+  return level === 1 ? '一星' : level === 2 ? '二星' : level === 3 ? '三星' : '未知形态'
 }
-
 function translateType(type: string) {
   return ({ Shell: '炮弹', Link: '链接', Missile: '导弹', Penetrate: '穿透' } as Record<string, string>)[type] || type
 }
@@ -70,9 +73,6 @@ function vehicleImage(item: CatalogItem) {
   if (item.iconDataUrl) return item.iconDataUrl
   if (!item.iconBase64) return ''
   return item.iconBase64.startsWith('data:') ? item.iconBase64 : `data:image/png;base64,${item.iconBase64}`
-}
-function shapeLabel(level?: number) {
-  return level === 1 ? '一星' : level === 2 ? '二星' : level === 3 ? '三星' : '未知形态'
 }
 function adjustEnchantment(button: 'left' | 'right', item: CatalogItem) {
   const current = enchantments.value[item.id] ?? 0
@@ -116,14 +116,19 @@ async function clearVehicles(command: string, message: string) {
         >
           <button v-if="!store.connected" class="btn btn-outline btn-sm button secondary compact" @click="store.setRoute('game')">去选择游戏</button>
         </EmptyState>
-        <article v-for="family in families" :key="family.key" class="card vehicle-family" :class="{ selected: family.items.some(item => item.id === selectedVehicle?.id) }" :title="initialFetterTitle(family.items) || undefined">
+        <article v-for="family in families" :key="family.key" class="card vehicle-family" :class="{ selected: family.items.some(item => item.id === selectedVehicle?.id) }">
           <div class="card-body">
-            <div class="family-identity">
-              <span class="vehicle-game-icon">
-                <img v-if="vehicleImage(family.items[0])" :src="vehicleImage(family.items[0])" alt="" width="46" height="46" loading="lazy" />
-                <ImageOff v-else :size="22" />
-              </span>
-              <div><strong>{{ family.items[0].name || family.items[0].fallbackName || family.key }}</strong><small>{{ family.key }}</small></div>
+            <div class="family-top">
+              <div class="family-identity">
+                <span class="vehicle-game-icon">
+                  <img v-if="vehicleImage(family.items[0])" :src="vehicleImage(family.items[0])" alt="" width="46" height="46" loading="lazy" />
+                  <ImageOff v-else :size="22" />
+                </span>
+                <div><strong>{{ family.items[0].name || family.items[0].fallbackName || family.key }}</strong><small>{{ family.key }}</small></div>
+              </div>
+              <div v-if="family.fetters.length" class="family-fetters" :title="family.fetterDetail">
+                <span v-for="name in family.fetters" :key="name" class="fetter-chip">{{ name }}</span>
+              </div>
             </div>
             <div class="level-buttons">
               <button
