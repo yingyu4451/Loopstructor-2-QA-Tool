@@ -564,7 +564,7 @@ public sealed class PluginRuntimeHostContractTests
         Assert.DoesNotContain(
             LoadedStrings(RequireMethod(controller, "RunBattleTacticStep")),
             value => value == "queryVehicle");
-        Assert.Contains(Calls(observeProgress), IsCall(BridgeType, "TryGetMapProgress"));
+        Assert.Contains(Calls(observeProgress), IsCall(BridgeType, "TryGetStageProgress"));
         Assert.Contains(Calls(snapshot), call => call.Name == "set_CurrentMapStage");
         Assert.Contains(Calls(snapshot), call => call.Name == "set_LastRuntimeCommandDurationMs");
         Assert.Contains(Calls(snapshot), call => call.Name == "set_MaxRuntimeCommand");

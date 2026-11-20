@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
@@ -30,6 +31,8 @@ internal sealed class RuntimeBridge
     private PropertyInfo? _waveFunctionOptionFlowDescription;
     private PropertyInfo? _roomMapUiInstance;
     private Animator? _roomMapAnimator;
+    private MethodInfo? _layerProgressMethod;
+    private bool _layerProgressResolutionFailed;
     private PropertyInfo? _settlementUiInstance;
     private MethodInfo? _settlementUiAgain;
 
@@ -466,6 +469,137 @@ internal sealed class RuntimeBridge
             layer = -1;
             return false;
         }
+    }
+
+    private static readonly Regex StageLabelPattern = new(@"^\s*(\d+)\s*-\s*(\d+)\s*$", RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// 当前「章-关」编号（stage 0 起、level 1 起）。优先直接读游戏底部关卡面板上的文字
+    /// （「2-2」），与玩家看到的完全一致；面板不可用时退回 GetLayerProgress 的层号换算。
+    /// </summary>
+    public bool TryGetStageProgress(out int stage, out int level)
+    {
+        stage = -1;
+        level = -1;
+        if (TryReadHudStageLabel(out int hudStage, out int hudLevel))
+        {
+            stage = hudStage;
+            level = hudLevel;
+            return true;
+        }
+
+        if (!TryGetMapProgress(out int _, out int layer)) return false;
+        if (!TryGetDisplayProgress(layer, out int displayStage, out int displayLocal)) return false;
+        stage = displayStage;
+        level = displayLocal + 1;
+        return true;
+    }
+
+    /// <summary>读取面板上的「章-关」文字；面板未创建或文字还没刷新时返回 false。</summary>
+    private bool TryReadHudStageLabel(out int stage, out int level)
+    {
+        stage = -1;
+        level = -1;
+        try
+        {
+            Type? panelType = FindType("MetroTD.UISystem.MultiFunBtn");
+            object? panel = panelType?
+                .GetProperty("Instance", BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)?
+                .GetValue(null, null);
+            if (panel == null) return false;
+
+            object? label = panelType!
+                .GetField("m_roomText", BindingFlags.NonPublic | BindingFlags.Instance)?
+                .GetValue(panel);
+            if (label == null) return false;
+
+            string? text = label.GetType()
+                .GetProperty("text", BindingFlags.Public | BindingFlags.Instance)?
+                .GetValue(label) as string;
+            if (string.IsNullOrWhiteSpace(text)) return false;
+
+            Match match = StageLabelPattern.Match(text);
+            if (!match.Success) return false;
+
+            int parsedStage = int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+            int parsedLevel = int.Parse(match.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture);
+            if (parsedStage <= 0 || parsedLevel <= 0) return false;
+
+            stage = parsedStage - 1;
+            level = parsedLevel;
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 游戏底部关卡面板显示的「章-关」编号。面板用 MultiFunBtn.GetLayerProgress(layer) 把层号
+    /// 换算成阶段和段内序号（教学局与流程局规则不同），这里直接复用同一入口，保证工具里的
+    /// 章节/关卡与玩家在游戏里看到的一致；面板不可用时退回按 StageStep 切块。
+    /// </summary>
+    public bool TryGetDisplayProgress(int layer, out int stage, out int local)
+    {
+        stage = -1;
+        local = -1;
+        if (layer < 0) return false;
+
+        if (_layerProgressMethod == null && !_layerProgressResolutionFailed)
+        {
+            Type? panelType = FindType("MetroTD.UISystem.MultiFunBtn");
+            _layerProgressMethod = panelType?.GetMethod(
+                "GetLayerProgress",
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static,
+                null,
+                new[] { typeof(int), typeof(int).MakeByRefType(), typeof(int).MakeByRefType(), typeof(int).MakeByRefType() },
+                null);
+            if (_layerProgressMethod == null) _layerProgressResolutionFailed = true;
+        }
+
+        if (_layerProgressMethod != null)
+        {
+            try
+            {
+                object?[] arguments = { layer, 0, 0, 0 };
+                _layerProgressMethod.Invoke(null, arguments);
+                if (arguments[1] is int resolvedStage && arguments[2] is int resolvedLocal
+                    && resolvedStage >= 0 && resolvedLocal >= 0)
+                {
+                    stage = resolvedStage;
+                    local = resolvedLocal;
+                    return true;
+                }
+            }
+            catch (Exception)
+            {
+                // 面板还没初始化时退回阶段步长切块。
+            }
+        }
+
+        int step = 10;
+        try
+        {
+            Type? spawnerType = FindType("MetroTD.RoomSystem.RoomMapSpawner");
+            object? spawner = spawnerType?
+                .GetProperty("Instance", BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)?
+                .GetValue(null, null);
+            if (spawner != null && spawnerType!
+                    .GetProperty("StageStep", BindingFlags.Public | BindingFlags.Instance)?
+                    .GetValue(spawner, null) is int configured && configured > 0)
+            {
+                step = configured;
+            }
+        }
+        catch (Exception)
+        {
+            step = 10;
+        }
+
+        stage = layer / step;
+        local = layer % step;
+        return true;
     }
 
     public bool TryGetMapOpenAnimationProgress(

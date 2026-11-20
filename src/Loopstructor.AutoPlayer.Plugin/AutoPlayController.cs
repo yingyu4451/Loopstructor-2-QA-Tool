@@ -9998,22 +9998,23 @@ internal sealed class AutoPlayController
     {
         if (Time.realtimeSinceStartup < _nextMapProgressProbeAt) return;
         _nextMapProgressProbeAt = Time.realtimeSinceStartup + MapProgressProbeIntervalSeconds;
-        if (!_bridge.TryGetMapProgress(out int stage, out int layer)) return;
+        // 备份名和状态里的「章-关」必须与游戏底部面板一致：面板按流程/教学规则切分，
+        // 直接读面板文字/复用它的 GetLayerProgress，而不是自己用层号除以阶段步长。
+        if (!_bridge.TryGetStageProgress(out int stage, out int level)) return;
 
         bool stageChanged = stage != _currentMapStage;
-        bool layerChanged = layer != _currentMapLayer;
+        bool layerChanged = level != _currentMapLayer;
         _currentMapStage = stage;
-        _currentMapLayer = layer;
+        _currentMapLayer = level;
         if (!stageChanged && !layerChanged) return;
 
         if (!recordTimeline) return;
         MarkProgress();
         if (stageChanged)
         {
-            int chapter = _currentFlowChapter > 0 ? _currentFlowChapter : stage + 1;
             AddTimeline(
                 "chapter",
-                "地图进度已进入第 " + chapter + " 章，当前层为 " + layer + "。");
+                "地图进度已进入第 " + (stage + 1) + " 章，当前关卡为 " + level + "。");
         }
     }
 

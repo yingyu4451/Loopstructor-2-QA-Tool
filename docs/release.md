@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.109
+./scripts/package.ps1 -Version 0.6.110
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.109-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.109-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.110-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.110-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.109",
+  "version": "0.6.110",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.109-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.110-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.108",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.108-to-0.6.109-win-x64.delta.zip",
+      "fromVersion": "0.6.109",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.109-to-0.6.110-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.109
-git push origin v0.6.109
+git tag v0.6.110
+git push origin v0.6.110
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,13 @@ git push origin v0.6.109
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.110
+
+- 修复「游戏里显示 2-2、备份名却是 3-14」：章节/关卡编号改为**直接读游戏底部关卡面板上的文字**（`MultiFunBtn.m_roomText` 的 `章-关`），与玩家看到的完全一致；面板尚未刷新时退回面板自己的 `MultiFunBtn.GetLayerProgress(layer)` 换算（教学局/流程局的 Boss 分层规则不同，不能用 `层号 / StageStep` 自己算），最后才退到阶段步长切块。
+- `AutoPlayerStatus.CurrentChapter` 不再使用流程大段序号：`CurrentFlowChapter` 保留为诊断字段，不参与备份命名与状态显示。
+- 新增 `HudStageProgressContractTests`（面板文字读取、GetLayerProgress 回退、章节换算），并更新插件/状态契约测试；`CurrentChapter` 在已有地图阶段时恒等于「面板章号」。
+- 测试：.NET 714、desktop vitest 39、node:test 10；Release 构建 0 警告。
 
 ### 0.6.109
 

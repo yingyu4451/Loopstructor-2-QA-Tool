@@ -4,9 +4,9 @@ using Mono.Cecil.Cil;
 namespace Loopstructor.AutoPlayer.Tests;
 
 /// <summary>
-/// 回归覆盖：1.457 只有 3 个流程大段（章节），工具却把地图分页块（RoomMapSpawner.CurrentStage）
-/// 当章节 +1，于是备份名出现「第04章」。章节号必须由流程大段顺序解析，写入状态后由
-/// Manager 统一用于备份命名。
+/// 流程大段序号（CurrentFlowChapter）只作诊断信息：这些段是剧情配置，不是玩家看到的「章」。
+/// 玩家看到的章节/关卡来自游戏底部关卡面板的层号换算（见 HudStageProgressContractTests），
+/// 所以这里只保证 Tick 仍解析并上报该诊断字段，不再参与备份命名。
 /// </summary>
 public sealed class FlowChapterContractTests
 {

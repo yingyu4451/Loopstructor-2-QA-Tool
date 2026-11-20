@@ -173,11 +173,13 @@ public sealed class AutoPlayerStatus
     public int WavesCompleted { get; set; }
     public int CurrentMapStage { get; set; } = -1;
     public int CurrentMapLayer { get; set; } = -1;
-    /// <summary>新版流程存档的当前大段序号（1 起）；0 表示未解析到，回退到地图阶段编号。</summary>
+    /// <summary>新版流程存档的当前大段序号（1 起）；仅作诊断信息，不参与章节命名。</summary>
     public int CurrentFlowChapter { get; set; }
-    public int CurrentChapter => CurrentFlowChapter > 0
-        ? CurrentFlowChapter
-        : CurrentMapStage >= 0 ? CurrentMapStage + 1 : 0;
+    /// <summary>
+    /// 游戏底部关卡面板显示的「第几章」（1 起）。取自面板的层号换算（教学/流程规则不同），
+    /// 与玩家在游戏里看到的「章-关」一致；不再用流程大段序号。
+    /// </summary>
+    public int CurrentChapter => CurrentMapStage >= 0 ? CurrentMapStage + 1 : 0;
     public string LastRuntimeCommand { get; set; } = string.Empty;
     public double LastRuntimeCommandDurationMs { get; set; }
     public string MaxRuntimeCommand { get; set; } = string.Empty;
