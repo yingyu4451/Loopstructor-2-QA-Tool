@@ -103,6 +103,11 @@ public sealed class RunEventTriggerContractTests
         Assert.Contains("EVENT_DIRECT_PATCH_FAILED", strings);
         Assert.Contains("EVENT_DIRECT_BATTLE_UNSUPPORTED", strings);
         Assert.Contains("SwitchGroup", strings);
+        // LevelNodeEnum 在游戏程序集里没有命名空间，必须从 LevelNodeData 字段类型解析，不能按名字硬找。
+        Assert.Contains("levelNodeEnum", strings);
+        Assert.DoesNotContain("MetroTD.RoomSystem.LevelNodeEnum", strings);
+        Assert.Contains("m_uiLock", strings);
+        Assert.DoesNotContain("MetroTD.Tutorial.DefaultUIInteraction", strings);
         Assert.Contains(Calls(start), call => call.DeclaringType.Name == "ForcedRunEventPatch");
         Assert.Contains(Calls(start), call => call.Name == "SetFieldDeep");
 

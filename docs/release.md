@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.116
+./scripts/package.ps1 -Version 0.6.117
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.116-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.116-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.117-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.117-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.116",
+  "version": "0.6.117",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.116-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.117-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.115",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.115-to-0.6.116-win-x64.delta.zip",
+      "fromVersion": "0.6.116",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.116-to-0.6.117-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.116
-git push origin v0.6.116
+git tag v0.6.117
+git push origin v0.6.117
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,12 @@ git push origin v0.6.116
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.117
+
+- 修复「直接触发」在 Editor 下报「当前游戏版本缺少地图节点类型」：`LevelNodeEnum` 在游戏程序集里是全局命名空间（`LevelNodeEnum`，不在 `MetroTD.RoomSystem` 下），按拼好的全名找不到类型。现在改为从 `LevelNodeData.levelNodeEnum` 字段的声明类型解析，跨版本更稳。
+- 同一处修复：地图冻结用的 `DefaultUIInteraction` 不再按名字猜，而是从事件流程的 `m_uiLock` 字段类型取，避免 Editor / Player 程序集布局不同导致解冻失效。
+- 测试：新增契约断言，禁止再按 `MetroTD.RoomSystem.LevelNodeEnum` / `MetroTD.Tutorial.DefaultUIInteraction` 拼名字；.NET 727、desktop vitest 45、node:test 10；Release 构建 0 警告。
 
 ### 0.6.116
 

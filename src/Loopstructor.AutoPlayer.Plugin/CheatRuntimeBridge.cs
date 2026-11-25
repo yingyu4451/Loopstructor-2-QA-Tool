@@ -959,10 +959,16 @@ internal sealed class CheatRuntimeBridge
             return CheatExecutionResult.Fail("当前游戏版本缺少事件布局入口。", "EVENT_LAYOUT_API_MISSING");
         }
 
-        Type? levelNodeEnumType = FindType("MetroTD.RoomSystem.LevelNodeEnum");
-        if (levelNodeEnumType == null)
+        // LevelNodeEnum 在游戏程序集里是全局命名空间，不能按 MetroTD.RoomSystem 拼名字；直接取字段类型最稳。
+        Type? levelNodeEnumType = levelNodeDataType
+            .GetField("levelNodeEnum", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?
+            .FieldType
+            ?? FindType("LevelNodeEnum");
+        if (levelNodeEnumType == null || !levelNodeEnumType.IsEnum)
         {
-            return CheatExecutionResult.Fail("当前游戏版本缺少地图节点类型。", "EVENT_NODE_KIND_UNKNOWN");
+            return CheatExecutionResult.Fail(
+                "当前游戏版本缺少地图节点类型（LevelNodeData.levelNodeEnum）。",
+                "EVENT_NODE_KIND_UNKNOWN");
         }
 
         Type? roomMapType = FindType(RoomMapTypeName);
@@ -997,7 +1003,9 @@ internal sealed class CheatRuntimeBridge
             SetMemberValue(flow, "m_camera", Camera.main);
             SetMemberValue(flow, "m_dialog", GetStaticMember(FindType(WaveFunctionUiTypeName)!, "Instance")!);
             SetMemberValue(flow, "m_actorScale", GetMember(snapshot, "actorScale") ?? 0f);
-            uiLockType = FindType("MetroTD.Tutorial.DefaultUIInteraction");
+            uiLockType = flowType
+                .GetField("m_uiLock", BindingFlags.NonPublic | BindingFlags.Instance)?
+                .FieldType;
             uiLock = uiLockType == null ? null : GetStaticMember(uiLockType, "Current");
             if (uiLock != null)
             {
