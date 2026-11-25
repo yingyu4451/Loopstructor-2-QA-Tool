@@ -54,6 +54,9 @@ internal static class VehicleSwapDiagnostics
                     .GetMethods(BindingFlags.NonPublic | BindingFlags.Instance)
                     .FirstOrDefault(method => method.Name == "TryReplaceVehicleComponentWithSnapshot" &&
                                               method.GetParameters().Length is 5 or 6);
+                MethodInfo? eventUpgrade = manager
+                    .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                    .FirstOrDefault(method => method.Name == "TryUpgradeEventVehicle" && method.GetParameters().Length == 2);
                 if (onInit == null || remove == null || swap == null)
                 {
                     s_error = "缺少组件卸载/重装入口（swap=" + (swap != null) + ", onInit=" + (onInit != null) + ", remove=" + (remove != null) + "）";
@@ -68,6 +71,11 @@ internal static class VehicleSwapDiagnostics
                     swap,
                     prefix: new HarmonyMethod(typeof(VehicleSwapDiagnostics), nameof(LogSwapEnter)),
                     postfix: new HarmonyMethod(typeof(VehicleSwapDiagnostics), nameof(LogSwapExit)));
+                if (eventUpgrade != null)
+                {
+                    harmony.Patch(eventUpgrade, postfix: new HarmonyMethod(typeof(VehicleSwapDiagnostics), nameof(LogEventUpgrade)));
+                }
+
                 s_installed = true;
             }
             catch (Exception exception)
@@ -110,6 +118,22 @@ internal static class VehicleSwapDiagnostics
         try
         {
             Write($"替换战车组件失败 vehicle={DescribeVehicle(vehicle)} 自定义羁绊=[{DescribeFetters(ReadManagerModules())}]");
+        }
+        catch
+        {
+            // 日志失败不影响升级流程。
+        }
+    }
+
+    private static void LogEventUpgrade(bool __result, object vehicle, int level, object __instance)
+    {
+        try
+        {
+            MethodInfo? canUpgrade = __instance.GetType()
+                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                .FirstOrDefault(method => method.Name == "CanUpgradeEventVehicle" && method.GetParameters().Length == 2);
+            object? allowed = canUpgrade?.Invoke(__instance, new[] { vehicle, (object)level });
+            Write($"灰市升级调用 vehicle={DescribeVehicle(vehicle)} level={level} result={__result} canUpgrade={allowed ?? "?"}");
         }
         catch
         {
