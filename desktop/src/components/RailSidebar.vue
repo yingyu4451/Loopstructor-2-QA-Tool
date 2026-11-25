@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  Activity, ArchiveClock, Bot, BugPlay, ChevronLeft, ChevronRight, Gamepad2, Gem,
+  Activity, ArchiveClock, Bot, BugPlay, ChevronLeft, ChevronRight, Gamepad2, Gem, ListChecks,
   PackageOpen, ScanSearch, ScriptText, Settings, Swords, TrainFront,
 } from '../icons'
 import type { Component } from 'vue'
@@ -13,6 +13,9 @@ const groups: Array<{ label: string; items: Array<{ key: RouteKey; label: string
     { key: 'game', label: '游戏与插件', icon: Gamepad2 },
     { key: 'saves', label: '存档', icon: ArchiveClock },
     { key: 'autoplay', label: '自动游玩', icon: Bot },
+  ] },
+  { label: '流程测试', items: [
+    { key: 'flowtest', label: '主线流程', icon: ListChecks },
   ] },
   { label: '作弊', items: [
     { key: 'vehicles', label: '战车', icon: TrainFront },

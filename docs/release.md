@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.120
+./scripts/package.ps1 -Version 0.6.121
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.120-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.120-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.121-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.121-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.120",
+  "version": "0.6.121",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.120-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.121-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.119",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.119-to-0.6.120-win-x64.delta.zip",
+      "fromVersion": "0.6.120",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.120-to-0.6.121-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.120
-git push origin v0.6.120
+git tag v0.6.121
+git push origin v0.6.121
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,13 @@ git push origin v0.6.120
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.121
+
+- 侧边栏新增「流程测试」分类，首项「主线流程」按飞书思维笔记《玩个Gui2:天脊之下流程整理》拆成 17 个阶段，覆盖开局/教程、首轮两种失败分支、九局副官解锁、无尽与排行榜。
+- 流程测试支持只读当前流程存档自动核对：教程死亡、副官解锁、角色等级、设施升级、源液、最高完成层、无尽/排行榜解锁与介绍状态，并显示当前流程段。Host 新增 `flow.readProgress`，路径只取自已校验的运行状态。
+- 验收状态与备注保存在本机，可一键导出 Markdown 报告；存档无法自动证明的文案、播片和交互仍由人工确认。
+- 测试：.NET 735、desktop vitest 51、node:test 10；Release 构建 0 警告。
 
 ### 0.6.120
 

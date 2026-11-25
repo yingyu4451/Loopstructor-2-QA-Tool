@@ -52,7 +52,7 @@ test('unified desktop is sandboxed and responsive across every route', async () 
     await expect(brandLogo).toHaveCSS('border-radius', '0px')
     await expect(brandLogo).toHaveCSS('border-top-width', '0px')
 
-    const routes = ['游戏与插件', '存档', '自动游玩', '战车', '道具', '遗物', '战斗', '事件', '对象属性', '生成', '日志与状态', '界面与更新']
+    const routes = ['游戏与插件', '存档', '自动游玩', '主线流程', '战车', '道具', '遗物', '战斗', '事件', '对象属性', '生成', '日志与状态', '界面与更新']
     await page.getByRole('button', { name: '战车', exact: true }).click()
     await page.waitForTimeout(1_100)
     await expect(page.locator('.nav-item.active')).toHaveAttribute('aria-label', '战车')

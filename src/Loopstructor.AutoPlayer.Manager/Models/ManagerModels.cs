@@ -191,7 +191,7 @@ public sealed class ManagerSettings
     {
         string route = string.IsNullOrWhiteSpace(value) ? "game" : value.Trim();
         return route is "game" or "saves" or "autoplay" or "vehicles" or "items" or "relics" or "battle"
-            or "events" or "objects" or "spawn" or "diagnostics" or "settings"
+            or "events" or "objects" or "spawn" or "flowtest" or "diagnostics" or "settings"
             ? route
             : "game";
     }

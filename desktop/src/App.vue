@@ -16,6 +16,7 @@ import BattlePage from './pages/BattlePage.vue'
 import EventsPage from './pages/EventsPage.vue'
 import ObjectsPage from './pages/ObjectsPage.vue'
 import SpawnPage from './pages/SpawnPage.vue'
+import FlowTestPage from './pages/FlowTestPage.vue'
 import DiagnosticsPage from './pages/DiagnosticsPage.vue'
 import SettingsPage from './pages/SettingsPage.vue'
 import UpdaterPage from './pages/UpdaterPage.vue'
@@ -28,6 +29,7 @@ const updaterMode = window.loopstructorDesktop.isUpdater === true
 const pages = {
   game: GamePage, saves: SavesPage, autoplay: AutoplayPage, vehicles: VehiclesPage, items: ItemsPage,
   relics: RelicsPage, battle: BattlePage, events: EventsPage, objects: ObjectsPage, spawn: SpawnPage,
+  flowtest: FlowTestPage,
   diagnostics: DiagnosticsPage, settings: SettingsPage,
 }
 const activePage = computed(() => pages[store.route] ?? pages.game)

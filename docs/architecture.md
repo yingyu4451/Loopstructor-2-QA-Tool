@@ -72,7 +72,8 @@ Host 从 Manager 收到 `game.launch` 后：
 - 协议版本 `1`（`DesktopHostProtocol.CurrentVersion`）。
 - 请求：`{"id": "<string>", "method": "<name>", "params": {...}}`；响应：`{"id": "<string>", "success": <bool>, "result": ..., "error": "<message>"}`；事件：`{"event": "<name>", "payload": {...}}`。失败用 `error` 文本说明原因，不抛异常给界面。
 - Host 串行处理请求（内部 operation gate），不会并发执行两个会改变状态的请求。
-- 方法分组：`app.*`、`settings.*`、`game.*`、`plugin.*`、`editor.*`、`connection.*`、`cheat.*`、`automation.*`、`update.*`、`backups.*`、`diagnostics.*`、`logs.*`。
+- 方法分组：`app.*`、`settings.*`、`game.*`、`plugin.*`、`editor.*`、`connection.*`、`cheat.*`、`flow.*`、`automation.*`、`update.*`、`backups.*`、`diagnostics.*`、`logs.*`。
+- `flow.readProgress` 只读当前流程档（`PlayerFlow/slot_*/profile.json`）：路径由 Host 从已校验的运行状态取得，不接受渲染进程传入；用于「流程测试」页核对教程死亡、副官解锁、设施升级、源液与无尽/排行榜状态。
 
 ### Host ↔ Plugin
 

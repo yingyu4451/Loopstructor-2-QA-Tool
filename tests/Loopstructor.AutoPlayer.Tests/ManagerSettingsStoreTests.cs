@@ -285,6 +285,7 @@ public sealed class ManagerSettingsStoreTests
     [InlineData("saves")]
     [InlineData("vehicles")]
     [InlineData("events")]
+    [InlineData("flowtest")]
     [InlineData("settings")]
     public void Save_PreservesSupportedActiveRoutes(string route)
     {

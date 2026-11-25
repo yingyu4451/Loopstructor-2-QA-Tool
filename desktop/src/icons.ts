@@ -55,6 +55,8 @@ import backupRestoreIcon from '@iconify-icons/mdi/backup-restore'
 import paletteIcon from '@iconify-icons/mdi/palette-outline'
 import keyboardIcon from '@iconify-icons/mdi/keyboard'
 import scriptTextIcon from '@iconify-icons/mdi/script-text-outline'
+import listChecksIcon from '@iconify-icons/mdi/format-list-checks'
+import routeIcon from '@iconify-icons/mdi/routes'
 
 function iconComponent(name: string, icon: IconifyIcon) {
   return defineComponent({
@@ -124,3 +126,5 @@ export const BackupRestore = iconComponent('BackupRestoreIcon', backupRestoreIco
 export const Palette = iconComponent('PaletteIcon', paletteIcon)
 export const Keyboard = iconComponent('KeyboardIcon', keyboardIcon)
 export const ScriptText = iconComponent('ScriptTextIcon', scriptTextIcon)
+export const ListChecks = iconComponent('ListChecksIcon', listChecksIcon)
+export const RouteIcon = iconComponent('RouteIcon', routeIcon)

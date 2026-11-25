@@ -1,4 +1,4 @@
-export type RouteKey = 'game' | 'saves' | 'autoplay' | 'vehicles' | 'items' | 'relics' | 'battle' | 'events' | 'objects' | 'spawn' | 'diagnostics' | 'settings'
+export type RouteKey = 'game' | 'saves' | 'autoplay' | 'vehicles' | 'items' | 'relics' | 'battle' | 'events' | 'objects' | 'spawn' | 'flowtest' | 'diagnostics' | 'settings'
 export type ToastKind = 'success' | 'info' | 'warning' | 'error'
 export type SkinId = 'skyspine'
 export type CatalogPoolMode = 'all' | 'configured'
@@ -272,6 +272,39 @@ export interface ControlResponse {
   data?: Record<string, any>
 }
 
+export interface FlowProgress {
+  revision: number
+  profileId: string
+  segmentId: string
+  phase: number
+  tutorialDeathCount: number
+  hasBattleSave: boolean
+  sourceFluid: number
+  lastCompletedLayers: number
+  unlockedVehicleCount: number
+  unlockedCharacters: string[]
+  unlockedCharacterCount: number
+  characterLevels: Record<string, number>
+  upgradeLevels: Record<string, number>
+  upgradeCount: number
+  upgradeLevelSum: number
+  modeUnlockRecordPresent: boolean
+  modeUnlockRecordValid: boolean
+  endlessAndLeaderboardUnlocked: boolean
+  endlessIntroduced: boolean
+  leaderboardIntroduced: boolean
+  modeUnlockCharacterId: string
+}
+
+export interface FlowProgressResponse {
+  available: boolean
+  saveRoot: string
+  profilePath: string
+  lastWriteUtc?: string
+  reason: string
+  progress?: FlowProgress
+}
+
 export interface DesktopApi {
   readonly isUpdater: boolean
   getSnapshot(): Promise<HostSnapshot>
@@ -291,6 +324,7 @@ export interface DesktopApi {
   launchGame(): Promise<{ success: boolean; processId: number; attached: boolean }>
   refreshConnection(): Promise<HostSnapshot>
   cheatCommand(command: string, args?: unknown): Promise<ControlResponse>
+  readFlowProgress(): Promise<FlowProgressResponse>
   queryAutomationSetup(): Promise<ControlResponse>
   startAutomation(): Promise<ControlResponse>
   pauseAutomation(): Promise<ControlResponse>

@@ -22,6 +22,7 @@ const api = {
   launchGame: () => ipcRenderer.invoke('game:launch'),
   refreshConnection: () => ipcRenderer.invoke('connection:refresh'),
   cheatCommand: (command: string, args?: unknown) => ipcRenderer.invoke('cheat:command', command, args),
+  readFlowProgress: () => ipcRenderer.invoke('flow:readProgress'),
   queryAutomationSetup: () => ipcRenderer.invoke('automation:querySetup'),
   startAutomation: () => ipcRenderer.invoke('automation:start'),
   pauseAutomation: () => ipcRenderer.invoke('automation:pause'),

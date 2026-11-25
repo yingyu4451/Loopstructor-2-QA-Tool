@@ -140,6 +140,7 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
                 "game.launch" => LaunchGame(),
                 "connection.refresh" => await RefreshConnectionAsync(),
                 "cheat.command" => await SendCheatAsync(parameters),
+                "flow.readProgress" => ReadFlowProgress(),
                 "automation.querySetup" => await QueryAutomationSetupAsync(),
                 "automation.start" => await StartAutomationAsync(),
                 "automation.pause" => await SendAutomationControlAsync("pause", null),
@@ -431,6 +432,43 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
             AddLog(response.Success ? "cheat" : "error", response.Message);
         await EmitSnapshotAsync();
         return Serialize(response);
+    }
+
+    /// <summary>
+    /// 只读当前流程档（PlayerFlow/slot_*/profile.json），供“流程测试”页核对教程死亡、
+    /// 副官解锁、设施升级与无尽/排行榜解锁。路径始终取自 Host 已校验的运行状态，
+    /// 不接受渲染进程传入任意路径。
+    /// </summary>
+    private JToken ReadFlowProgress()
+    {
+        if (!_trusted)
+            throw new InvalidOperationException("尚未与当前游戏建立安全连接。");
+
+        string saveRoot = _status?.ActiveSaveRoot?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(saveRoot))
+        {
+            return Serialize(new
+            {
+                available = false,
+                saveRoot = string.Empty,
+                profilePath = string.Empty,
+                lastWriteUtc = (DateTime?)null,
+                reason = "游戏尚未上报当前流程存档目录；进入基地或开始一局后再刷新。",
+                progress = (FlowProgressSnapshot?)null
+            });
+        }
+
+        string profilePath = Path.Combine(saveRoot, FlowProgressFileReader.ProfileFileName);
+        FlowProgressFileResult result = FlowProgressFileReader.TryRead(profilePath);
+        return Serialize(new
+        {
+            available = result.Available,
+            saveRoot,
+            profilePath = result.ProfilePath,
+            lastWriteUtc = result.LastWriteUtc,
+            reason = result.Reason,
+            progress = result.Progress
+        });
     }
 
     private async Task<JToken> StopAutomationAsync()

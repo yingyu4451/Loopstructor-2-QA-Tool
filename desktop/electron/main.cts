@@ -397,6 +397,7 @@ function registerIpc(): void {
   ipcMain.handle('game:launch', () => invoke('game.launch'))
   ipcMain.handle('connection:refresh', () => invoke('connection.refresh'))
   ipcMain.handle('cheat:command', (_event, command: string, args: unknown) => invoke('cheat.command', { command, arguments: args ?? {} }))
+  ipcMain.handle('flow:readProgress', () => invoke('flow.readProgress'))
   ipcMain.handle('automation:querySetup', () => invoke('automation.querySetup'))
   ipcMain.handle('automation:start', () => invoke('automation.start'))
   ipcMain.handle('automation:pause', () => invoke('automation.pause'))

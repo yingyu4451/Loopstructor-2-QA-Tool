@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { cloneSettings } from '../settings-clone'
-import type { AutomationSetup, CatalogItem, CatalogPoolMode, ControlResponse, EditorBridgeInstance, HostLogEntry, HostSnapshot, ManagerSettings, PersistentCheatOption, RouteKey, SaveBackupCatalog, SaveBackupEntry, SaveRestoreResponse, StarredSaveActionResponse, StarredSaveEntry } from '../types'
+import type { AutomationSetup, CatalogItem, CatalogPoolMode, ControlResponse, EditorBridgeInstance, FlowProgressResponse, HostLogEntry, HostSnapshot, ManagerSettings, PersistentCheatOption, RouteKey, SaveBackupCatalog, SaveBackupEntry, SaveRestoreResponse, StarredSaveActionResponse, StarredSaveEntry } from '../types'
 import { useUiStore } from './ui'
 
 const persistentCheatOrder: PersistentCheatOption[] = ['baseGodMode', 'mapSkipEnabled', 'enemyIdsVisible', 'enemyBuffsVisible']
@@ -16,7 +16,7 @@ const mutationCommands = new Set([
   'cheat.setCatalogPoolMode',
 ])
 const cheatRoutes = new Set<RouteKey>(['vehicles', 'items', 'relics', 'battle', 'events', 'objects', 'spawn'])
-const routeKeys: readonly RouteKey[] = ['game', 'saves', 'autoplay', 'vehicles', 'items', 'relics', 'battle', 'events', 'objects', 'spawn', 'diagnostics', 'settings']
+const routeKeys: readonly RouteKey[] = ['game', 'saves', 'autoplay', 'vehicles', 'items', 'relics', 'battle', 'events', 'objects', 'spawn', 'flowtest', 'diagnostics', 'settings']
 
 function isRouteKey(value: unknown): value is RouteKey {
   return typeof value === 'string' && (routeKeys as readonly string[]).includes(value)
@@ -30,6 +30,7 @@ export const useAppStore = defineStore('app', {
     vehicles: [] as Record<string, any>[],
     enemies: [] as Record<string, any>[],
     automationSetup: undefined as AutomationSetup | undefined,
+    flowProgress: undefined as FlowProgressResponse | undefined,
     saveBackupCatalog: undefined as SaveBackupCatalog | undefined,
     currentRoute: 'game' as RouteKey,
     routeInitialized: false,
@@ -58,6 +59,7 @@ export const useAppStore = defineStore('app', {
           this.vehicles = []
           this.enemies = []
           this.automationSetup = undefined
+          this.flowProgress = undefined
           if (this.snapshot && connection) {
             this.snapshot = {
               ...this.snapshot,
@@ -422,6 +424,29 @@ export const useAppStore = defineStore('app', {
       if (response?.success && response.data) this.automationSetup = response.data as AutomationSetup
       else this.automationSetup = undefined
       return response
+    },
+    async refreshFlowProgress(announce = false) {
+      if (!this.connected || typeof window.loopstructorDesktop.readFlowProgress !== 'function') {
+        this.flowProgress = undefined
+        return undefined
+      }
+      try {
+        const response = await window.loopstructorDesktop.readFlowProgress()
+        this.flowProgress = response
+        if (announce) {
+          useUiStore().toast(response.available
+            ? '已读取当前流程存档。'
+            : (response.reason || '尚未读取到流程存档。'),
+          response.available ? 'success' : 'warning')
+        }
+        return response
+      } catch (error) {
+        this.flowProgress = undefined
+        if (announce) {
+          useUiStore().toast(error instanceof Error ? error.message : '读取流程存档失败。', 'error')
+        }
+        return undefined
+      }
     },
     async startAutomation() {
       return await this.automationCommand(() => window.loopstructorDesktop.startAutomation(), '自动游玩已开始。')

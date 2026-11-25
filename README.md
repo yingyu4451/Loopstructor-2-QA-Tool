@@ -45,13 +45,13 @@ Loopstructor-2-QA-Tool.exe (Launcher)
 ./scripts/bootstrap.ps1
 ./scripts/build.ps1 -Configuration Release
 ./scripts/test.ps1 -Configuration Release -NoRestore -NoBuild
-./scripts/package.ps1 -Version 0.6.120
+./scripts/package.ps1 -Version 0.6.121
 ```
 
 - `build.ps1` 构建解决方案与 `desktop`，输出在各项目 `bin`/`dist` 目录。
 - `test.ps1` 依次运行：解决方案测试（TRX 输出到 `artifacts\TestResults`）、`Verification` 控制台校验、`pnpm typecheck`、`pnpm lint`、`pnpm test`。
 - `desktop` 的 Playwright E2E 由 `pnpm test:e2e` 单独运行（CI 会执行；本地需要可交互的桌面会话）。
-- `package.ps1` 需要 Node/pnpm 与 7-Zip，输出到 `artifacts\release\`：`Loopstructor-2-QA-Tool-0.6.120-win-x64.zip`、对应的 `.sha256` 和 `autoplayer-update-manifest.json`。`-SkipBuild` 可复用已有构建产物。
+- `package.ps1` 需要 Node/pnpm 与 7-Zip，输出到 `artifacts\release\`：`Loopstructor-2-QA-Tool-0.6.121-win-x64.zip`、对应的 `.sha256` 和 `autoplayer-update-manifest.json`。`-SkipBuild` 可复用已有构建产物。
 - 加 `-SkipBuild` 前必须先完成一次对应版本号的 Release 构建，否则包内二进制版本校验会失败。
 - 内循环提速：只改桌面端用 `build.ps1 -SkipPnpmInstall -SkipDotnetBuild` + `test.ps1 -NoRestore -NoBuild -SkipDotnet`（约 17 秒）；只改 C# 用 `-SkipDesktopBuild` / `-SkipDesktop`，可用 `-DotnetFilter` 定向测试。实测耗时与发布流水线开销见 [docs/release.md](docs/release.md)。
 
@@ -99,6 +99,12 @@ Loopstructor-2-QA-Tool\
 | Paused | 继续、停止 |
 
 - `NeedsProcessRestart` 只阻止新的开始；插件认为当前进程内的状态无法清理时置位，需要重启游戏进程。
+
+## 流程测试
+
+- 侧边栏「流程测试 → 主线流程」按飞书文档《玩个Gui2:天脊之下流程整理》依次验收开局、教程、首轮两种失败分支、九局副官解锁、无尽与排行榜。
+- 每个验收点可标记通过/失败/阻塞/跳过并写备注；进度保存在本机，可导出 Markdown 报告。
+- 连接 Player 或 Editor 后可读取当前流程存档（`PlayerFlow/slot_*/profile.json`）自动核对教程死亡、副官解锁、角色等级、设施升级、源液、最高完成层和无尽/排行榜状态；文案、播片与交互仍需人工确认。
 
 ## 作弊调试
 
@@ -189,4 +195,4 @@ Plugin 端日志由 Host 合并显示；游戏处于非 Development Build 时不
 
 ## 版本
 
-当前版本 0.6.120。版本记录见 [docs/release.md](docs/release.md#版本记录)，发布流程与检查表见同一文档。
+当前版本 0.6.121。版本记录见 [docs/release.md](docs/release.md#版本记录)，发布流程与检查表见同一文档。
