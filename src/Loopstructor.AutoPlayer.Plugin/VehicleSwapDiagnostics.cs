@@ -49,12 +49,15 @@ internal static class VehicleSwapDiagnostics
 
                 MethodInfo? onInit = component.GetMethod("OnInit", BindingFlags.NonPublic | BindingFlags.Instance);
                 MethodInfo? remove = controller.GetMethod("RemoveBasicRazorComponent", BindingFlags.Public | BindingFlags.Instance);
+                // 1.449 是 5 参，1.460 起多了 verifyEventUpgrade 变 6 参，两种都要认。
                 MethodInfo? swap = manager
                     .GetMethods(BindingFlags.NonPublic | BindingFlags.Instance)
-                    .FirstOrDefault(method => method.Name == "TryReplaceVehicleComponentWithSnapshot" && method.GetParameters().Length == 5);
+                    .FirstOrDefault(method => method.Name == "TryReplaceVehicleComponentWithSnapshot" &&
+                                              method.GetParameters().Length is 5 or 6);
                 if (onInit == null || remove == null || swap == null)
                 {
-                    s_error = "缺少组件卸载/重装入口";
+                    s_error = "缺少组件卸载/重装入口（swap=" + (swap != null) + ", onInit=" + (onInit != null) + ", remove=" + (remove != null) + "）";
+                    Write("安装诊断补丁失败：" + s_error);
                     return;
                 }
 
@@ -70,6 +73,7 @@ internal static class VehicleSwapDiagnostics
             catch (Exception exception)
             {
                 s_error = exception.Message;
+                Write("安装诊断补丁异常：" + exception);
             }
         }
     }
