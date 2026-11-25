@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.113
+./scripts/package.ps1 -Version 0.6.114
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.113-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.113-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.114-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.114-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.113",
+  "version": "0.6.114",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.113-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.114-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.112",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.112-to-0.6.113-win-x64.delta.zip",
+      "fromVersion": "0.6.113",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.113-to-0.6.114-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.113
-git push origin v0.6.113
+git tag v0.6.114
+git push origin v0.6.114
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,13 @@ git push origin v0.6.113
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.114
+
+- 修复「在 Unity Editor Play Mode 里玩，自动备份一直停在旧日期」：自动备份服务需要「存档根 + 当前章 + 当前关卡」，此前只有 Player 插件上报这三项，Editor 连接从不报，备份服务每次都在门槛处跳过。现在 Editor Bridge 在 `/api/status` 里回报 Play Mode 的存档根（PlayerFlow 与旧存档目录按写入时间择新）和游戏底部面板的「章-关」，Host 每次轮询写入运行状态，Editor 下也会自动生成备份与星标存档。
+- Editor 下的「一键读档」明确禁用：读档会覆盖真实存档，而且无法像 Player 那样关闭游戏再重启 Play Mode；存档页会禁用按钮并提示改用 Player 连接。星标创建不受影响。
+- 新增 4 项 Host 侧测试（Editor 状态映射、`/api/status` 解析、Editor 形状状态落快照）与存档页/源码契约断言。
+- 测试：.NET 725、desktop vitest 44、node:test 10；Release 构建 0 警告。
 
 ### 0.6.113
 

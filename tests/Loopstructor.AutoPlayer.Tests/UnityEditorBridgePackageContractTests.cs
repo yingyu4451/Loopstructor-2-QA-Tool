@@ -27,6 +27,30 @@ public sealed class UnityEditorBridgePackageContractTests
     }
 
     [Fact]
+    public void EmbeddedPackage_ReportsPlayModeSaveStatusForAutoBackup()
+    {
+        string root = FindRepositoryRoot();
+        string packageRoot = Path.Combine(root, "resources", "unity-package", "com.loopstructor.qa-editor-bridge");
+        string server = File.ReadAllText(Path.Combine(packageRoot, "Editor", "QaBridgeServer.cs"));
+        string bridge = File.ReadAllText(Path.Combine(
+            root, "src", "Loopstructor.AutoPlayer.EditorBridge.Runtime", "UnityEditorCheatBridge.cs"));
+        string reader = File.ReadAllText(Path.Combine(
+            root, "src", "Loopstructor.AutoPlayer.EditorBridge.Runtime", "EditorRunStatusReader.cs"));
+        string host = File.ReadAllText(Path.Combine(root, "src", "Loopstructor.AutoPlayer.Host", "DesktopHostEngine.cs"));
+
+        // /api/status 在 Play Mode 下必须带回存档根与「章-关」，Host 轮询写入状态后自动备份才会触发。
+        Assert.Contains("UnityEditorCheatBridge.BuildRunStatus()", server, StringComparison.Ordinal);
+        Assert.Contains("BuildRunStatus", bridge, StringComparison.Ordinal);
+        Assert.Contains("runStatusReady", reader, StringComparison.Ordinal);
+        Assert.Contains("activeSaveRoot", reader, StringComparison.Ordinal);
+        Assert.Contains("FlowSaveSlotResolver", reader, StringComparison.Ordinal);
+        Assert.Contains("SaveRootSelection", reader, StringComparison.Ordinal);
+        Assert.Contains("connection.ApplyRunStatus(_status)", host, StringComparison.Ordinal);
+        // Editor 下读档会覆盖真实存档且无法自动重启 Play Mode，必须明确拒绝。
+        Assert.Contains("Unity Editor 连接下不能一键读档", host, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EmbeddedPackageVersion_MatchesEveryProductVersionSurface()
     {
         string root = FindRepositoryRoot();
@@ -44,7 +68,7 @@ public sealed class UnityEditorBridgePackageContractTests
             "com.loopstructor.qa-editor-bridge",
             "package.json"))).Value<string>("version")!;
 
-        Assert.Equal("0.6.113", version);
+        Assert.Equal("0.6.114", version);
         Assert.Equal(version, pluginVersion);
         Assert.Equal(version, desktopVersion);
         Assert.Equal(version, bridgeVersion);

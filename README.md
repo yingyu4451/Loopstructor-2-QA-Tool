@@ -45,13 +45,13 @@ Loopstructor-2-QA-Tool.exe (Launcher)
 ./scripts/bootstrap.ps1
 ./scripts/build.ps1 -Configuration Release
 ./scripts/test.ps1 -Configuration Release -NoRestore -NoBuild
-./scripts/package.ps1 -Version 0.6.113
+./scripts/package.ps1 -Version 0.6.114
 ```
 
 - `build.ps1` 构建解决方案与 `desktop`，输出在各项目 `bin`/`dist` 目录。
 - `test.ps1` 依次运行：解决方案测试（TRX 输出到 `artifacts\TestResults`）、`Verification` 控制台校验、`pnpm typecheck`、`pnpm lint`、`pnpm test`。
 - `desktop` 的 Playwright E2E 由 `pnpm test:e2e` 单独运行（CI 会执行；本地需要可交互的桌面会话）。
-- `package.ps1` 需要 Node/pnpm 与 7-Zip，输出到 `artifacts\release\`：`Loopstructor-2-QA-Tool-0.6.113-win-x64.zip`、对应的 `.sha256` 和 `autoplayer-update-manifest.json`。`-SkipBuild` 可复用已有构建产物。
+- `package.ps1` 需要 Node/pnpm 与 7-Zip，输出到 `artifacts\release\`：`Loopstructor-2-QA-Tool-0.6.114-win-x64.zip`、对应的 `.sha256` 和 `autoplayer-update-manifest.json`。`-SkipBuild` 可复用已有构建产物。
 - 加 `-SkipBuild` 前必须先完成一次对应版本号的 Release 构建，否则包内二进制版本校验会失败。
 - 内循环提速：只改桌面端用 `build.ps1 -SkipPnpmInstall -SkipDotnetBuild` + `test.ps1 -NoRestore -NoBuild -SkipDotnet`（约 17 秒）；只改 C# 用 `-SkipDesktopBuild` / `-SkipDesktop`，可用 `-DotnetFilter` 定向测试。实测耗时与发布流水线开销见 [docs/release.md](docs/release.md)。
 
@@ -117,6 +117,8 @@ Loopstructor-2-QA-Tool\
 ## 存档备份
 
 - 自动备份可开关，保留份数 1–100。
+- 连接 Player 时由插件上报存档根与「章-关」进度；连接 Unity Editor Play Mode 时由 Editor Bridge 上报同样的三项，Editor 下同样会生成自动备份与星标存档。
+- 一键读档只支持 Player 连接：Editor 下会覆盖真实存档，而且无法像 Player 那样关闭游戏再重启 Play Mode，存档页会禁用「读档」并提示改用 Player。
 - 进度变化并通过写入稳定检测（默认 2 秒）后生成快照；单次快照最多 5000 个文件、总计 2 GiB，超限跳过并记录原因。
 - 恢复流程：正常关闭游戏 → 事务替换存档目录 → 自动重启游戏；失败时保留原存档。
 - 星标存档：可把任意自动备份加星标，或把当前存档「立即保存为星标」；星标存档统一保存在 save-backups\starred\<id>，所有游戏版本共用、不参与保留份数轮换，可命名、重命名、删除与读档（旧版本按游戏版本分开存放的星标会在首次访问时自动迁移）。
@@ -187,4 +189,4 @@ Plugin 端日志由 Host 合并显示；游戏处于非 Development Build 时不
 
 ## 版本
 
-当前版本 0.6.113。版本记录见 [docs/release.md](docs/release.md#版本记录)，发布流程与检查表见同一文档。
+当前版本 0.6.114。版本记录见 [docs/release.md](docs/release.md#版本记录)，发布流程与检查表见同一文档。

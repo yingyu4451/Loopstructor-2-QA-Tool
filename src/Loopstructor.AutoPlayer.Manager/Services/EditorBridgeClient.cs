@@ -60,6 +60,10 @@ public sealed class EditorBridgeClient
                 RuntimeReady = payload.Value<bool?>("runtimeReady") == true,
                 SceneName = payload.Value<string>("sceneName") ?? instance.SceneName,
                 AssemblySha256 = payload.Value<string>("assemblySha256") ?? string.Empty,
+                RunStatusReady = payload.Value<bool?>("runStatusReady") == true,
+                ActiveSaveRoot = payload.Value<string>("activeSaveRoot") ?? string.Empty,
+                CurrentChapter = payload.Value<int?>("currentChapter") ?? 0,
+                CurrentMapLayer = payload.Value<int?>("currentMapLayer") ?? -1,
                 Message = payload.Value<string>("message") ?? "Unity Editor 已连接。"
             };
         }

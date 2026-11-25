@@ -736,6 +736,7 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
 
     private async Task<JToken> RestoreSaveBackupAsync(string backupId)
     {
+        EnsureRestoreSupportedOnCurrentTarget();
         GameInstallValidation game = RequireGame();
         string activeSaveRoot = _status?.ActivationMode == AutoPlayerActivationMode.ResidentPlayer
             ? _status.ActiveSaveRoot
@@ -746,6 +747,7 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
 
     private async Task<JToken> RestoreStarredSaveAsync(string starredId)
     {
+        EnsureRestoreSupportedOnCurrentTarget();
         GameInstallValidation game = RequireGame();
         string activeSaveRoot = _status?.ActivationMode == AutoPlayerActivationMode.ResidentPlayer
             ? _status.ActiveSaveRoot
@@ -754,9 +756,16 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         return await RestorePlanAsync(plan, game);
     }
 
-    private async Task<JToken> RestorePlanAsync(SaveRestorePlan plan, GameInstallValidation game)
+    private void EnsureRestoreSupportedOnCurrentTarget()
     {
-        IReadOnlyList<IUpdateGameProcess> processes = GameUpdateShutdownCoordinator.FindRunning(game.ExecutablePath);
+        if (string.IsNullOrWhiteSpace(_selectedEditorInstanceId)) return;
+        throw new InvalidOperationException(
+            "Unity Editor 连接下不能一键读档：读档会覆盖真实存档，而且无法自动关闭 Play Mode 再重启。"
+            + "请改用 Player 连接读档，或退出 Play Mode 后手动替换存档。");
+    }
+
+    private async Task<JToken> RestorePlanAsync(SaveRestorePlan plan, GameInstallValidation game)
+    {        IReadOnlyList<IUpdateGameProcess> processes = GameUpdateShutdownCoordinator.FindRunning(game.ExecutablePath);
         try
         {
             GameUpdateShutdownResult shutdown = await _gameUpdateShutdown.RequestCloseAndWaitAsync(
@@ -997,6 +1006,8 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         }
         if (sessionChanged || !wasTrusted)
             AddLog("safe", "Editor Bridge、Unity 进程和 Assembly-CSharp 指纹已经交叉验证。", emit: false);
+        // 每次轮询都把 Play Mode 里正在写的存档根与章-关写回状态：自动备份服务只认这三项。
+        if (_status != null) connection.ApplyRunStatus(_status);
         await EmitSnapshotAsync();
     }
 

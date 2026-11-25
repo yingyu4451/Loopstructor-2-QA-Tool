@@ -48,6 +48,13 @@ public static class UnityEditorCheatBridge
             ? EditorCheatResponse.Fail("Unity Editor 尚未进入可控制的 Play Mode。", "EDITOR_RUNTIME_NOT_READY")
             : m_host.Runtime.Execute(command, arguments ?? new JObject());
 
+    /// <summary>
+    /// 当前 Play Mode 的存档根与「章-关」进度，供 /api/status 回传 Host 的自动备份服务。
+    /// 必须在 Unity 主线程调用（会读取游戏运行时对象）。
+    /// </summary>
+    public static JObject BuildRunStatus() =>
+        m_host == null ? EditorRunStatusReader.Empty() : m_host.Runtime.BuildRunStatus();
+
     /// <summary>停止运行控制并清除全部瞬态效果。</summary>
     public static void Stop()
     {
@@ -228,6 +235,8 @@ internal sealed class EditorCheatRuntime : IDisposable
     {
         if (IsAvailable && m_enabled) m_bridge.DrawEnemyOverlays();
     }
+
+    public JObject BuildRunStatus() => EditorRunStatusReader.Build();
 
     public void Dispose()
     {

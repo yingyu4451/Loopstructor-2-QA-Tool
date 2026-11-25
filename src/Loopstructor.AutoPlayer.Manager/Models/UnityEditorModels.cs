@@ -1,3 +1,5 @@
+using Loopstructor.AutoPlayer.Core;
+
 namespace Loopstructor.AutoPlayer.Manager.Models;
 
 public sealed class UnityProjectInspection
@@ -43,6 +45,29 @@ public sealed class EditorBridgeConnectionResult
     public bool RuntimeReady { get; init; }
     public string SceneName { get; init; } = string.Empty;
     public string AssemblySha256 { get; init; } = string.Empty;
+    public bool RunStatusReady { get; init; }
+    public string ActiveSaveRoot { get; init; } = string.Empty;
+    public int CurrentChapter { get; init; }
+    public int CurrentMapLayer { get; init; } = -1;
+
+    /// <summary>
+    /// 把 Editor Play Mode 上报的存档根与「章-关」写进运行状态。
+    /// 自动备份服务只认这三项；Editor 没有插件，只能由 /api/status 每次轮询带回。
+    /// </summary>
+    public void ApplyRunStatus(AutoPlayerStatus status)
+    {
+        if (RunStatusReady)
+        {
+            status.ActiveSaveRoot = ActiveSaveRoot;
+            status.CurrentMapStage = CurrentChapter > 0 ? CurrentChapter - 1 : -1;
+            status.CurrentMapLayer = CurrentMapLayer;
+            return;
+        }
+
+        status.ActiveSaveRoot = string.Empty;
+        status.CurrentMapStage = -1;
+        status.CurrentMapLayer = -1;
+    }
 }
 
 internal sealed class TrustedEditorBridgeInstance

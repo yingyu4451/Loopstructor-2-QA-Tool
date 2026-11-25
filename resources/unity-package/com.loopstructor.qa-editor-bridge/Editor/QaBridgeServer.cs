@@ -233,23 +233,34 @@ namespace Loopstructor.QA.EditorBridge
         }
 
         /// <summary>构造主线程状态响应。</summary>
-        private JToken BuildStatus() => new JObject
+        private JToken BuildStatus()
         {
-            ["success"] = true,
-            ["schemaVersion"] = SchemaVersion,
-            ["protocolVersion"] = ProtocolVersion,
-            ["instanceId"] = m_instanceId,
-            ["processId"] = Process.GetCurrentProcess().Id,
-            ["projectPath"] = m_projectRoot,
-            ["unityVersion"] = Application.unityVersion,
-            ["gameVersion"] = Application.version,
-            ["sceneName"] = SceneManager.GetActiveScene().name,
-            ["mode"] = CurrentMode,
-            ["runtimeReady"] = UnityEditorCheatBridge.IsRunning,
-            ["compiling"] = EditorApplication.isCompiling,
-            ["assemblySha256"] = HashFile(Path.Combine(m_projectRoot, "Library", "ScriptAssemblies", "Assembly-CSharp.dll")),
-            ["message"] = m_runtimeMessage
-        };
+            JObject status = new()
+            {
+                ["success"] = true,
+                ["schemaVersion"] = SchemaVersion,
+                ["protocolVersion"] = ProtocolVersion,
+                ["instanceId"] = m_instanceId,
+                ["processId"] = Process.GetCurrentProcess().Id,
+                ["projectPath"] = m_projectRoot,
+                ["unityVersion"] = Application.unityVersion,
+                ["gameVersion"] = Application.version,
+                ["sceneName"] = SceneManager.GetActiveScene().name,
+                ["mode"] = CurrentMode,
+                ["runtimeReady"] = UnityEditorCheatBridge.IsRunning,
+                ["compiling"] = EditorApplication.isCompiling,
+                ["assemblySha256"] = HashFile(Path.Combine(m_projectRoot, "Library", "ScriptAssemblies", "Assembly-CSharp.dll")),
+                ["message"] = m_runtimeMessage
+            };
+            if (UnityEditorCheatBridge.IsRunning)
+            {
+                status.Merge(
+                    UnityEditorCheatBridge.BuildRunStatus(),
+                    new JsonMergeSettings { MergeArrayHandling = MergeArrayHandling.Replace });
+            }
+
+            return status;
+        }
 
         /// <summary>以固定时间比较 Bearer Token。</summary>
         private bool IsAuthorized(HttpListenerRequest request)

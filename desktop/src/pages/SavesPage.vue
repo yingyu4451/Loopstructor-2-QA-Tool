@@ -20,6 +20,7 @@ const backups = computed(() => store.saveBackupCatalog?.backups ?? [])
 const starred = computed(() => store.saveBackupCatalog?.starred ?? [])
 const status = computed(() => store.saveBackupCatalog?.status ?? store.snapshot?.saveBackups)
 const restartAfterRestore = computed(() => store.snapshot?.settings.restartGameAfterRestore ?? true)
+const editorTarget = computed(() => store.snapshot?.connection.target === 'editor')
 
 watch(() => store.settings, (settings) => {
   if (settings && !dirty.value) draft.value = cloneSettings(settings)
@@ -142,7 +143,7 @@ async function setRestartAfterRestore(enabled: boolean) {
 
     <section class="card mechanical-section save-history-section">
       <header class="section-heading save-history-heading">
-        <div class="heading-with-icon"><ArchiveClock :size="22" /><div><h2>保存好的存档</h2><p>选择一个快照后，Manager 会关闭游戏并替换存档。</p></div></div>
+        <div class="heading-with-icon"><ArchiveClock :size="22" /><div><h2>保存好的存档</h2><p>{{ editorTarget ? 'Editor Play Mode 下自动备份可用；一键读档请改用 Player 连接。' : '选择一个快照后，Manager 会关闭游戏并替换存档。' }}</p></div></div>
         <div class="save-history-tools">
           <label class="header-switch" :title="restartAfterRestore ? '读档后会自动启动游戏构建' : '只替换存档文件、不启动游戏，适合在 Unity Editor 里验档'">
             <input type="checkbox" :checked="restartAfterRestore" name="restart-after-restore" @change="setRestartAfterRestore(!restartAfterRestore)" />
@@ -163,7 +164,7 @@ async function setRestartAfterRestore(enabled: boolean) {
           </div>
           <div class="save-row-actions">
             <button v-tooltip="'保存为星标存档'" class="btn btn-square btn-ghost btn-sm icon-button" :aria-label="`把 ${restartHint(backup)} 的备份保存为星标存档`" :disabled="ui.busy || status?.busy" @click="starBackup(backup)"><StarOutline :size="18" /></button>
-            <button class="btn btn-outline button secondary restore-save-button" :disabled="ui.busy || status?.busy" @click="restore(backup)"><BackupRestore :size="18" />读档</button>
+            <button class="btn btn-outline button secondary restore-save-button" :disabled="ui.busy || status?.busy || editorTarget" :title="editorTarget ? 'Editor 连接下不能一键读档，请用 Player 连接' : ''" @click="restore(backup)"><BackupRestore :size="18" />读档</button>
           </div>
         </article>
       </div>
@@ -195,7 +196,7 @@ async function setRestartAfterRestore(enabled: boolean) {
           <div class="save-row-actions">
             <button class="btn btn-outline btn-sm button secondary compact" :disabled="ui.busy || status?.busy" @click="renameStarred(entry)"><Pencil :size="16" />重命名</button>
             <button class="btn btn-outline btn-sm button danger compact" :disabled="ui.busy" @click="removeStarred(entry)"><Trash2 :size="16" />删除</button>
-            <button class="btn btn-outline button secondary restore-save-button" :disabled="ui.busy || status?.busy" @click="restoreStarred(entry)"><BackupRestore :size="18" />读档</button>
+            <button class="btn btn-outline button secondary restore-save-button" :disabled="ui.busy || status?.busy || editorTarget" :title="editorTarget ? 'Editor 连接下不能一键读档，请用 Player 连接' : ''" @click="restoreStarred(entry)"><BackupRestore :size="18" />读档</button>
           </div>
         </article>
       </div>
