@@ -414,6 +414,8 @@ internal sealed class CheatRuntimeBridge
         _mainStationType = Require("MetroTD.CatapultSystem.MainStation");
         _waveControllerType = Require("MetroTD.RoomSystem.WaveDurationController");
         _waveProgressControllerType = Require("MetroTD.RoomSystem.WaveProgressController");
+        // 灰市升级的组件替换会把真实异常吞掉；启动时就挂只读诊断补丁，失败不影响其它功能。
+        VehicleSwapDiagnostics.EnsureInstalled();
         _agentCreatorType = Require("MetroTD.AISystem.AgentCreator");
         _enemyConfigType = Require("MetroTD.AISystem.SO_EnemyCfg");
         _aiInformationDataSoType = Require("MetroTD.AISystem.AIInformationDataSO");
@@ -692,6 +694,7 @@ internal sealed class CheatRuntimeBridge
     public CheatExecutionResult TriggerRunEvent(JObject arguments)
     {
         EnsureAvailable();
+        VehicleSwapDiagnostics.EnsureInstalled();
         string libraryId = RequiredText(arguments, "libraryId", "必须选择事件库。");
         string groupId = RequiredText(arguments, "groupId", "必须选择事件组。");
         bool direct = arguments.Value<bool?>("direct") == true;

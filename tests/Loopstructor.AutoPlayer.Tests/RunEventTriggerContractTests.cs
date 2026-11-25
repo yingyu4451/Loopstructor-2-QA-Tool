@@ -134,6 +134,26 @@ public sealed class RunEventTriggerContractTests
     }
 
     [Fact]
+    public void Runtime_DiagnosticsCaptureTheSwallowedVehicleSwapException()
+    {
+        using AssemblyDefinition assembly = ReadPlugin();
+        TypeDefinition bridge = RequireType(assembly, BridgeType);
+        TypeDefinition diagnostics = RequireType(assembly, "Loopstructor.AutoPlayer.Plugin.VehicleSwapDiagnostics");
+        string[] strings = diagnostics.Methods
+            .Concat(diagnostics.NestedTypes.SelectMany(type => type.Methods))
+            .Where(method => method.HasBody)
+            .SelectMany(LoadedStrings)
+            .ToArray();
+
+        Assert.Contains("BasicVehicleComponent.OnInit", strings);
+        Assert.Contains("VehicleController.RemoveBasicRazorComponent", strings);
+        Assert.Contains("TryReplaceVehicleComponentWithSnapshot", strings);
+        Assert.Contains("vehicle-swap-diagnostic.log", strings);
+        Assert.Contains(Calls(RequireMethod(bridge, "Initialize")), call => call.Name == "EnsureInstalled");
+        Assert.Contains(Calls(RequireMethod(bridge, "TriggerRunEvent")), call => call.Name == "EnsureInstalled");
+    }
+
+    [Fact]
     public void EditorBridge_ExposesTheSameRunEventCommands()
     {
         string editorBridge = File.ReadAllText(Path.Combine(
