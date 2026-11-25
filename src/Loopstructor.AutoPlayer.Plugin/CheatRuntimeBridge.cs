@@ -651,16 +651,18 @@ internal sealed class CheatRuntimeBridge
         object? roomMap = roomMapType == null ? null : TryGetSingleton(roomMapType);
         object? chooseNode = roomMap == null ? null : GetMember(roomMap, "chooseNode");
         object? runningNode = roomMap == null ? null : GetMember(roomMap, "runningNode");
+        bool chooseSelected = chooseNode != null;
         object? node = chooseNode ?? runningNode;
         object? nodeData = node == null ? null : GetMember(node, "nodeData");
-        object? layerLibrary = ResolveNodeEventLibrary(runModeType, nodeData);
+        object? chooseNodeData = chooseSelected ? GetMember(chooseNode, "nodeData") : null;
+        object? layerLibrary = ResolveNodeEventLibrary(runModeType, chooseNodeData);
 
         data["inRun"] = true;
         data["runEventActive"] = GetStaticMember(runModeType, "IsRunEventActive") is true;
         data["panelOpen"] = IsRunEventPanelOpen();
         if (node != null)
         {
-            data["node"] = BuildRunEventNodeState(nodeData, layerLibrary != null);
+            data["node"] = BuildRunEventNodeState(nodeData, layerLibrary != null, chooseSelected);
         }
 
         JArray libraries = new();
@@ -1084,7 +1086,7 @@ internal sealed class CheatRuntimeBridge
         };
     }
 
-    private static JObject BuildRunEventNodeState(object? nodeData, bool isEventNode)
+    private static JObject BuildRunEventNodeState(object? nodeData, bool isEventNode, bool selected = true)
     {
         string position = string.Empty;
         if (GetMember(nodeData, "pos") is object pos)
@@ -1096,7 +1098,7 @@ internal sealed class CheatRuntimeBridge
 
         return new JObject
         {
-            ["selected"] = nodeData != null,
+            ["selected"] = selected && nodeData != null,
             ["position"] = position,
             ["isEventNode"] = isEventNode
         };
