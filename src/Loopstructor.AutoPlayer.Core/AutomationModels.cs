@@ -380,6 +380,8 @@ public static class CheatCommands
     public const string SetEnabled = "cheat.setEnabled";
     public const string QueryCatalog = "cheat.queryCatalog";
     public const string QueryState = "cheat.queryState";
+    public const string QueryRunEvents = "cheat.queryRunEvents";
+    public const string TriggerRunEvent = "cheat.triggerRunEvent";
     public const string GrantVehicle = "cheat.grantVehicle";
     public const string RemoveVehicle = "cheat.removeVehicle";
     public const string ClearFieldVehicles = "cheat.clearFieldVehicles";
@@ -420,6 +422,7 @@ public static class CheatCommands
         SetEnabled,
         QueryCatalog,
         QueryState,
+        QueryRunEvents,
         GrantVehicle,
         RemoveVehicle,
         ClearFieldVehicles,
@@ -434,6 +437,7 @@ public static class CheatCommands
         SetFieldCatapultDeleteMode,
         SetBaseGodMode,
         EndWave,
+        TriggerRunEvent,
         ClearEnemies,
         SkipRewardPopup,
         QueryVehicles,
@@ -472,6 +476,7 @@ public static class CheatCommands
         SetFieldCatapultDeleteMode,
         SetBaseGodMode,
         EndWave,
+        TriggerRunEvent,
         ClearEnemies,
         SkipRewardPopup,
         ModifyVehicle,
@@ -492,6 +497,7 @@ public static class CheatCommands
         SetEnabled,
         QueryCatalog,
         QueryState,
+        QueryRunEvents,
         QueryVehicles,
         QueryEnemies,
         SetEnemyIdOverlay,

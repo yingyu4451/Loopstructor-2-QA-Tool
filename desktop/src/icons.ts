@@ -54,6 +54,7 @@ import pencilIcon from '@iconify-icons/mdi/pencil'
 import backupRestoreIcon from '@iconify-icons/mdi/backup-restore'
 import paletteIcon from '@iconify-icons/mdi/palette-outline'
 import keyboardIcon from '@iconify-icons/mdi/keyboard'
+import scriptTextIcon from '@iconify-icons/mdi/script-text-outline'
 
 function iconComponent(name: string, icon: IconifyIcon) {
   return defineComponent({
@@ -122,3 +123,4 @@ export const Pencil = iconComponent('PencilIcon', pencilIcon)
 export const BackupRestore = iconComponent('BackupRestoreIcon', backupRestoreIcon)
 export const Palette = iconComponent('PaletteIcon', paletteIcon)
 export const Keyboard = iconComponent('KeyboardIcon', keyboardIcon)
+export const ScriptText = iconComponent('ScriptTextIcon', scriptTextIcon)

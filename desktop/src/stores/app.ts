@@ -9,14 +9,14 @@ const mutationCommands = new Set([
   'cheat.grantDisposable', 'cheat.clearConsumables',
   'cheat.grantCatapultPoint', 'cheat.removeCatapultPoint', 'cheat.clearBackpackCatapultPoints',
   'cheat.removeFieldCatapultPoint', 'cheat.clearFieldCatapultPoints', 'cheat.setFieldCatapultDeleteMode',
-  'cheat.setBaseGodMode', 'cheat.endWave', 'cheat.clearEnemies', 'cheat.skipRewardPopup',
+  'cheat.setBaseGodMode', 'cheat.endWave', 'cheat.triggerRunEvent', 'cheat.clearEnemies', 'cheat.skipRewardPopup',
   'cheat.modifyVehicle', 'cheat.setVehicleEnchantment', 'cheat.modifyEnemy', 'cheat.grantRelic',
   'cheat.grantAllRelics', 'cheat.removeRelic', 'cheat.removeAllRelics', 'cheat.spawnEnemy',
   'cheat.setMapSkipEnabled', 'cheat.setSpawnPointCapture', 'cheat.removeSpawnPoint', 'cheat.clearSpawnPoints',
   'cheat.setCatalogPoolMode',
 ])
-const cheatRoutes = new Set<RouteKey>(['vehicles', 'items', 'relics', 'battle', 'objects', 'spawn'])
-const routeKeys: readonly RouteKey[] = ['game', 'saves', 'autoplay', 'vehicles', 'items', 'relics', 'battle', 'objects', 'spawn', 'diagnostics', 'settings']
+const cheatRoutes = new Set<RouteKey>(['vehicles', 'items', 'relics', 'battle', 'events', 'objects', 'spawn'])
+const routeKeys: readonly RouteKey[] = ['game', 'saves', 'autoplay', 'vehicles', 'items', 'relics', 'battle', 'events', 'objects', 'spawn', 'diagnostics', 'settings']
 
 function isRouteKey(value: unknown): value is RouteKey {
   return typeof value === 'string' && (routeKeys as readonly string[]).includes(value)

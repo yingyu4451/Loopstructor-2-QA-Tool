@@ -599,6 +599,563 @@ internal sealed class CheatRuntimeBridge
         }
     }
 
+    // ---- 新版白盒事件（RunEvent）----
+
+    private const string RunModeRuntimeTypeName = "MetroTD.GameModeSystem.Whitebox.RunModeRuntime";
+    private const string RunEventFlowControllerTypeName = "MetroTD.GameModeSystem.Whitebox.RunEventFlowController";
+    private const string RunEventNodeSnapshotTypeName = "MetroTD.GameModeSystem.Whitebox.RunEventNodeSnapshot";
+    private const string RunEventLibraryTypeName = "MetroTD.GameModeSystem.SO_RunEventLibraryCfg";
+    private const string RunEventGroupTypeName = "MetroTD.GameModeSystem.SO_RunEventGroupCfg";
+    private const string MapNodeTypeName = "MetroTD.RoomSystem.MapNodeUI";
+    private const string LevelNodeDataTypeName = "MetroTD.RoomSystem.LevelNodeData";
+    private const string RoomMapTypeName = "MetroTD.RoomSystem.RoomMapUI";
+    private const string WaveFunctionUiTypeName = "MetroTD.UISystem.WaveFunctionNormalUI";
+    private const string RewardManagerTypeName = "MetroTD.RewardSystem.RewardManager";
+    private const BindingFlags RunEventMemberFlags =
+        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.FlattenHierarchy;
+
+    public CheatExecutionResult QueryRunEvents()
+    {
+        EnsureAvailable();
+        JObject data = new()
+        {
+            ["inRun"] = false,
+            ["runEventActive"] = false,
+            ["panelOpen"] = false,
+            ["node"] = new JObject
+            {
+                ["selected"] = false,
+                ["position"] = string.Empty,
+                ["isEventNode"] = false
+            },
+            ["libraries"] = new JArray()
+        };
+
+        Type? runModeType = FindType(RunModeRuntimeTypeName);
+        Type? libraryType = FindType(RunEventLibraryTypeName);
+        if (runModeType == null || libraryType == null)
+        {
+            data["unavailable"] = "当前游戏版本没有新版白盒事件系统。";
+            return CheatExecutionResult.Ok("当前游戏版本没有新版白盒事件系统。", data);
+        }
+
+        object? runtime = TryGetSingleton(runModeType);
+        if (GetStaticMember(runModeType, "Active") is not true || runtime == null)
+        {
+            data["hint"] = "进入一局游戏并回到地图后，这里会列出当前对局可触发的事件库。";
+            return CheatExecutionResult.Ok("当前不在对局中。", data);
+        }
+
+        object? session = GetMember(runtime, "Session");
+        Type? roomMapType = FindType(RoomMapTypeName);
+        object? roomMap = roomMapType == null ? null : TryGetSingleton(roomMapType);
+        object? chooseNode = roomMap == null ? null : GetMember(roomMap, "chooseNode");
+        object? runningNode = roomMap == null ? null : GetMember(roomMap, "runningNode");
+        object? node = chooseNode ?? runningNode;
+        object? nodeData = node == null ? null : GetMember(node, "nodeData");
+        object? layerLibrary = ResolveNodeEventLibrary(runModeType, nodeData);
+
+        data["inRun"] = true;
+        data["runEventActive"] = GetStaticMember(runModeType, "IsRunEventActive") is true;
+        data["panelOpen"] = IsRunEventPanelOpen();
+        if (node != null)
+        {
+            data["node"] = BuildRunEventNodeState(nodeData, layerLibrary != null);
+        }
+
+        JArray libraries = new();
+        foreach (object library in CollectRunEventLibraries(session, libraryType))
+        {
+            libraries.Add(BuildRunEventLibraryState(library, ReferenceEquals(library, layerLibrary), runtime));
+        }
+
+        data["libraries"] = libraries;
+        if (libraries.Count == 0)
+        {
+            data["hint"] = "当前对局配置里没有引用任何新版事件库；请先进入带新版事件的对局。";
+        }
+
+        return CheatExecutionResult.Ok(
+            $"已读取 {libraries.Count} 个新版事件库。",
+            data);
+    }
+
+    public CheatExecutionResult TriggerRunEvent(JObject arguments)
+    {
+        EnsureAvailable();
+        string libraryId = RequiredText(arguments, "libraryId", "必须选择事件库。");
+        string groupId = RequiredText(arguments, "groupId", "必须选择事件组。");
+
+        Type runModeType = RequireRunEventType(RunModeRuntimeTypeName, "新版白盒事件系统");
+        Type flowType = RequireRunEventType(RunEventFlowControllerTypeName, "新版事件流程控制器");
+        Type snapshotType = RequireRunEventType(RunEventNodeSnapshotTypeName, "新版事件节点快照");
+        Type libraryType = RequireRunEventType(RunEventLibraryTypeName, "新版事件库配置");
+        Type groupType = RequireRunEventType(RunEventGroupTypeName, "新版事件组配置");
+        Type mapNodeType = RequireRunEventType(MapNodeTypeName, "地图节点");
+        Type levelNodeDataType = RequireRunEventType(LevelNodeDataTypeName, "地图节点数据");
+
+        if (GetStaticMember(runModeType, "Active") is not true)
+        {
+            return CheatExecutionResult.Fail("当前不在对局中，先进入一局游戏。", "RUN_NOT_ACTIVE");
+        }
+
+        object runtime = TryGetSingleton(runModeType)
+                         ?? throw new InvalidOperationException("新版事件运行时尚未初始化，请回到地图后重试。");
+        if (GetStaticMember(runModeType, "IsRunEventActive") is true)
+        {
+            return CheatExecutionResult.Fail("已有事件流程进行中，请先走完或结束当前事件。", "RUN_EVENT_ACTIVE");
+        }
+
+        // 上一局残留的已结束流程先清掉，避免双控制器；事件预选虚影也要清掉。
+        if (GetMember(runtime, "EventFlow") != null)
+        {
+            FindMethod(runModeType, "CloseRunEvent")?.Invoke(runtime, null);
+        }
+
+        try
+        {
+            FindMethod(runModeType, "ClearRunEventPreview")?.Invoke(runtime, null);
+        }
+        catch
+        {
+            // 预选虚影清理失败不影响后续触发。
+        }
+
+        Type? roomMapType = FindType(RoomMapTypeName);
+        object? roomMap = roomMapType == null ? null : TryGetSingleton(roomMapType);
+        object? node = roomMap == null ? null : GetMember(roomMap, "chooseNode");
+        if (node == null)
+        {
+            return CheatExecutionResult.Fail(
+                "请先在地图上选中一个新版事件节点（灰色事件节点），再回来触发。",
+                "EVENT_NODE_NOT_SELECTED");
+        }
+
+        object? nodeData = GetMember(node, "nodeData");
+        if (nodeData == null)
+        {
+            return CheatExecutionResult.Fail("选中的节点还没有加载节点数据。", "EVENT_NODE_NOT_READY");
+        }
+
+        object? layerLibrary = ResolveNodeEventLibrary(runModeType, nodeData);
+        if (layerLibrary == null)
+        {
+            return CheatExecutionResult.Fail(
+                "选中的节点不是新版事件节点：当前层没有配置新版事件库。",
+                "EVENT_NODE_NOT_READY");
+        }
+
+        object? session = GetMember(runtime, "Session");
+        object? wave = _waveControllerType == null ? null : TryGetSingleton(_waveControllerType);
+        if (wave != null && GetMember(wave, "m_isInWave") is true)
+        {
+            return CheatExecutionResult.Fail("波次进行中，不能开启新版事件。", "WAVE_IN_PROGRESS");
+        }
+
+        if (HasPendingRunEventBlockers())
+        {
+            return CheatExecutionResult.Fail(
+                "还有未处理完的奖励或战斗事件，先处理完再触发。",
+                "EVENT_BLOCKED_BY_REWARD");
+        }
+
+        if (IsRunEventPanelOpen())
+        {
+            return CheatExecutionResult.Fail("普通事件面板正被其他流程占用，先关闭后再触发。", "EVENT_PANEL_BUSY");
+        }
+
+        Type? panelType = FindType(WaveFunctionUiTypeName);
+        if (panelType == null || GetStaticMember(panelType, "Instance") == null)
+        {
+            return CheatExecutionResult.Fail("普通事件界面尚未就绪，请回到地图后再试。", "EVENT_PANEL_NOT_READY");
+        }
+
+        if (Camera.main == null)
+        {
+            return CheatExecutionResult.Fail("当前场景没有主相机，不能打开新版事件。", "EVENT_CAMERA_MISSING");
+        }
+
+        if (GetMember(node, "UsesInlineChoice") is true)
+        {
+            MethodInfo? commitChoice = FindMethod(node.GetType(), "TryCommitInlineChoice");
+            if (commitChoice == null || commitChoice.Invoke(node, null) is not true)
+            {
+                return CheatExecutionResult.Fail(
+                    "当前节点还有未提交的内联选择，先在游戏里完成选择再触发。",
+                    "EVENT_INLINE_CHOICE_PENDING");
+            }
+        }
+
+        object? library = CollectRunEventLibraries(session, libraryType)
+            .FirstOrDefault(candidate => string.Equals(GetMember(candidate, "libraryId") as string, libraryId, StringComparison.Ordinal));
+        if (library == null)
+        {
+            return CheatExecutionResult.Fail(
+                "找不到事件库：" + libraryId + "。只支持当前对局配置中已加载的事件库。",
+                "EVENT_LIBRARY_NOT_FOUND");
+        }
+
+        object? group = FindRunEventGroup(library, groupId);
+        if (group == null)
+        {
+            return CheatExecutionResult.Fail(
+                "事件库 " + libraryId + " 里没有事件组：" + groupId + "。",
+                "EVENT_GROUP_NOT_FOUND");
+        }
+
+        if (session != null)
+        {
+            MethodInfo? canEnter = session.GetType().GetMethod(
+                "CanEnterEventGroup",
+                RunEventMemberFlags,
+                null,
+                new[] { groupType },
+                null);
+            bool allowed;
+            try
+            {
+                allowed = canEnter?.Invoke(session, new[] { group }) is not false;
+            }
+            catch (Exception exception)
+            {
+                return CheatExecutionResult.Fail(
+                    "无法校验事件组次数：" + Unwrap(exception).Message,
+                    "EVENT_GROUP_LIMIT_CHECK_FAILED");
+            }
+
+            if (!allowed)
+            {
+                return CheatExecutionResult.Fail(
+                    "事件组 " + groupId + " 本局已达到触发上限；请重开一局后再触发。",
+                    "EVENT_GROUP_LIMIT_REACHED");
+            }
+        }
+
+        MethodInfo? validate = FindMethod(flowType, "ValidateGraph", libraryType, groupType);
+        if (validate == null)
+        {
+            return CheatExecutionResult.Fail("当前游戏版本缺少事件图校验入口。", "EVENT_GRAPH_API_MISSING");
+        }
+
+        validate.Invoke(null, new object?[] { library, group });
+
+        object? originalSnapshot = GetMember(nodeData, "runEventSnapshot");
+        object snapshot = Activator.CreateInstance(snapshotType)
+                          ?? throw new InvalidOperationException("无法创建事件节点快照。");
+        SetMemberValue(snapshot, "libraryId", libraryId);
+        SetMemberValue(snapshot, "groupId", groupId);
+        SetMemberValue(snapshot, "flowOverride", false);
+
+        GameObject? host = null;
+        try
+        {
+            SetMemberValue(nodeData, "runEventSnapshot", snapshot);
+
+            host = new GameObject("QA 新版事件流程");
+            Component flow = host.AddComponent(flowType);
+            if (!TrySetRunEventFlow(runtime, runModeType, flow))
+            {
+                throw new InvalidOperationException("当前游戏版本不能写回事件流程实例。");
+            }
+
+            MethodInfo begin = flowType
+                .GetMethods(RunEventMemberFlags)
+                .FirstOrDefault(method => method.Name == "Begin" && method.GetParameters().Length == 3)
+                ?? throw new MissingMethodException(flowType.FullName, "Begin");
+            begin.Invoke(flow, new object?[] { node, library, null });
+
+            string state = GetMember(flow, "State")?.ToString() ?? string.Empty;
+            int eventCount = CountRunEventGroupEvents(group);
+            JObject data = new()
+            {
+                ["libraryId"] = libraryId,
+                ["groupId"] = groupId,
+                ["node"] = BuildRunEventNodeState(nodeData, true),
+                ["eventCount"] = eventCount,
+                ["state"] = state
+            };
+
+            if (!string.Equals(state, "Interactive", StringComparison.Ordinal))
+            {
+                return CheatExecutionResult.Fail(
+                    "事件已启动，但流程状态为 " + state + "；请检查游戏内提示后重开一局。",
+                    "RUN_EVENT_START_FAULTED",
+                    data);
+            }
+
+            return CheatExecutionResult.Changed(
+                $"已开启事件组 {groupId}（{eventCount} 个事件）。在游戏里点击事件角色即可进入对话。",
+                data);
+        }
+        catch
+        {
+            if (host != null) UnityEngine.Object.Destroy(host);
+            TrySetRunEventFlow(runtime, runModeType, null);
+            TryRestoreNodeSnapshot(nodeData, originalSnapshot);
+            throw;
+        }
+    }
+
+    private static Type RequireRunEventType(string fullName, string displayName) =>
+        FindType(fullName)
+        ?? throw new InvalidOperationException("当前游戏版本没有" + displayName + "（缺少 " + fullName + "）。");
+
+    private static bool TrySetRunEventFlow(object runtime, Type runModeType, object? flow)
+    {
+        PropertyInfo? property = runModeType.GetProperty("EventFlow", RunEventMemberFlags);
+        MethodInfo? setter = property?.GetSetMethod(true);
+        if (setter == null) return false;
+        setter.Invoke(runtime, new[] { flow });
+        return true;
+    }
+
+    private static void TryRestoreNodeSnapshot(object nodeData, object? snapshot)
+    {
+        try
+        {
+            SetMemberValue(nodeData, "runEventSnapshot", snapshot!);
+        }
+        catch
+        {
+            // 节点快照恢复失败时保持强制写入的快照，不阻断命令结果。
+        }
+    }
+
+    private static object? ResolveNodeEventLibrary(Type runModeType, object? nodeData)
+    {
+        if (nodeData == null) return null;
+        try
+        {
+            Type? levelNodeDataType = FindType(LevelNodeDataTypeName);
+            if (levelNodeDataType == null) return null;
+            MethodInfo? method = FindMethod(runModeType, "GetRunEventLibrary", levelNodeDataType);
+            return method?.Invoke(null, new[] { nodeData });
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static List<object> CollectRunEventLibraries(object? session, Type libraryType)
+    {
+        List<object> libraries = new();
+        HashSet<string> seen = new(StringComparer.Ordinal);
+
+        void Add(object? candidate)
+        {
+            if (candidate == null || !libraryType.IsInstanceOfType(candidate)) return;
+            string id = GetMember(candidate, "libraryId") as string ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(id) || !seen.Add(id)) return;
+            libraries.Add(candidate);
+        }
+
+        if (session != null)
+        {
+            object? config = GetMember(session, "Config");
+            foreach (string stageName in new[] { "normalStage", "tutorialStage", "loopStage" })
+            {
+                object? stage = GetMember(config, stageName);
+                if (GetMember(stage, "layers") is not IEnumerable layers) continue;
+                foreach (object? layer in layers)
+                {
+                    Add(GetMember(layer, "runEventLibrary"));
+                }
+            }
+        }
+
+        try
+        {
+            foreach (UnityEngine.Object asset in Resources.FindObjectsOfTypeAll(libraryType))
+            {
+                Add(asset);
+            }
+        }
+        catch
+        {
+            // Resources 扫描失败时只保留对局配置里的库。
+        }
+
+        return libraries;
+    }
+
+    private static object? FindRunEventGroup(object library, string groupId)
+    {
+        if (GetMember(library, "groups") is not IEnumerable groups) return null;
+        foreach (object? group in groups)
+        {
+            if (group != null && string.Equals(GetMember(group, "groupId") as string, groupId, StringComparison.Ordinal))
+            {
+                return group;
+            }
+        }
+
+        return null;
+    }
+
+    private static int CountRunEventGroupEvents(object group) =>
+        GetMember(group, "events") is IEnumerable events ? events.Cast<object?>().Count(item => item != null) : 0;
+
+    private static JObject BuildRunEventLibraryState(object library, bool current, object runtime)
+    {
+        JObject state = new()
+        {
+            ["id"] = GetMember(library, "libraryId") as string ?? string.Empty,
+            ["current"] = current,
+            ["groups"] = new JArray()
+        };
+
+        if (GetMember(library, "groups") is not IEnumerable groups) return state;
+        JArray groupItems = new();
+        foreach (object? group in groups)
+        {
+            if (group == null) continue;
+            JArray eventItems = new();
+            if (GetMember(group, "events") is IEnumerable events)
+            {
+                foreach (object? runEvent in events)
+                {
+                    if (runEvent == null) continue;
+                    eventItems.Add(BuildRunEventState(runEvent));
+                }
+            }
+
+            groupItems.Add(new JObject
+            {
+                ["id"] = GetMember(group, "groupId") as string ?? string.Empty,
+                ["maxTriggersPerRun"] = GetMember(group, "maxTriggersPerRun") is int max ? max : 0,
+                ["canEnter"] = CanEnterRunEventGroup(runtime, group),
+                ["events"] = eventItems
+            });
+        }
+
+        state["groups"] = groupItems;
+        return state;
+    }
+
+    private static bool CanEnterRunEventGroup(object runtime, object group)
+    {
+        try
+        {
+            object? session = GetMember(runtime, "Session");
+            if (session == null) return true;
+            MethodInfo? method = session.GetType().GetMethod(
+                "CanEnterEventGroup",
+                RunEventMemberFlags,
+                null,
+                new[] { group.GetType() },
+                null);
+            return method?.Invoke(session, new[] { group }) is not false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static JObject BuildRunEventState(object runEvent)
+    {
+        JArray options = new();
+        if (GetMember(runEvent, "options") is IEnumerable optionList)
+        {
+            int index = 0;
+            foreach (object? option in optionList)
+            {
+                if (option != null)
+                {
+                    options.Add(new JObject
+                    {
+                        ["index"] = index,
+                        ["id"] = GetMember(option, "optionId") as string ?? string.Empty,
+                        ["text"] = ResolveLocalizedText(GetMember(option, "text")),
+                        ["condition"] = ResolveLocalizedText(GetMember(option, "conditionDescription"))
+                    });
+                }
+
+                index++;
+            }
+        }
+
+        return new JObject
+        {
+            ["id"] = GetMember(runEvent, "eventId") as string ?? string.Empty,
+            ["title"] = ResolveLocalizedText(GetMember(runEvent, "title")),
+            ["options"] = options
+        };
+    }
+
+    private static JObject BuildRunEventNodeState(object? nodeData, bool isEventNode)
+    {
+        string position = string.Empty;
+        if (GetMember(nodeData, "pos") is object pos)
+        {
+            object? x = GetMember(pos, "x");
+            object? y = GetMember(pos, "y");
+            if (x != null && y != null) position = x + ":" + y;
+        }
+
+        return new JObject
+        {
+            ["selected"] = nodeData != null,
+            ["position"] = position,
+            ["isEventNode"] = isEventNode
+        };
+    }
+
+    private static bool IsRunEventPanelOpen()
+    {
+        Type? uiType = FindType(WaveFunctionUiTypeName);
+        if (uiType == null) return false;
+        object? panel = GetStaticMember(uiType, "Instance");
+        if (panel == null) return false;
+        try
+        {
+            return FindMethod(uiType, "IsOpen")?.Invoke(panel, null) is true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool HasPendingRunEventBlockers()
+    {
+        Type? rewardType = FindType(RewardManagerTypeName);
+        object? rewardManager = rewardType == null ? null : TryGetSingleton(rewardType);
+        if (rewardManager == null) return false;
+        foreach (string methodName in new[] { "HasPendingLevelRewards", "HasPendingBattleEvent" })
+        {
+            try
+            {
+                if (FindMethod(rewardManager.GetType(), methodName)?.Invoke(rewardManager, null) is true)
+                {
+                    return true;
+                }
+            }
+            catch
+            {
+                // 奖励状态读取失败时不阻断触发。
+            }
+        }
+
+        return false;
+    }
+
+    private static string ResolveLocalizedText(object? localizedString)
+    {
+        if (localizedString == null) return string.Empty;
+        try
+        {
+            if (GetMember(localizedString, "IsEmpty") is true) return string.Empty;
+            MethodInfo? getter = FindMethod(localizedString.GetType(), "GetLocalizedString");
+            return getter?.Invoke(localizedString, null) as string ?? string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
     public CheatExecutionResult GrantVehicle(JObject arguments)
     {
         EnsureAvailable();

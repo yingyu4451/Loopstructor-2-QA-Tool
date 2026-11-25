@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
   Activity, ArchiveClock, Bot, BugPlay, ChevronLeft, ChevronRight, Gamepad2, Gem,
-  PackageOpen, ScanSearch, Settings, Swords, TrainFront,
+  PackageOpen, ScanSearch, ScriptText, Settings, Swords, TrainFront,
 } from '../icons'
 import type { Component } from 'vue'
 import type { RouteKey } from '../types'
@@ -19,6 +19,7 @@ const groups: Array<{ label: string; items: Array<{ key: RouteKey; label: string
     { key: 'items', label: '道具', icon: PackageOpen },
     { key: 'relics', label: '遗物', icon: Gem },
     { key: 'battle', label: '战斗', icon: Swords },
+    { key: 'events', label: '事件', icon: ScriptText },
     { key: 'objects', label: '对象属性', icon: ScanSearch },
     { key: 'spawn', label: '生成', icon: BugPlay },
   ] },

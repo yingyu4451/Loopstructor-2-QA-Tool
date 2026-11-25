@@ -1,4 +1,4 @@
-export type RouteKey = 'game' | 'saves' | 'autoplay' | 'vehicles' | 'items' | 'relics' | 'battle' | 'objects' | 'spawn' | 'diagnostics' | 'settings'
+export type RouteKey = 'game' | 'saves' | 'autoplay' | 'vehicles' | 'items' | 'relics' | 'battle' | 'events' | 'objects' | 'spawn' | 'diagnostics' | 'settings'
 export type ToastKind = 'success' | 'info' | 'warning' | 'error'
 export type SkinId = 'skyspine'
 export type CatalogPoolMode = 'all' | 'configured'

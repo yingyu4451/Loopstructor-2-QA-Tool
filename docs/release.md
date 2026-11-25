@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.110
+./scripts/package.ps1 -Version 0.6.111
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.110-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.110-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.111-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.111-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.110",
+  "version": "0.6.111",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.110-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.111-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.109",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.109-to-0.6.110-win-x64.delta.zip",
+      "fromVersion": "0.6.110",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.110-to-0.6.111-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.110
-git push origin v0.6.110
+git tag v0.6.111
+git push origin v0.6.111
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,14 @@ git push origin v0.6.110
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.111
+
+- 新增「事件」页：按事件库 / 事件组一键开启新版白盒事件（RunEvent），不用再走地图找节点；页面只读列出该组的事件、选项与条件文案，方便对照复现。前提是对局中、并已在游戏地图上选中一个事件节点。
+- 新增命令 `cheat.queryRunEvents`（只读，自动游玩期间仍可用）与 `cheat.triggerRunEvent`（写操作，进入作弊审计）。触发前校验：对局中、已选中事件节点、事件面板空闲、无进行中波次/待领奖励、事件组未达本局次数上限；并复用游戏自身的 `ValidateGraph` / `CanEnterEventGroup`，写入节点快照后调用 `RunEventFlowController.Begin`。
+- 强制触发绕过「事件预抽/存档门」，只用于当前对局内的内容验证；流程状态异常时返回明确错误码，不静默成功。
+- 兼容性：新版事件类型全部惰性反射解析，没有加入插件的初始化硬契约；旧版本游戏缺少这些类型时只是事件页不可用，其他作弊命令不受影响。
+- 测试：.NET 720、desktop vitest 43、node:test 10；Release 构建 0 警告。
 
 ### 0.6.110
 
