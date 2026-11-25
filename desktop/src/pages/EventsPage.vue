@@ -6,14 +6,14 @@ import { useAppStore } from '../stores/app'
 
 type RunEventOption = { index: number; id: string; text: string; condition: string }
 type RunEventItem = { id: string; title: string; options: RunEventOption[] }
-type RunEventGroup = { id: string; maxTriggersPerRun: number; canEnter: boolean; events: RunEventItem[] }
+type RunEventGroup = { id: string; maxTriggersPerRun: number; canEnter: boolean; direct?: boolean; events: RunEventItem[] }
 type RunEventLibrary = { id: string; current: boolean; groups: RunEventGroup[] }
 type RunEventCatalog = {
   inRun: boolean
   runEventActive: boolean
   panelOpen: boolean
   node: { selected: boolean; position: string; isEventNode: boolean }
-  direct?: { available: boolean; position: string }
+  direct?: { available: boolean; reason: string }
   libraries: RunEventLibrary[]
   hint?: string
   unavailable?: string
@@ -45,16 +45,19 @@ const baseBlockedReason = computed(() => {
   return ''
 })
 const canTrigger = computed(() => baseBlockedReason.value === '' && nodeSelected.value)
+const directGroupSupported = computed(() => group.value?.direct !== false)
 const canTriggerDirect = computed(() =>
-  baseBlockedReason.value === '' && (nodeSelected.value || catalog.value?.direct?.available === true))
+  baseBlockedReason.value === '' && directGroupSupported.value && catalog.value?.direct?.available === true)
 const blockedReason = computed(() => {
   if (baseBlockedReason.value) return baseBlockedReason.value
-  if (!canTrigger.value && !canTriggerDirect.value) return '请先在地图上选中事件节点；当前层也没有可自动选择的事件节点。'
-  return ''
+  if (canTrigger.value || canTriggerDirect.value) return ''
+  if (!directGroupSupported.value && group.value) return '这个事件组包含内部战斗选项，请用「触发事件组」在事件节点上开启。'
+  return catalog.value?.direct?.reason || '请先在地图上选中一个新版事件节点。'
 })
 const nodeHint = computed(() => {
-  if (nodeSelected.value) return `已选中事件节点 ${node.value?.position ?? ''}。`
-  if (catalog.value?.direct?.available) return `未选中节点；「直接触发」会自动选择 ${catalog.value.direct.position}。`
+  if (nodeSelected.value) return `已选中事件节点 ${node.value?.position ?? ''}；也可以直接触发。`
+  if (canTriggerDirect.value) return '未选中节点；「直接触发」不依赖地图节点，结束后不影响当前波次与节点。'
+  if (!directGroupSupported.value && group.value) return '该事件组含内部战斗，只能在地图上选中事件节点后开启。'
   return '请先在地图上选中一个新版事件节点（灰色节点）。'
 })
 const groupSummary = computed(() => {
@@ -157,7 +160,7 @@ onMounted(() => {
       <div v-if="group" class="event-group-meta">{{ groupSummary }}</div>
       <div class="action-bar right">
         <button class="btn btn-outline button secondary trigger-manual" :disabled="!canTrigger || triggering" @click="trigger(false)"><Play :size="18" />触发事件组</button>
-        <button class="btn btn-primary button primary trigger-direct" :disabled="!canTriggerDirect || triggering" title="自动选择一个当前可选的事件节点并触发" @click="trigger(true)"><Play :size="18" />直接触发</button>
+        <button class="btn btn-primary button primary trigger-direct" :disabled="!canTriggerDirect || triggering" title="不依赖当前地图节点，直接开启事件组；结束后不会改变波次与节点" @click="trigger(true)"><Play :size="18" />直接触发</button>
       </div>
     </section>
 

@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.115
+./scripts/package.ps1 -Version 0.6.116
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.115-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.115-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.116-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.116-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.115",
+  "version": "0.6.116",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.115-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.116-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.114",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.114-to-0.6.115-win-x64.delta.zip",
+      "fromVersion": "0.6.115",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.115-to-0.6.116-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.115
-git push origin v0.6.115
+git tag v0.6.116
+git push origin v0.6.116
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,13 @@ git push origin v0.6.115
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.116
+
+- 「直接触发」改为真正的任意节点触发：不再自动挑事件节点，而是在当前对局里用沙盒流程直接开启事件组，不需要地图节点、也不消耗当前节点；事件结束后不会改变当前波次、奖励或地图进度。
+- 沙盒通过 Harmony 补丁屏蔽事件的波次/奖励/节点收尾与事件组次数记录（Player 与 Editor 共用同一份运行时），补丁安装失败时直接触发会明确报错，不影响其它功能。
+- 含内部战斗选项的事件组不能沙盒触发（没有真实节点无法开战），按钮会禁用并提示改用「触发事件组」；「触发事件组」仍只认手动选中的新版事件节点。
+- 测试：.NET 727、desktop vitest 45、node:test 10；Release 构建 0 警告。
 
 ### 0.6.115
 

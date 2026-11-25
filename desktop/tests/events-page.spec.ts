@@ -9,7 +9,7 @@ import type { ControlResponse, DesktopApi, HostSnapshot } from '../src/types'
 function snapshot(): HostSnapshot {
   return {
     protocolVersion: 1,
-    version: '0.6.115',
+    version: '0.6.116',
     settings: {} as never,
     connection: { trusted: true, label: '已连接游戏', reason: '', cheatAvailable: true, autoplayActive: false },
     logs: [],
@@ -22,7 +22,7 @@ function catalog(overrides: Record<string, unknown> = {}) {
     runEventActive: false,
     panelOpen: false,
     node: { selected: true, position: '3:2', isEventNode: true },
-    direct: { available: false, position: '' },
+    direct: { available: true, reason: '' },
     libraries: [{
       id: 'a010_events',
       current: true,
@@ -93,21 +93,20 @@ describe('event trigger page', () => {
     expect(command).toHaveBeenCalledTimes(3)
   })
 
-  it('triggers directly by auto-selecting a ready event node', async () => {
+  it('triggers directly without selecting any map node', async () => {
     const store = useAppStore()
     store.connected = true
     store.snapshot = snapshot()
     const directCatalog = catalog({ node: { selected: false, position: '', isEventNode: false } })
-    directCatalog.direct = { available: true, position: '4:1' }
     const command = vi.spyOn(store, 'command').mockImplementation(async (name) =>
       name === 'cheat.queryRunEvents'
         ? response(directCatalog)
-        : response({ libraryId: 'a010_events', groupId: 'a010_gray_market', autoSelected: true }))
+        : response({ libraryId: 'a010_events', groupId: 'a010_gray_market', direct: true }))
 
     const wrapper = mountWithTooltip(EventsPage)
     await flushPromises()
 
-    expect(wrapper.get('.event-hint').text()).toContain('会自动选择 4:1')
+    expect(wrapper.get('.event-hint').text()).toContain('不依赖地图节点')
     expect(wrapper.get('.trigger-manual').attributes('disabled')).toBeDefined()
     const direct = wrapper.get('.trigger-direct')
     expect(direct.attributes('disabled')).toBeUndefined()
@@ -121,20 +120,21 @@ describe('event trigger page', () => {
     })
   })
 
-  it('blocks triggering until a map node is selected', async () => {
+  it('explains why direct triggering is unavailable', async () => {
     const store = useAppStore()
     store.connected = true
     store.snapshot = snapshot()
     vi.spyOn(store, 'command').mockResolvedValue(response(catalog({
       node: { selected: false, position: '', isEventNode: false },
+      direct: { available: false, reason: '当前游戏版本缺少事件沙盒需要的收尾入口。' },
     })))
 
     const wrapper = mountWithTooltip(EventsPage)
     await flushPromises()
 
-    expect(wrapper.get('.event-hint').text()).toContain('先在地图上选中')
+    expect(wrapper.get('.event-hint').text()).toContain('事件沙盒')
     expect(wrapper.get('.trigger-direct').attributes('disabled')).toBeDefined()
-expect(wrapper.get('.trigger-manual').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('.trigger-manual').attributes('disabled')).toBeDefined()
   })
 
   it('marks an exhausted group and keeps the trigger disabled', async () => {

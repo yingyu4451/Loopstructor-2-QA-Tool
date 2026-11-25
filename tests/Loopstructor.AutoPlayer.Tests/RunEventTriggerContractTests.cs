@@ -58,11 +58,8 @@ public sealed class RunEventTriggerContractTests
         Assert.Contains("RUN_NOT_ACTIVE", strings);
         Assert.Contains("RUN_EVENT_ACTIVE", strings);
         Assert.Contains("EVENT_NODE_NOT_SELECTED", strings);
-        Assert.Contains("EVENT_DIRECT_NODE_UNAVAILABLE", strings);
-        Assert.Contains("EVENT_DIRECT_CHOOSE_FAILED", strings);
         Assert.Contains("direct", strings);
-        Assert.Contains("ChooseNode", strings);
-        Assert.Contains(Calls(trigger), call => call.Name == "TryPickDirectRunEventNode");
+        Assert.Contains(Calls(trigger), call => call.Name == "StartForcedRunEvent");
         Assert.Contains("EVENT_NODE_NOT_READY", strings);
         Assert.Contains("WAVE_IN_PROGRESS", strings);
         Assert.Contains("EVENT_GROUP_LIMIT_REACHED", strings);
@@ -96,27 +93,39 @@ public sealed class RunEventTriggerContractTests
     }
 
     [Fact]
-    public void Runtime_DirectTrigger_PicksAReadyEventNodeWithoutASelection()
+    public void Runtime_DirectTrigger_UsesASandboxFlowWithCompletionSuppression()
     {
         using AssemblyDefinition assembly = ReadPlugin();
         TypeDefinition bridge = RequireType(assembly, BridgeType);
-        MethodDefinition pick = RequireMethod(bridge, "TryPickDirectRunEventNode");
-        string[] strings = LoadedStrings(pick).ToArray();
+        MethodDefinition start = RequireMethod(bridge, "StartForcedRunEvent");
+        string[] strings = LoadedStrings(start).ToArray();
 
-        Assert.Contains("CurrentReadyNodeList", strings);
-        Assert.Contains(Calls(pick), call => call.Name == "GetMember");
-        Assert.Contains(Calls(pick), call => call.Name == "ResolveNodeEventLibrary");
+        Assert.Contains("EVENT_DIRECT_PATCH_FAILED", strings);
+        Assert.Contains("EVENT_DIRECT_BATTLE_UNSUPPORTED", strings);
+        Assert.Contains("SwitchGroup", strings);
+        Assert.Contains(Calls(start), call => call.DeclaringType.Name == "ForcedRunEventPatch");
+        Assert.Contains(Calls(start), call => call.Name == "SetFieldDeep");
+
+        TypeDefinition patch = RequireType(assembly, "Loopstructor.AutoPlayer.Plugin.ForcedRunEventPatch");
+        string[] patchStrings = patch.Methods
+            .Where(method => method.HasBody)
+            .SelectMany(LoadedStrings)
+            .ToArray();
+        Assert.Contains("RestoreRunEventState", patchStrings);
+        Assert.Contains("CompleteRunEventWithRewards", patchStrings);
+        Assert.Contains("CompleteRunEventLayer", patchStrings);
+        Assert.Contains("PrepareBattle", patchStrings);
     }
 
     [Fact]
-    public void RuntimeQuery_ExposesWhetherADirectNodeIsAvailable()
+    public void RuntimeQuery_ExposesWhetherDirectTriggeringIsAvailable()
     {
         using AssemblyDefinition assembly = ReadPlugin();
         TypeDefinition bridge = RequireType(assembly, BridgeType);
         MethodDefinition query = RequireMethod(bridge, "QueryRunEvents");
 
         Assert.Contains("direct", LoadedStrings(query));
-        Assert.Contains(Calls(query), call => call.Name == "TryPickDirectRunEventNode");
+        Assert.Contains(Calls(query), call => call.DeclaringType.Name == "ForcedRunEventPatch" && call.Name == "TryInstall");
     }
 
     [Fact]

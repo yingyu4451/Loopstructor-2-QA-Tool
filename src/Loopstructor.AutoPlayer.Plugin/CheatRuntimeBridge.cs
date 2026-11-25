@@ -665,14 +665,11 @@ internal sealed class CheatRuntimeBridge
             data["node"] = BuildRunEventNodeState(nodeData, layerLibrary != null, chooseSelected);
         }
 
-        object? directNode = TryPickDirectRunEventNode(roomMap, runModeType, out object? directNodeData);
-        string directPosition = directNode == null
-            ? string.Empty
-            : BuildRunEventNodeState(directNodeData, true)["position"]?.Value<string>() ?? string.Empty;
+        bool directAvailable = ForcedRunEventPatch.TryInstall(out string directError);
         data["direct"] = new JObject
         {
-            ["available"] = directNode != null,
-            ["position"] = directPosition
+            ["available"] = directAvailable,
+            ["reason"] = directAvailable ? string.Empty : directError
         };
 
         JArray libraries = new();
@@ -704,7 +701,6 @@ internal sealed class CheatRuntimeBridge
         Type snapshotType = RequireRunEventType(RunEventNodeSnapshotTypeName, "新版事件节点快照");
         Type libraryType = RequireRunEventType(RunEventLibraryTypeName, "新版事件库配置");
         Type groupType = RequireRunEventType(RunEventGroupTypeName, "新版事件组配置");
-        Type mapNodeType = RequireRunEventType(MapNodeTypeName, "地图节点");
         Type levelNodeDataType = RequireRunEventType(LevelNodeDataTypeName, "地图节点数据");
 
         if (GetStaticMember(runModeType, "Active") is not true)
@@ -732,71 +728,6 @@ internal sealed class CheatRuntimeBridge
         catch
         {
             // 预选虚影清理失败不影响后续触发。
-        }
-
-        Type? roomMapType = FindType(RoomMapTypeName);
-        object? roomMap = roomMapType == null ? null : TryGetSingleton(roomMapType);
-        object? node = roomMap == null ? null : GetMember(roomMap, "chooseNode");
-        bool autoSelected = false;
-        if (node == null && direct)
-        {
-            node = TryPickDirectRunEventNode(roomMap, runModeType, out _);
-            if (node != null)
-            {
-                try
-                {
-                    MethodInfo? choose = FindMethod(roomMapType!, "ChooseNode", mapNodeType);
-                    if (choose == null)
-                    {
-                        return CheatExecutionResult.Fail("当前游戏版本缺少自动选择地图节点的入口。", "EVENT_DIRECT_CHOOSE_API_MISSING");
-                    }
-
-                    choose.Invoke(roomMap, new[] { node });
-                    autoSelected = true;
-                    // ChooseNode 会同时刷出事件预选虚影；真正开事件前先清掉，避免重影。
-                    try
-                    {
-                        FindMethod(runModeType, "ClearRunEventPreview")?.Invoke(runtime, null);
-                    }
-                    catch
-                    {
-                        // 预览清理失败不影响后续触发。
-                    }
-
-                    node = GetMember(roomMap, "chooseNode") ?? node;
-                }
-                catch (Exception exception)
-                {
-                    return CheatExecutionResult.Fail(
-                        "自动选择事件节点失败：" + Unwrap(exception).Message,
-                        "EVENT_DIRECT_CHOOSE_FAILED");
-                }
-            }
-        }
-
-        if (node == null)
-        {
-            return direct
-                ? CheatExecutionResult.Fail(
-                    "当前层没有可自动选择的新版事件节点；请推进到含事件节点的层，或先在地图上手动选中一个。",
-                    "EVENT_DIRECT_NODE_UNAVAILABLE")
-                : CheatExecutionResult.Fail(
-                    "请先在地图上选中一个新版事件节点（灰色事件节点），再回来触发。",
-                    "EVENT_NODE_NOT_SELECTED");
-        }
-
-        object? nodeData = GetMember(node, "nodeData");
-        if (nodeData == null)
-        {
-            return CheatExecutionResult.Fail("选中的节点还没有加载节点数据。", "EVENT_NODE_NOT_READY");
-        }
-
-        object? layerLibrary = ResolveNodeEventLibrary(runModeType, nodeData);
-        if (layerLibrary == null)
-        {
-            return CheatExecutionResult.Fail(
-                "选中的节点不是新版事件节点：当前层没有配置新版事件库。",
-                "EVENT_NODE_NOT_READY");
         }
 
         object? session = GetMember(runtime, "Session");
@@ -827,17 +758,6 @@ internal sealed class CheatRuntimeBridge
         if (Camera.main == null)
         {
             return CheatExecutionResult.Fail("当前场景没有主相机，不能打开新版事件。", "EVENT_CAMERA_MISSING");
-        }
-
-        if (GetMember(node, "UsesInlineChoice") is true)
-        {
-            MethodInfo? commitChoice = FindMethod(node.GetType(), "TryCommitInlineChoice");
-            if (commitChoice == null || commitChoice.Invoke(node, null) is not true)
-            {
-                return CheatExecutionResult.Fail(
-                    "当前节点还有未提交的内联选择，先在游戏里完成选择再触发。",
-                    "EVENT_INLINE_CHOICE_PENDING");
-            }
         }
 
         object? library = CollectRunEventLibraries(session, libraryType)
@@ -893,6 +813,56 @@ internal sealed class CheatRuntimeBridge
 
         validate.Invoke(null, new object?[] { library, group });
 
+        if (direct)
+        {
+            return StartForcedRunEvent(
+                runtime,
+                runModeType,
+                flowType,
+                snapshotType,
+                levelNodeDataType,
+                library,
+                group,
+                libraryId,
+                groupId);
+        }
+
+        // 手动模式：必须已在地图上选中一个真正的新版事件节点。
+        Type? roomMapType = FindType(RoomMapTypeName);
+        object? roomMap = roomMapType == null ? null : TryGetSingleton(roomMapType);
+        object? node = roomMap == null ? null : GetMember(roomMap, "chooseNode");
+        if (node == null)
+        {
+            return CheatExecutionResult.Fail(
+                "请先在地图上选中一个新版事件节点（灰色事件节点），或改用「直接触发」。",
+                "EVENT_NODE_NOT_SELECTED");
+        }
+
+        object? nodeData = GetMember(node, "nodeData");
+        if (nodeData == null)
+        {
+            return CheatExecutionResult.Fail("选中的节点还没有加载节点数据。", "EVENT_NODE_NOT_READY");
+        }
+
+        object? layerLibrary = ResolveNodeEventLibrary(runModeType, nodeData);
+        if (layerLibrary == null)
+        {
+            return CheatExecutionResult.Fail(
+                "选中的节点不是新版事件节点：当前层没有配置新版事件库。",
+                "EVENT_NODE_NOT_READY");
+        }
+
+        if (GetMember(node, "UsesInlineChoice") is true)
+        {
+            MethodInfo? commitChoice = FindMethod(node.GetType(), "TryCommitInlineChoice");
+            if (commitChoice == null || commitChoice.Invoke(node, null) is not true)
+            {
+                return CheatExecutionResult.Fail(
+                    "当前节点还有未提交的内联选择，先在游戏里完成选择再触发。",
+                    "EVENT_INLINE_CHOICE_PENDING");
+            }
+        }
+
         object? originalSnapshot = GetMember(nodeData, "runEventSnapshot");
         object snapshot = Activator.CreateInstance(snapshotType)
                           ?? throw new InvalidOperationException("无法创建事件节点快照。");
@@ -925,7 +895,7 @@ internal sealed class CheatRuntimeBridge
                 ["libraryId"] = libraryId,
                 ["groupId"] = groupId,
                 ["node"] = BuildRunEventNodeState(nodeData, true),
-                ["autoSelected"] = autoSelected,
+                ["direct"] = false,
                 ["eventCount"] = eventCount,
                 ["state"] = state
             };
@@ -939,9 +909,7 @@ internal sealed class CheatRuntimeBridge
             }
 
             return CheatExecutionResult.Changed(
-                autoSelected
-                    ? $"已自动选中事件节点并开启事件组 {groupId}（{eventCount} 个事件）。在游戏里点击事件角色即可进入对话。"
-                    : $"已开启事件组 {groupId}（{eventCount} 个事件）。在游戏里点击事件角色即可进入对话。",
+                $"已开启事件组 {groupId}（{eventCount} 个事件）。在游戏里点击事件角色即可进入对话。",
                 data);
         }
         catch
@@ -951,6 +919,229 @@ internal sealed class CheatRuntimeBridge
             TryRestoreNodeSnapshot(nodeData, originalSnapshot);
             throw;
         }
+    }
+
+    /// <summary>
+    /// 任意节点直接触发：不依赖地图节点，用合成节点数据直接调用事件流程的 SwitchGroup 开启事件组；
+    /// 收尾副作用由 <see cref="ForcedRunEventPatch"/> 屏蔽，事件结束后当前对局不受影响。
+    /// </summary>
+    private CheatExecutionResult StartForcedRunEvent(
+        object runtime,
+        Type runModeType,
+        Type flowType,
+        Type snapshotType,
+        Type levelNodeDataType,
+        object library,
+        object group,
+        string libraryId,
+        string groupId)
+    {
+        if (!ForcedRunEventPatch.TryInstall(out string patchError))
+        {
+            return CheatExecutionResult.Fail(
+                "无法为「直接触发」安装事件收尾补丁：" + patchError,
+                "EVENT_DIRECT_PATCH_FAILED");
+        }
+
+        if (RunEventGroupHasBattleFlow(group))
+        {
+            return CheatExecutionResult.Fail(
+                "这个事件组包含内部战斗选项，直接触发暂不支持；请在事件节点上用「触发事件组」开启。",
+                "EVENT_DIRECT_BATTLE_UNSUPPORTED");
+        }
+
+        Type? layoutType = FindType("MetroTD.GameModeSystem.Whitebox.RunEventActorLayout");
+        MethodInfo? ensureLayout = layoutType == null
+            ? null
+            : FindMethod(layoutType, "EnsureLayout", snapshotType, typeof(int), typeof(Camera));
+        if (ensureLayout == null)
+        {
+            return CheatExecutionResult.Fail("当前游戏版本缺少事件布局入口。", "EVENT_LAYOUT_API_MISSING");
+        }
+
+        Type? levelNodeEnumType = FindType("MetroTD.RoomSystem.LevelNodeEnum");
+        if (levelNodeEnumType == null)
+        {
+            return CheatExecutionResult.Fail("当前游戏版本缺少地图节点类型。", "EVENT_NODE_KIND_UNKNOWN");
+        }
+
+        Type? roomMapType = FindType(RoomMapTypeName);
+        object? roomMap = roomMapType == null ? null : TryGetSingleton(roomMapType);
+        Vector2Int position = ResolveForcedRunEventPosition(roomMap);
+
+        object synthetic = Activator.CreateInstance(levelNodeDataType)
+                           ?? throw new InvalidOperationException("无法创建沙盒事件节点数据。");
+        SetFieldDeep(synthetic, "pos", position);
+        SetFieldDeep(synthetic, "nextPos", new List<Vector2Int> { position });
+        SetMemberValue(synthetic, "levelNodeEnum", Enum.Parse(levelNodeEnumType, "Event"));
+
+        object snapshot = Activator.CreateInstance(snapshotType)
+                          ?? throw new InvalidOperationException("无法创建事件节点快照。");
+        SetMemberValue(snapshot, "libraryId", libraryId);
+        SetMemberValue(snapshot, "groupId", groupId);
+        SetMemberValue(snapshot, "flowOverride", false);
+        SetMemberValue(synthetic, "runEventSnapshot", snapshot);
+
+        int eventCount = CountRunEventGroupEvents(group);
+        ensureLayout.Invoke(null, new object?[] { snapshot, eventCount, Camera.main });
+
+        GameObject? host = null;
+        Type? uiLockType = null;
+        object? uiLock = null;
+        try
+        {
+            host = new GameObject("QA 新版事件流程");
+            Component flow = host.AddComponent(flowType);
+            SetMemberValue(flow, "m_library", library);
+            SetMemberValue(flow, "m_original", synthetic);
+            SetMemberValue(flow, "m_camera", Camera.main);
+            SetMemberValue(flow, "m_dialog", GetStaticMember(FindType(WaveFunctionUiTypeName)!, "Instance")!);
+            SetMemberValue(flow, "m_actorScale", GetMember(snapshot, "actorScale") ?? 0f);
+            uiLockType = FindType("MetroTD.Tutorial.DefaultUIInteraction");
+            uiLock = uiLockType == null ? null : GetStaticMember(uiLockType, "Current");
+            if (uiLock != null)
+            {
+                // 和正常事件一样冻结地图层，避免事件进行中还能点节点/开波次；收尾由 ReleaseUIFreeze 解冻。
+                SetMemberValue(flow, "m_uiLock", uiLock);
+                FindMethod(uiLockType!, "FreezeLayer", typeof(string))?.Invoke(uiLock, new object?[] { "RoomMap" });
+            }
+            if (GetMember(flow, "m_layoutSlots") is IList layoutSlots)
+            {
+                layoutSlots.Clear();
+                if (GetMember(snapshot, "slots") is IEnumerable slots)
+                {
+                    foreach (object? slot in slots)
+                    {
+                        if (slot != null) layoutSlots.Add(slot);
+                    }
+                }
+            }
+
+            if (!TrySetRunEventFlow(runtime, runModeType, flow))
+            {
+                throw new InvalidOperationException("当前游戏版本不能写回事件流程实例。");
+            }
+
+            MethodInfo switchGroup = flowType
+                .GetMethods(RunEventMemberFlags)
+                .FirstOrDefault(method => method.Name == "SwitchGroup" && method.GetParameters().Length == 1)
+                ?? throw new MissingMethodException(flowType.FullName, "SwitchGroup");
+
+            ForcedRunEventPatch.ActiveFlow = flow;
+            switchGroup.Invoke(flow, new[] { group });
+
+            string state = GetMember(flow, "State")?.ToString() ?? string.Empty;
+            JObject data = new()
+            {
+                ["libraryId"] = libraryId,
+                ["groupId"] = groupId,
+                ["node"] = BuildRunEventNodeState(synthetic, true),
+                ["direct"] = true,
+                ["eventCount"] = eventCount,
+                ["state"] = state
+            };
+
+            if (!string.Equals(state, "Interactive", StringComparison.Ordinal))
+            {
+                ForcedRunEventPatch.EndForcedFlow(flow);
+                return CheatExecutionResult.Fail(
+                    "直接触发已执行，但流程状态为 " + state + "；请检查游戏内提示后重试。",
+                    "RUN_EVENT_START_FAULTED",
+                    data);
+            }
+
+            return CheatExecutionResult.Changed(
+                $"已直接开启事件组 {groupId}（{eventCount} 个事件）。在游戏里点击事件角色即可进入对话；结束后不会改变当前节点与波次。",
+                data);
+        }
+        catch
+        {
+            ForcedRunEventPatch.ActiveFlow = null;
+            if (uiLock != null && uiLockType != null)
+            {
+                FindMethod(uiLockType, "UnFreezeLayer", typeof(string))?.Invoke(uiLock, new object?[] { "RoomMap" });
+            }
+
+            if (host != null) UnityEngine.Object.Destroy(host);
+            TrySetRunEventFlow(runtime, runModeType, null);
+            throw;
+        }
+    }
+
+    /// <summary>事件组（含切组目标）里是否有内部战斗选项；沙盒模式无法安全地开战。</summary>
+    private static bool RunEventGroupHasBattleFlow(object group)
+    {
+        HashSet<object> visited = new();
+        return Check(group);
+
+        bool Check(object current)
+        {
+            if (!visited.Add(current)) return false;
+            if (GetMember(current, "events") is not IEnumerable events) return false;
+            foreach (object? runEvent in events)
+            {
+                if (runEvent == null) continue;
+                if (GetMember(runEvent, "options") is not IEnumerable options) continue;
+                foreach (object? option in options)
+                {
+                    if (option == null) continue;
+                    object? flow = GetMember(option, "flow");
+                    string kind = GetMember(flow, "kind")?.ToString() ?? string.Empty;
+                    if (kind is "BattleThenSwitchGroup" or "EventBattleThenSwitchGroup" or "BossBattleThenEndEventWave")
+                    {
+                        return true;
+                    }
+
+                    if (kind is "SwitchGroup" or "BattleThenSwitchGroup" or "EventBattleThenSwitchGroup")
+                    {
+                        object? target = GetMember(flow, "targetGroup");
+                        if (target != null && Check(target)) return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+    }
+
+    /// <summary>沙盒事件需要一个坐标用于事件文本选择与收尾账本；优先取当前节点，退回当前层首个可选节点。</summary>
+    private static Vector2Int ResolveForcedRunEventPosition(object? roomMap)
+    {
+        object? node = roomMap == null ? null : GetMember(roomMap, "chooseNode") ?? GetMember(roomMap, "runningNode");
+        if (node != null && GetMember(node, "nodeData") is object data && GetMember(data, "pos") is Vector2Int position)
+        {
+            return position;
+        }
+
+        if (roomMap != null && GetMember(roomMap, "CurrentReadyNodeList") is IEnumerable ready)
+        {
+            foreach (object? candidate in ready)
+            {
+                if (candidate == null) continue;
+                if (GetMember(candidate, "nodeData") is object candidateData
+                    && GetMember(candidateData, "pos") is Vector2Int candidatePosition)
+                {
+                    return candidatePosition;
+                }
+            }
+        }
+
+        return Vector2Int.zero;
+    }
+
+    /// <summary>给合成节点数据写入基类字段（pos / nextPos 在 MapNodeData 上）。</summary>
+    private static void SetFieldDeep(object target, string name, object value)
+    {
+        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+        for (Type? type = target.GetType(); type != null; type = type.BaseType)
+        {
+            FieldInfo? field = type.GetField(name, flags);
+            if (field == null) continue;
+            field.SetValue(target, value);
+            return;
+        }
+
+        throw new MissingFieldException(target.GetType().FullName, name);
     }
 
     private static Type RequireRunEventType(string fullName, string displayName) =>
@@ -976,28 +1167,6 @@ internal sealed class CheatRuntimeBridge
         {
             // 节点快照恢复失败时保持强制写入的快照，不阻断命令结果。
         }
-    }
-
-    /// <summary>
-    /// 在「当前层可选节点」里挑一个新版事件节点，供「直接触发」自动选中。
-    /// 只挑本层事件库可解析的节点（即真正的 Event 节点），避免把普通战斗节点当成事件节点。
-    /// </summary>
-    private static object? TryPickDirectRunEventNode(object? roomMap, Type runModeType, out object? nodeData)
-    {
-        nodeData = null;
-        if (roomMap == null) return null;
-        if (GetMember(roomMap, "CurrentReadyNodeList") is not IEnumerable candidates) return null;
-        foreach (object? candidate in candidates)
-        {
-            if (candidate == null) continue;
-            object? data = GetMember(candidate, "nodeData");
-            if (data == null) continue;
-            if (ResolveNodeEventLibrary(runModeType, data) == null) continue;
-            nodeData = data;
-            return candidate;
-        }
-
-        return null;
     }
 
     private static object? ResolveNodeEventLibrary(Type runModeType, object? nodeData)
@@ -1104,6 +1273,7 @@ internal sealed class CheatRuntimeBridge
                 ["id"] = GetMember(group, "groupId") as string ?? string.Empty,
                 ["maxTriggersPerRun"] = GetMember(group, "maxTriggersPerRun") is int max ? max : 0,
                 ["canEnter"] = CanEnterRunEventGroup(runtime, group),
+                ["direct"] = !RunEventGroupHasBattleFlow(group),
                 ["events"] = eventItems
             });
         }
