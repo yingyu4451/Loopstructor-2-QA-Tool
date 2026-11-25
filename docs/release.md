@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.112
+./scripts/package.ps1 -Version 0.6.113
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.112-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.112-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.113-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.113-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.112",
+  "version": "0.6.113",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.112-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.113-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.111",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.111-to-0.6.112-win-x64.delta.zip",
+      "fromVersion": "0.6.112",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.112-to-0.6.113-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.112
-git push origin v0.6.112
+git tag v0.6.113
+git push origin v0.6.113
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,12 @@ git push origin v0.6.112
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.113
+
+- 修复 0.6.111 起「事件」页在 980×680 / 125% 下被桌面端 smoke test 判定「内容溢出机械边框」：`.page-grid` 的隐式行会被拉伸成等高行，卡片内容被压缩进更矮的行里。给页面网格加 `grid-auto-rows: max-content`，卡片按内容自适应高度，超出部分由页面整体滚动。
+- 本地用无头浏览器在 980×680 / 125%、980×680、1280×860 三档视口验证：无横向溢出、无被裁切的机械边框、无卡片内容溢出。
+- 测试：.NET 720、desktop vitest 43、node:test 10；Release 构建 0 警告。
 
 ### 0.6.112
 

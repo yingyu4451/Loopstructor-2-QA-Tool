@@ -137,7 +137,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   .updater-heading { padding-bottom: 10px; }
   .updater-message { min-height: 0; }
 }
-.page-grid { min-height: 0; overflow: auto; display: grid; gap: 12px; align-content: start; }
+.page-grid { min-height: 0; overflow: auto; display: grid; gap: 12px; align-content: start; grid-auto-rows: max-content; }
 .page-heading { min-height: 52px; display: flex; justify-content: space-between; align-items: center; padding: 0 2px; }
 .page-heading h1 { margin: 1px 0 0; color: #f0d291; font: 600 24px/1.1 Bahnschrift, sans-serif; }
 .eyebrow { color: var(--green); font: 600 10px/1 Bahnschrift, sans-serif; }

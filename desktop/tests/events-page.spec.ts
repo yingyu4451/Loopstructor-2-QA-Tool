@@ -9,7 +9,7 @@ import type { ControlResponse, DesktopApi, HostSnapshot } from '../src/types'
 function snapshot(): HostSnapshot {
   return {
     protocolVersion: 1,
-    version: '0.6.112',
+    version: '0.6.113',
     settings: {} as never,
     connection: { trusted: true, label: '已连接游戏', reason: '', cheatAvailable: true, autoplayActive: false },
     logs: [],
