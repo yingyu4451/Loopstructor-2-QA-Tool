@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.114
+./scripts/package.ps1 -Version 0.6.115
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.114-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.114-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.115-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.115-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.114",
+  "version": "0.6.115",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.114-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.115-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.113",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.113-to-0.6.114-win-x64.delta.zip",
+      "fromVersion": "0.6.114",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.114-to-0.6.115-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.114
-git push origin v0.6.114
+git tag v0.6.115
+git push origin v0.6.115
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,12 @@ git push origin v0.6.114
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.115
+
+- 「事件」页新增「直接触发」：自动从当前层可选节点里挑一个新版事件节点并替你选中，再按选中的事件组开启，不用先在地图上点节点；原来的「触发事件组」仍只使用你手动选中的节点。
+- 触发命令 `cheat.triggerRunEvent` 新增 `direct` 参数；查询命令回报 `direct.available/position`，页面据此启用按钮并提示将自动选中的节点位置。当前层没有可用事件节点时明确返回 `EVENT_DIRECT_NODE_UNAVAILABLE`。
+- 测试：.NET 727、desktop vitest 45、node:test 10；Release 构建 0 警告。
 
 ### 0.6.114
 

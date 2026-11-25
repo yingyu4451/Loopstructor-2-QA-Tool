@@ -58,6 +58,11 @@ public sealed class RunEventTriggerContractTests
         Assert.Contains("RUN_NOT_ACTIVE", strings);
         Assert.Contains("RUN_EVENT_ACTIVE", strings);
         Assert.Contains("EVENT_NODE_NOT_SELECTED", strings);
+        Assert.Contains("EVENT_DIRECT_NODE_UNAVAILABLE", strings);
+        Assert.Contains("EVENT_DIRECT_CHOOSE_FAILED", strings);
+        Assert.Contains("direct", strings);
+        Assert.Contains("ChooseNode", strings);
+        Assert.Contains(Calls(trigger), call => call.Name == "TryPickDirectRunEventNode");
         Assert.Contains("EVENT_NODE_NOT_READY", strings);
         Assert.Contains("WAVE_IN_PROGRESS", strings);
         Assert.Contains("EVENT_GROUP_LIMIT_REACHED", strings);
@@ -88,6 +93,30 @@ public sealed class RunEventTriggerContractTests
         Assert.DoesNotContain("RunEventFlowController", LoadedStrings(initialize));
         Assert.DoesNotContain("RunEventFlowController", LoadedStrings(contract));
         Assert.DoesNotContain("SO_RunEventLibraryCfg", LoadedStrings(contract));
+    }
+
+    [Fact]
+    public void Runtime_DirectTrigger_PicksAReadyEventNodeWithoutASelection()
+    {
+        using AssemblyDefinition assembly = ReadPlugin();
+        TypeDefinition bridge = RequireType(assembly, BridgeType);
+        MethodDefinition pick = RequireMethod(bridge, "TryPickDirectRunEventNode");
+        string[] strings = LoadedStrings(pick).ToArray();
+
+        Assert.Contains("CurrentReadyNodeList", strings);
+        Assert.Contains(Calls(pick), call => call.Name == "GetMember");
+        Assert.Contains(Calls(pick), call => call.Name == "ResolveNodeEventLibrary");
+    }
+
+    [Fact]
+    public void RuntimeQuery_ExposesWhetherADirectNodeIsAvailable()
+    {
+        using AssemblyDefinition assembly = ReadPlugin();
+        TypeDefinition bridge = RequireType(assembly, BridgeType);
+        MethodDefinition query = RequireMethod(bridge, "QueryRunEvents");
+
+        Assert.Contains("direct", LoadedStrings(query));
+        Assert.Contains(Calls(query), call => call.Name == "TryPickDirectRunEventNode");
     }
 
     [Fact]

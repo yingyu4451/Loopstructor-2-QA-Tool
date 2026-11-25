@@ -9,7 +9,7 @@ import type { ControlResponse, DesktopApi, HostSnapshot } from '../src/types'
 function snapshot(): HostSnapshot {
   return {
     protocolVersion: 1,
-    version: '0.6.113',
+    version: '0.6.115',
     settings: {} as never,
     connection: { trusted: true, label: '已连接游戏', reason: '', cheatAvailable: true, autoplayActive: false },
     logs: [],
@@ -22,6 +22,7 @@ function catalog(overrides: Record<string, unknown> = {}) {
     runEventActive: false,
     panelOpen: false,
     node: { selected: true, position: '3:2', isEventNode: true },
+    direct: { available: false, position: '' },
     libraries: [{
       id: 'a010_events',
       current: true,
@@ -68,7 +69,7 @@ describe('event trigger page', () => {
     expect(wrapper.get('.event-card').text()).toContain('铸轨者灰市')
     expect(wrapper.get('.event-option-list').text()).toContain('上交 2 辆 Lv.1 战车')
     expect(wrapper.get('.event-option-list').text()).toContain('需要至少 3 辆 Lv.1 战车。')
-    expect(wrapper.get('.event-hint').text()).toContain('条件满足')
+    expect(wrapper.get('.event-hint').text()).toContain('已选中事件节点')
   })
 
   it('triggers the selected group through the cheat command', async () => {
@@ -82,7 +83,7 @@ describe('event trigger page', () => {
 
     const wrapper = mountWithTooltip(EventsPage)
     await flushPromises()
-    await wrapper.get('.btn-primary').trigger('click')
+    await wrapper.get('.trigger-manual').trigger('click')
     await flushPromises()
 
     expect(command).toHaveBeenCalledWith('cheat.triggerRunEvent', {
@@ -90,6 +91,34 @@ describe('event trigger page', () => {
       groupId: 'a010_gray_market',
     })
     expect(command).toHaveBeenCalledTimes(3)
+  })
+
+  it('triggers directly by auto-selecting a ready event node', async () => {
+    const store = useAppStore()
+    store.connected = true
+    store.snapshot = snapshot()
+    const directCatalog = catalog({ node: { selected: false, position: '', isEventNode: false } })
+    directCatalog.direct = { available: true, position: '4:1' }
+    const command = vi.spyOn(store, 'command').mockImplementation(async (name) =>
+      name === 'cheat.queryRunEvents'
+        ? response(directCatalog)
+        : response({ libraryId: 'a010_events', groupId: 'a010_gray_market', autoSelected: true }))
+
+    const wrapper = mountWithTooltip(EventsPage)
+    await flushPromises()
+
+    expect(wrapper.get('.event-hint').text()).toContain('会自动选择 4:1')
+    expect(wrapper.get('.trigger-manual').attributes('disabled')).toBeDefined()
+    const direct = wrapper.get('.trigger-direct')
+    expect(direct.attributes('disabled')).toBeUndefined()
+    await direct.trigger('click')
+    await flushPromises()
+
+    expect(command).toHaveBeenCalledWith('cheat.triggerRunEvent', {
+      libraryId: 'a010_events',
+      groupId: 'a010_gray_market',
+      direct: true,
+    })
   })
 
   it('blocks triggering until a map node is selected', async () => {
@@ -104,7 +133,8 @@ describe('event trigger page', () => {
     await flushPromises()
 
     expect(wrapper.get('.event-hint').text()).toContain('先在地图上选中')
-    expect(wrapper.get('.btn-primary').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('.trigger-direct').attributes('disabled')).toBeDefined()
+expect(wrapper.get('.trigger-manual').attributes('disabled')).toBeDefined()
   })
 
   it('marks an exhausted group and keeps the trigger disabled', async () => {
@@ -120,6 +150,7 @@ describe('event trigger page', () => {
 
     expect(wrapper.get('[name="event-group"]').text()).toContain('已达上限')
     expect(wrapper.get('.event-hint').text()).toContain('触发上限')
-    expect(wrapper.get('.btn-primary').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('.trigger-direct').attributes('disabled')).toBeDefined()
+expect(wrapper.get('.trigger-manual').attributes('disabled')).toBeDefined()
   })
 })

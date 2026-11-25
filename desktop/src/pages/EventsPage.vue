@@ -13,6 +13,7 @@ type RunEventCatalog = {
   runEventActive: boolean
   panelOpen: boolean
   node: { selected: boolean; position: string; isEventNode: boolean }
+  direct?: { available: boolean; position: string }
   libraries: RunEventLibrary[]
   hint?: string
   unavailable?: string
@@ -30,7 +31,8 @@ const library = computed(() => libraries.value.find((item) => item.id === librar
 const groups = computed(() => library.value?.groups ?? [])
 const group = computed(() => groups.value.find((item) => item.id === groupId.value))
 const node = computed(() => catalog.value?.node)
-const blockedReason = computed(() => {
+const nodeSelected = computed(() => catalog.value?.node.selected === true && catalog.value.node.isEventNode === true)
+const baseBlockedReason = computed(() => {
   if (!store.connected) return '先连接游戏。'
   if (store.writeLocked) return '自动游玩运行中，停止后才能触发事件。'
   const value = catalog.value
@@ -38,13 +40,23 @@ const blockedReason = computed(() => {
   if (!value.inRun) return '当前不在对局中，先进入一局游戏并回到地图。'
   if (value.runEventActive) return '已有事件流程进行中，先走完或结束当前事件。'
   if (value.panelOpen) return '普通事件面板正被占用，先关闭当前事件面板。'
-  if (!value.node.selected) return '请先在地图上选中一个新版事件节点（灰色节点）。'
-  if (!value.node.isEventNode) return '选中的节点不是新版事件节点，请换一个。'
   if (!group.value) return '先选择事件组。'
   if (!group.value.canEnter) return '这个事件组本局已达到触发上限，请重开一局或换一个。'
   return ''
 })
-const canTrigger = computed(() => blockedReason.value === '')
+const canTrigger = computed(() => baseBlockedReason.value === '' && nodeSelected.value)
+const canTriggerDirect = computed(() =>
+  baseBlockedReason.value === '' && (nodeSelected.value || catalog.value?.direct?.available === true))
+const blockedReason = computed(() => {
+  if (baseBlockedReason.value) return baseBlockedReason.value
+  if (!canTrigger.value && !canTriggerDirect.value) return '请先在地图上选中事件节点；当前层也没有可自动选择的事件节点。'
+  return ''
+})
+const nodeHint = computed(() => {
+  if (nodeSelected.value) return `已选中事件节点 ${node.value?.position ?? ''}。`
+  if (catalog.value?.direct?.available) return `未选中节点；「直接触发」会自动选择 ${catalog.value.direct.position}。`
+  return '请先在地图上选中一个新版事件节点（灰色节点）。'
+})
 const groupSummary = computed(() => {
   const value = group.value
   if (!value) return ''
@@ -78,13 +90,14 @@ async function refresh() {
   }
 }
 
-async function trigger() {
-  if (!canTrigger.value || !library.value || !group.value) return
+async function trigger(direct = false) {
+  if ((direct ? !canTriggerDirect.value : !canTrigger.value) || !library.value || !group.value) return
   triggering.value = true
   try {
     const response = await store.command('cheat.triggerRunEvent', {
       libraryId: library.value.id,
       groupId: group.value.id,
+      ...(direct ? { direct: true } : {}),
     })
     if (response?.success) await refresh()
   } finally {
@@ -124,7 +137,7 @@ onMounted(() => {
         <span class="status-badge" :class="catalog?.panelOpen ? 'warning' : ''">事件面板：{{ catalog?.panelOpen ? '占用' : '空闲' }}</span>
       </div>
       <p v-if="blockedReason" class="event-hint blocked">{{ blockedReason }}</p>
-      <p v-else class="event-hint ready">条件满足，可以触发。</p>
+      <p v-else class="event-hint ready">{{ nodeHint }}</p>
     </section>
 
     <section class="card mechanical-section" :class="{ mutationLocked: store.writeLocked }">
@@ -143,7 +156,8 @@ onMounted(() => {
       </div>
       <div v-if="group" class="event-group-meta">{{ groupSummary }}</div>
       <div class="action-bar right">
-        <button class="btn btn-primary button primary" :disabled="!canTrigger || triggering" @click="trigger"><Play :size="18" />触发事件组</button>
+        <button class="btn btn-outline button secondary trigger-manual" :disabled="!canTrigger || triggering" @click="trigger(false)"><Play :size="18" />触发事件组</button>
+        <button class="btn btn-primary button primary trigger-direct" :disabled="!canTriggerDirect || triggering" title="自动选择一个当前可选的事件节点并触发" @click="trigger(true)"><Play :size="18" />直接触发</button>
       </div>
     </section>
 

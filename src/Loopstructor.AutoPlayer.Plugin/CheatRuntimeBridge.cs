@@ -665,6 +665,16 @@ internal sealed class CheatRuntimeBridge
             data["node"] = BuildRunEventNodeState(nodeData, layerLibrary != null, chooseSelected);
         }
 
+        object? directNode = TryPickDirectRunEventNode(roomMap, runModeType, out object? directNodeData);
+        string directPosition = directNode == null
+            ? string.Empty
+            : BuildRunEventNodeState(directNodeData, true)["position"]?.Value<string>() ?? string.Empty;
+        data["direct"] = new JObject
+        {
+            ["available"] = directNode != null,
+            ["position"] = directPosition
+        };
+
         JArray libraries = new();
         foreach (object library in CollectRunEventLibraries(session, libraryType))
         {
@@ -687,6 +697,7 @@ internal sealed class CheatRuntimeBridge
         EnsureAvailable();
         string libraryId = RequiredText(arguments, "libraryId", "必须选择事件库。");
         string groupId = RequiredText(arguments, "groupId", "必须选择事件组。");
+        bool direct = arguments.Value<bool?>("direct") == true;
 
         Type runModeType = RequireRunEventType(RunModeRuntimeTypeName, "新版白盒事件系统");
         Type flowType = RequireRunEventType(RunEventFlowControllerTypeName, "新版事件流程控制器");
@@ -726,11 +737,52 @@ internal sealed class CheatRuntimeBridge
         Type? roomMapType = FindType(RoomMapTypeName);
         object? roomMap = roomMapType == null ? null : TryGetSingleton(roomMapType);
         object? node = roomMap == null ? null : GetMember(roomMap, "chooseNode");
+        bool autoSelected = false;
+        if (node == null && direct)
+        {
+            node = TryPickDirectRunEventNode(roomMap, runModeType, out _);
+            if (node != null)
+            {
+                try
+                {
+                    MethodInfo? choose = FindMethod(roomMapType!, "ChooseNode", mapNodeType);
+                    if (choose == null)
+                    {
+                        return CheatExecutionResult.Fail("当前游戏版本缺少自动选择地图节点的入口。", "EVENT_DIRECT_CHOOSE_API_MISSING");
+                    }
+
+                    choose.Invoke(roomMap, new[] { node });
+                    autoSelected = true;
+                    // ChooseNode 会同时刷出事件预选虚影；真正开事件前先清掉，避免重影。
+                    try
+                    {
+                        FindMethod(runModeType, "ClearRunEventPreview")?.Invoke(runtime, null);
+                    }
+                    catch
+                    {
+                        // 预览清理失败不影响后续触发。
+                    }
+
+                    node = GetMember(roomMap, "chooseNode") ?? node;
+                }
+                catch (Exception exception)
+                {
+                    return CheatExecutionResult.Fail(
+                        "自动选择事件节点失败：" + Unwrap(exception).Message,
+                        "EVENT_DIRECT_CHOOSE_FAILED");
+                }
+            }
+        }
+
         if (node == null)
         {
-            return CheatExecutionResult.Fail(
-                "请先在地图上选中一个新版事件节点（灰色事件节点），再回来触发。",
-                "EVENT_NODE_NOT_SELECTED");
+            return direct
+                ? CheatExecutionResult.Fail(
+                    "当前层没有可自动选择的新版事件节点；请推进到含事件节点的层，或先在地图上手动选中一个。",
+                    "EVENT_DIRECT_NODE_UNAVAILABLE")
+                : CheatExecutionResult.Fail(
+                    "请先在地图上选中一个新版事件节点（灰色事件节点），再回来触发。",
+                    "EVENT_NODE_NOT_SELECTED");
         }
 
         object? nodeData = GetMember(node, "nodeData");
@@ -873,6 +925,7 @@ internal sealed class CheatRuntimeBridge
                 ["libraryId"] = libraryId,
                 ["groupId"] = groupId,
                 ["node"] = BuildRunEventNodeState(nodeData, true),
+                ["autoSelected"] = autoSelected,
                 ["eventCount"] = eventCount,
                 ["state"] = state
             };
@@ -886,7 +939,9 @@ internal sealed class CheatRuntimeBridge
             }
 
             return CheatExecutionResult.Changed(
-                $"已开启事件组 {groupId}（{eventCount} 个事件）。在游戏里点击事件角色即可进入对话。",
+                autoSelected
+                    ? $"已自动选中事件节点并开启事件组 {groupId}（{eventCount} 个事件）。在游戏里点击事件角色即可进入对话。"
+                    : $"已开启事件组 {groupId}（{eventCount} 个事件）。在游戏里点击事件角色即可进入对话。",
                 data);
         }
         catch
@@ -921,6 +976,28 @@ internal sealed class CheatRuntimeBridge
         {
             // 节点快照恢复失败时保持强制写入的快照，不阻断命令结果。
         }
+    }
+
+    /// <summary>
+    /// 在「当前层可选节点」里挑一个新版事件节点，供「直接触发」自动选中。
+    /// 只挑本层事件库可解析的节点（即真正的 Event 节点），避免把普通战斗节点当成事件节点。
+    /// </summary>
+    private static object? TryPickDirectRunEventNode(object? roomMap, Type runModeType, out object? nodeData)
+    {
+        nodeData = null;
+        if (roomMap == null) return null;
+        if (GetMember(roomMap, "CurrentReadyNodeList") is not IEnumerable candidates) return null;
+        foreach (object? candidate in candidates)
+        {
+            if (candidate == null) continue;
+            object? data = GetMember(candidate, "nodeData");
+            if (data == null) continue;
+            if (ResolveNodeEventLibrary(runModeType, data) == null) continue;
+            nodeData = data;
+            return candidate;
+        }
+
+        return null;
     }
 
     private static object? ResolveNodeEventLibrary(Type runModeType, object? nodeData)
