@@ -9,6 +9,7 @@ export type FlowAutoRule =
   | { type: 'battleSave' }
   | { type: 'tutorialDeaths'; minimum: number }
   | { type: 'characters'; minimum: number }
+  | { type: 'characterAny'; ids: string[] }
   | { type: 'characterLevelMax'; minimum: number }
   | { type: 'characterLevelKey'; keys: string[]; minimum: number }
   | { type: 'characterLevelEntries'; minimum: number }
@@ -108,6 +109,20 @@ export function evaluateAutoRule(rule: FlowAutoRule, response?: FlowProgressResp
       return {
         state: met ? 'met' : 'unmet',
         evidence: `已解锁副官：${count} / ${rule.minimum}`,
+      }
+    }
+    case 'characterAny': {
+      const unlocked = new Map(
+        (progress.unlockedCharacters ?? []).map((id) => [id.toLowerCase(), id]),
+      )
+      const matched = rule.ids
+        .map((id) => unlocked.get(id.toLowerCase()))
+        .filter((id): id is string => Boolean(id))
+      return {
+        state: matched.length > 0 ? 'met' : 'unmet',
+        evidence: matched.length > 0
+          ? `已解锁：${matched.join('、')}`
+          : `未解锁：${rule.ids.join(' / ')}`,
       }
     }
     case 'characterLevelMax': {

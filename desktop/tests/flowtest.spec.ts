@@ -67,6 +67,29 @@ describe('flow test model', () => {
       .toMatchObject({ state: 'unknown' })
   })
 
+  it('matches lieutenants by stable character ids across save layouts', () => {
+    const response = flowResponse()
+    const withVera = flowResponse({
+      progress: {
+        ...flowResponse().progress!,
+        unlockedCharacters: ['Character_Seraphina', 'Character_Vera'],
+      },
+    })
+
+    expect(evaluateAutoRule({ type: 'characterAny', ids: ['character_2', 'Character_Vera'] }, withVera))
+      .toMatchObject({ state: 'met' })
+    expect(evaluateAutoRule({ type: 'characterAny', ids: ['character_3', 'Character_Greta', 'Character_Elaina'] }, withVera))
+      .toMatchObject({ state: 'unmet' })
+    expect(evaluateAutoRule({ type: 'characterAny', ids: ['character_3', 'Character_Greta', 'Character_Elaina'] }, flowResponse({
+      progress: {
+        ...flowResponse().progress!,
+        unlockedCharacters: ['Character_Seraphina', 'Character_Elaina'],
+      },
+    }))).toMatchObject({ state: 'met' })
+    expect(evaluateAutoRule({ type: 'characterAny', ids: ['charACTER_seraphina'] }, response))
+      .toMatchObject({ state: 'met' })
+  })
+
   it('counts manual and automatic statuses separately', () => {
     const stage = FLOW_STAGES.find((item) => item.id === 'base-initial')!
     const records = {

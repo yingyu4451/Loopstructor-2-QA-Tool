@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.121
+./scripts/package.ps1 -Version 0.6.122
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.121-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.121-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.122-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.122-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.121",
+  "version": "0.6.122",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.121-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.122-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.120",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.120-to-0.6.121-win-x64.delta.zip",
+      "fromVersion": "0.6.121",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.121-to-0.6.122-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.121
-git push origin v0.6.121
+git tag v0.6.122
+git push origin v0.6.122
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,13 @@ git push origin v0.6.121
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.122
+
+- 流程测试对照最新正式预览流程补全：副官加入改用稳定角色 id 核对（`character_2`/`Character_Vera`、`character_3`/`Character_Greta`/`Character_Elaina`、`character_4`–`character_7`），三个流程门槛升级改为精确存档键（`character_1_node_choices`、`character_1_vehicle_candidates`、`character_1_relic_candidates`），并新增「门槛未满足时不能进入下一段」检查。
+- 每个流程阶段补充当前实现段：`preview_first` → `preview_second` → `preview_link_join` → `preview_projectile_join` → `preview_pierce_join` → `preview_missile_join` → `preview_drone_join` → `preview_shockwave_join`；同时标注无尽/排行榜在抛射段出发时提前解锁、冲击波新增升级、`character_8`/近战副官与「基础升级」未接入。
+- 新增营救战前/救援/战后事件组顺序检查、无尽/排行榜解锁对白检查、出发宝箱与文档「基础升级」对齐检查；流程测试验收点 76 → 88。
+- 测试：.NET 735、desktop vitest 52、node:test 10；Release 构建 0 警告。
 
 ### 0.6.121
 
