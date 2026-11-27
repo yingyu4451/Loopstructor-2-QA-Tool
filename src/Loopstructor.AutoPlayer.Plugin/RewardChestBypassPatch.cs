@@ -1,7 +1,6 @@
 using System;
 using System.Reflection;
 using HarmonyLib;
-using UnityEngine;
 
 namespace Loopstructor.AutoPlayer.Plugin;
 
@@ -11,42 +10,48 @@ namespace Loopstructor.AutoPlayer.Plugin;
 /// </summary>
 internal static class RewardChestBypassPatch
 {
-    public const float ActivationSeconds = 30f;
     private const string HarmonyId = "com.loopstructor.qa-tool.reward-chest-bypass";
     private static readonly object Sync = new();
     private static Harmony? _harmony;
     private static bool _installed;
-    private static float _activeUntil;
+    private static bool _enabled;
     private static PropertyInfo? _roomPanelInstance;
     private static MethodInfo? _roomPanelSetBlocked;
     private static PropertyInfo? _multiFunInstance;
     private static MethodInfo? _multiFunSetBlocked;
 
-    public static bool IsActive => Time.realtimeSinceStartup < _activeUntil;
+    public static bool IsActive => _enabled;
 
-    public static bool TryActivate(out string message)
+    public static bool SetEnabled(bool enabled, out string message)
     {
         message = string.Empty;
+        if (!enabled)
+        {
+            _enabled = false;
+            message = "已恢复奖励箱选关门禁。";
+            return true;
+        }
+
         if (!EnsureInstalled(out string installError))
         {
             message = installError;
             return false;
         }
 
-        _activeUntil = Time.realtimeSinceStartup + ActivationSeconds;
+        _enabled = true;
         if (ApplyOpen(out _))
         {
-            message = $"已临时解除奖励箱选关锁 {ActivationSeconds:0} 秒；奖励不会自动领取。";
+            message = "奖励箱将不再阻止选关；奖励不会自动领取。";
             return true;
         }
 
-        message = $"已临时解除奖励箱选关锁 {ActivationSeconds:0} 秒；当前选关入口尚未创建，进入选关界面后自动生效。";
+        message = "已开启；当前选关入口尚未创建，进入选关界面后自动生效。";
         return true;
     }
 
     public static void Reset()
     {
-        _activeUntil = 0f;
+        _enabled = false;
     }
 
     internal static bool TryInstall(out string error) => EnsureInstalled(out error);

@@ -45,13 +45,13 @@ Loopstructor-2-QA-Tool.exe (Launcher)
 ./scripts/bootstrap.ps1
 ./scripts/build.ps1 -Configuration Release
 ./scripts/test.ps1 -Configuration Release -NoRestore -NoBuild
-./scripts/package.ps1 -Version 0.6.123
+./scripts/package.ps1 -Version 0.6.124
 ```
 
 - `build.ps1` 构建解决方案与 `desktop`，输出在各项目 `bin`/`dist` 目录。
 - `test.ps1` 依次运行：解决方案测试（TRX 输出到 `artifacts\TestResults`）、`Verification` 控制台校验、`pnpm typecheck`、`pnpm lint`、`pnpm test`。
 - `desktop` 的 Playwright E2E 由 `pnpm test:e2e` 单独运行（CI 会执行；本地需要可交互的桌面会话）。
-- `package.ps1` 需要 Node/pnpm 与 7-Zip，输出到 `artifacts\release\`：`Loopstructor-2-QA-Tool-0.6.123-win-x64.zip`、对应的 `.sha256` 和 `autoplayer-update-manifest.json`。`-SkipBuild` 可复用已有构建产物。
+- `package.ps1` 需要 Node/pnpm 与 7-Zip，输出到 `artifacts\release\`：`Loopstructor-2-QA-Tool-0.6.124-win-x64.zip`、对应的 `.sha256` 和 `autoplayer-update-manifest.json`。`-SkipBuild` 可复用已有构建产物。
 - 加 `-SkipBuild` 前必须先完成一次对应版本号的 Release 构建，否则包内二进制版本校验会失败。
 - 内循环提速：只改桌面端用 `build.ps1 -SkipPnpmInstall -SkipDotnetBuild` + `test.ps1 -NoRestore -NoBuild -SkipDotnet`（约 17 秒）；只改 C# 用 `-SkipDesktopBuild` / `-SkipDesktop`，可用 `-DotnetFilter` 定向测试。实测耗时与发布流水线开销见 [docs/release.md](docs/release.md)。
 
@@ -114,7 +114,7 @@ Loopstructor-2-QA-Tool\
 - 写入类命令会在当前 QA profile 写入作弊标记；之后该 profile 的运行结果统一记为 `cheat-modified`，便于区分被改动过的证据。
 - 作弊会话依赖 Host 心跳；连接中断或心跳丢失时插件关闭作弊状态。
 - 游戏内快捷键：在「战斗」页开启后，不用切回工具，在游戏窗口内按 `F` 清除场上所有怪物、`F1` 结束当前波次（与游戏开发者模式同名按键一致）；快捷键只在作弊模式已启用且自动游玩未运行时生效，触发记录同样写入作弊审计。
-- 奖励箱选关：完成关卡后若场上有未领取奖励箱，点「战斗」页的「不领奖励，开放选关」，可在 30 秒内直接选择下一关。该操作只临时解除选关门禁，不领取、不清空奖励箱；30 秒后门禁自动恢复。
+- 奖励箱选关：在「战斗」页打开「不领奖励也能选关」后，每关的未领取奖励箱都不再阻止选关；设置会持久保存，连接游戏后自动恢复。该操作不领取、不清空奖励箱。
 - 获取池：战车、道具、遗物目录可在「全部池」与「游戏配置池」之间切换。游戏配置池只显示当前版本奖励配置里真正可获取的内容：战车取奖励配置的 Tag 映射（当前版本 14 个家族，自动包含各星级），遗物取奖励主池、可重复获取备用池与 BOSS/精英关奖励，消耗品取道具奖励配置。读取失败时该类别回退全部池，并在池开关状态里说明原因。
 - 常驻启动：在「战斗」页勾选的基地无敌、地图自由跳转、显示敌人 ID、显示 Buff 会持久保存；连接游戏并启用作弊后由 Host 自动恢复，失败按项重试。
 - 事件触发：在「事件」页选择事件库与事件组，点「触发事件组」开启新版白盒事件（需要先在地图上选中一个事件节点）；「直接触发」是真正的任意节点触发——不需要地图节点，用沙盒流程直接开事件组，结束后不影响当前波次、奖励与地图进度。含内部战斗选项的事件组仍只能用「触发事件组」在事件节点上开。事件与选项以只读预览列在下方，方便对照。强制触发绕过了游戏的「事件预抽」流程，只用于当前对局内的内容验证，不保证写入续局存档。
@@ -196,4 +196,4 @@ Plugin 端日志由 Host 合并显示；游戏处于非 Development Build 时不
 
 ## 版本
 
-当前版本 0.6.123。版本记录见 [docs/release.md](docs/release.md#版本记录)，发布流程与检查表见同一文档。
+当前版本 0.6.124。版本记录见 [docs/release.md](docs/release.md#版本记录)，发布流程与检查表见同一文档。

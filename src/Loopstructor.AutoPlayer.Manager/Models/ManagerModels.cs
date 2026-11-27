@@ -131,6 +131,8 @@ public sealed class ManagerSettings
     public bool SidebarCollapsed { get; set; }
     public string SkinId { get; set; } = "skyspine";
     public bool GameHotkeysEnabled { get; set; }
+    /// <summary>战斗页“不领奖励也能选关”的持久开关；连接游戏后由 Host 自动下发。</summary>
+    public bool RewardChestBypassEnabled { get; set; }
     /// <summary>作弊目录的获取池模式：all（全部池）或 configured（游戏配置池）。</summary>
     public string CatalogPoolMode { get; set; } = CheatCatalogPoolModes.All;
     /// <summary>连接游戏并启用作弊后自动恢复的常驻作弊项（baseGodMode/mapSkipEnabled/enemyIdsVisible/enemyBuffsVisible）。</summary>

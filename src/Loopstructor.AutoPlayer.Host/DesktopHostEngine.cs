@@ -65,6 +65,8 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
     private readonly HashSet<string> _persistentCheatsApplied = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _persistentCheatErrors = new(StringComparer.Ordinal);
     private DateTime _nextPersistentCheatApplyUtc;
+    private bool? _rewardChestBypassAppliedState;
+    private DateTime _nextRewardChestBypassApplyUtc;
     private string _connectionLabel = "等待游戏连接";
     private string _connectionReason = string.Empty;
     private Task? _pollTask;
@@ -194,6 +196,8 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         _cheatHotkeysApplied = false;
         _catalogPoolModeApplied = string.Empty;
         _persistentCheatsApplied.Clear();
+        _rewardChestBypassAppliedState = null;
+        _nextRewardChestBypassApplyUtc = default;
         _persistentCheatErrors.Clear();
         _nextPersistentCheatApplyUtc = default;
         await ApplyGameHotkeysAsync();
@@ -1260,8 +1264,12 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         if (!TryResolveCheatTarget() || !CheatModeIsEnabled)
         {
             _persistentCheatsApplied.Clear();
+        _rewardChestBypassAppliedState = null;
+        _nextRewardChestBypassApplyUtc = default;
             return;
         }
+
+        await ApplyRewardChestBypassAsync();
 
         if (DateTime.UtcNow < _nextPersistentCheatApplyUtc) return;
 
@@ -1340,6 +1348,54 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         }
     }
 
+    /// <summary>持久开关：连接游戏后把战斗页的“不领奖励也能选关”下发到插件或 Editor。</summary>
+    private async Task ApplyRewardChestBypassAsync()
+    {
+        if (_status?.RunState is AutoPlayerRunState.Running or AutoPlayerRunState.Paused) return;
+
+        bool desired = _settings.RewardChestBypassEnabled;
+        if (_status != null)
+        {
+            if (_status.RewardChestBypassEnabled == desired)
+            {
+                _rewardChestBypassAppliedState = desired;
+                return;
+            }
+        }
+        else if (_rewardChestBypassAppliedState == desired)
+        {
+            return;
+        }
+
+        if (DateTime.UtcNow < _nextRewardChestBypassApplyUtc) return;
+
+        (bool TransportSuccess, ControlResponse? Response, string Error) delivery =
+            await SendCheatToTargetAsync(
+                CheatCommands.SkipRewardChests,
+                new JObject { ["enabled"] = desired });
+        if (!delivery.TransportSuccess)
+        {
+            InvalidateTrust();
+            _connectionLabel = "等待插件响应";
+            _connectionReason = delivery.Error;
+            _nextRewardChestBypassApplyUtc = DateTime.UtcNow.AddSeconds(10);
+            return;
+        }
+
+        ControlResponse response = delivery.Response!;
+        if (response.Status != null) _status = response.Status;
+        if (!response.Success)
+        {
+            _nextRewardChestBypassApplyUtc = DateTime.UtcNow.AddSeconds(10);
+            AddLog("warn", "「不领奖励也能选关」暂未生效：" + response.Message, emit: false);
+            return;
+        }
+
+        if (_status != null) _status.RewardChestBypassEnabled = desired;
+        _rewardChestBypassAppliedState = desired;
+        AddLog("cheat", desired ? "「不领奖励也能选关」已开启。" : "「不领奖励也能选关」已关闭。", emit: false);
+    }
+
     /// <summary>当前是否通过 Unity Editor Bridge 控制游戏。</summary>
     private bool IsEditorCheatChannel => !string.IsNullOrWhiteSpace(_selectedEditorInstanceId);
 
@@ -1391,6 +1447,8 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         _catalogPoolModeApplied = string.Empty;
         _lastCatalogPoolApplyError = string.Empty;
         _persistentCheatsApplied.Clear();
+        _rewardChestBypassAppliedState = null;
+        _nextRewardChestBypassApplyUtc = default;
         _persistentCheatErrors.Clear();
         _nextPersistentCheatApplyUtc = default;
     }
@@ -1421,6 +1479,8 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         _catalogPoolModeApplied = string.Empty;
         _lastCatalogPoolApplyError = string.Empty;
         _persistentCheatsApplied.Clear();
+        _rewardChestBypassAppliedState = null;
+        _nextRewardChestBypassApplyUtc = default;
         _persistentCheatErrors.Clear();
         _nextPersistentCheatApplyUtc = default;
         _logTail.Reset(session.LogPath, startAtEnd: !includeExistingLog);
@@ -1496,6 +1556,8 @@ internal sealed class DesktopHostEngine : IAsyncDisposable
         if (data.Value<bool?>("enemyBuffsVisible") is bool enemyBuffs) _status.EnemyBuffsVisible = enemyBuffs;
         if (data.Value<bool?>("baseGodMode") is bool baseGodMode) _status.BaseGodModeEnabled = baseGodMode;
         if (data.Value<bool?>("mapSkipEnabled") is bool mapSkip) _status.MapSkipEnabled = mapSkip;
+        if (data.Value<bool?>("rewardChestBypassEnabled") is bool rewardChestBypass)
+            _status.RewardChestBypassEnabled = rewardChestBypass;
     }
 
     private void ResetSession()

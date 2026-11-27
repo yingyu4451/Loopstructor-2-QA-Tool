@@ -5,7 +5,7 @@ using Mono.Cecil.Cil;
 namespace Loopstructor.AutoPlayer.Tests;
 
 /// <summary>
-/// 战斗页的“不领奖励，开放选关”只临时解除奖励箱对选关的门禁：
+/// 战斗页的“不领奖励也能选关”持久解除奖励箱对选关的门禁：
 /// 不领取、不清空奖励箱，也不改变奖励账本。这里锁定命令、补丁目标和 Editor 分发。
 /// </summary>
 public sealed class RewardChestBypassContractTests
@@ -45,14 +45,14 @@ public sealed class RewardChestBypassContractTests
     }
 
     [Fact]
-    public void Bridge_ActivatesTheTemporaryGateBypass()
+    public void Bridge_SetsThePersistentGateState()
     {
         using AssemblyDefinition assembly = ReadPlugin();
         MethodDefinition skip = RequireMethod(RequireType(assembly, BridgeType), "SkipRewardChests");
 
         Assert.Contains(
             Calls(skip),
-            call => call.DeclaringType.FullName == PatchType && call.Name == "TryActivate");
+            call => call.DeclaringType.FullName == PatchType && call.Name == "SetEnabled");
         Assert.Contains("REWARD_CHEST_BYPASS_UNAVAILABLE", LoadedStrings(skip));
     }
 
@@ -82,7 +82,8 @@ public sealed class RewardChestBypassContractTests
         string root = FindRepositoryRoot();
         string source = File.ReadAllText(Path.Combine(
             root, "src", "Loopstructor.AutoPlayer.EditorBridge.Runtime", "UnityEditorCheatBridge.cs"));
-        Assert.Contains("CheatCommands.SkipRewardChests => m_bridge.SkipRewardChests()", source);
+        Assert.Contains("CheatCommands.SkipRewardChests => m_bridge.SkipRewardChests(arguments)", source);
+        Assert.Contains("rewardChestBypassEnabled", source);
     }
 
     private static AssemblyDefinition ReadPlugin()

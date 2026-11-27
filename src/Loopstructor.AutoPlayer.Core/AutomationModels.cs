@@ -204,6 +204,7 @@ public sealed class AutoPlayerStatus
     public bool EnemyBuffsVisible { get; set; }
     public bool BaseGodModeEnabled { get; set; }
     public bool MapSkipEnabled { get; set; }
+    public bool RewardChestBypassEnabled { get; set; }
     public string RunIntegrity { get; set; } = "clean";
     public string CheatAvailabilityReason { get; set; } = string.Empty;
     public IReadOnlyList<TimelineEvent> Timeline { get; set; } = Array.Empty<TimelineEvent>();

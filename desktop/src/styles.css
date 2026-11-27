@@ -307,8 +307,6 @@ button:disabled, .disabled { color: #6f675d; cursor: not-allowed; }
 .command-button { grid-template-columns: 28px minmax(0, 1fr); }
 .command-button:hover:not(:disabled) { border-color: var(--brass); background: #292117; }
 .danger-command { color: var(--red); border-color: #70382d; }
-.reward-gate-command { background: #202b31; border-color: #4f8fb5; color: #8ec9e8; }
-.reward-gate-command:hover:not(:disabled) { background: #2a3b45; border-color: #6bb6e0; }
 .command-grid { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 .mutationLocked { position: relative; }
 .mutationLocked::after { content: "自动游玩期间不可修改"; position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: #211e1bd9; color: #aa9c8b; border: 1px solid #53483a; font: 600 12px Bahnschrift, sans-serif; pointer-events: all; }

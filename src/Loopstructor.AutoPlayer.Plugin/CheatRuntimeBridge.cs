@@ -2444,10 +2444,11 @@ internal sealed class CheatRuntimeBridge
             data);
     }
 
-    public CheatExecutionResult SkipRewardChests()
+    public CheatExecutionResult SkipRewardChests(JObject arguments)
     {
         EnsureAvailable();
-        if (!RewardChestBypassPatch.TryActivate(out string message))
+        bool enabled = arguments.Value<bool?>("enabled") ?? true;
+        if (!RewardChestBypassPatch.SetEnabled(enabled, out string message))
         {
             return CheatExecutionResult.Fail(message, "REWARD_CHEST_BYPASS_UNAVAILABLE");
         }
@@ -2456,7 +2457,7 @@ internal sealed class CheatRuntimeBridge
             message,
             new JObject
             {
-                ["seconds"] = RewardChestBypassPatch.ActivationSeconds,
+                ["enabled"] = enabled,
                 ["rewardChestsRemainUnclaimed"] = true
             });
     }

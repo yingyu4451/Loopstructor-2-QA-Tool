@@ -52,6 +52,20 @@ describe('desktop application store', () => {
     expect(cheatCommand).not.toHaveBeenCalled()
   })
 
+  it('persists the reward chest bypass switch', async () => {
+    const saveSettings = vi.fn(async (settings) => settings)
+    window.loopstructorDesktop = { saveSettings } as unknown as DesktopApi
+    const store = useAppStore()
+    store.applySnapshot(snapshot())
+
+    const saved = await store.setRewardChestBypass(true)
+
+    expect(saved).toBeTruthy()
+    expect(saveSettings).toHaveBeenCalledOnce()
+    expect((saveSettings.mock.calls[0][0] as { rewardChestBypassEnabled?: boolean }).rewardChestBypassEnabled).toBe(true)
+    expect(store.settings?.rewardChestBypassEnabled).toBe(true)
+  })
+
   it('persists route changes through the typed preload API', async () => {
     const saveSettings = vi.fn(async (settings) => settings)
     window.loopstructorDesktop = { saveSettings } as unknown as DesktopApi

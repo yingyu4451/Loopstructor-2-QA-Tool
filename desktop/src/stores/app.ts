@@ -112,8 +112,22 @@ export const useAppStore = defineStore('app', {
       }
       return saved
     },
-    async setGameHotkeys(enabled: boolean) {
+    async setRewardChestBypass(enabled: boolean) {
       const ui = useUiStore()
+      if (!this.snapshot) return undefined
+      if ((this.snapshot.settings.rewardChestBypassEnabled === true) === enabled) return this.snapshot.settings
+      const saved = await this.saveSettings({ ...this.snapshot.settings, rewardChestBypassEnabled: enabled }, false)
+      if (saved) {
+        ui.toast(
+          enabled
+            ? '已开启：每关的奖励箱都不再阻止选关，奖励不会自动领取。'
+            : '已关闭：奖励箱会重新阻止选关。',
+          'success')
+        if (this.connected) await this.refreshState(false)
+      }
+      return saved
+    },
+    async setGameHotkeys(enabled: boolean) {      const ui = useUiStore()
       if (!this.snapshot) return undefined
       const saved = await this.saveSettings({ ...this.snapshot.settings, gameHotkeysEnabled: enabled }, false)
       if (saved) {

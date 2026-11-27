@@ -281,6 +281,25 @@ public sealed class ManagerSettingsStoreTests
         }
     }
 
+    [Fact]
+    public void Save_RoundTripsRewardChestBypass()
+    {
+        string root = CreateTemporaryDirectory();
+        try
+        {
+            string settingsPath = Path.Combine(root, "settings.json");
+            ManagerSettingsStore store = new(settingsPath);
+            store.Save(new ManagerSettings { RewardChestBypassEnabled = true });
+
+            Assert.True(store.Load(out string warning).RewardChestBypassEnabled);
+            Assert.Empty(warning);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData("saves")]
     [InlineData("vehicles")]

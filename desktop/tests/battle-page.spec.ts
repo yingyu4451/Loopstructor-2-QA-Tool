@@ -9,10 +9,11 @@ import type { DesktopApi, HostSnapshot } from '../src/types'
 function snapshot(autoplayActive = false): HostSnapshot {
   return {
     protocolVersion: 1,
-    version: '0.6.123',
+    version: '0.6.124',
     settings: {
       persistentCheats: [],
       gameHotkeysEnabled: false,
+      rewardChestBypassEnabled: false,
       catalogPoolMode: 'all',
     } as never,
     connection: { trusted: true, label: '已连接游戏', reason: '', cheatAvailable: true, autoplayActive },
@@ -26,32 +27,30 @@ describe('battle page', () => {
     window.loopstructorDesktop = {} as unknown as DesktopApi
   })
 
-  it('opens next-level selection without claiming an unclaimed reward chest', async () => {
+  it('persists the reward chest selection switch', async () => {
     const store = useAppStore()
     store.snapshot = snapshot()
     store.connected = true
-    store.cheatState = { enabled: true }
-    const command = vi.spyOn(store, 'command').mockResolvedValue(undefined)
-
+    const save = vi.spyOn(store, 'setRewardChestBypass').mockResolvedValue(true as never)
     const wrapper = mountWithTooltip(BattlePage)
     await flushPromises()
 
-    expect(wrapper.get('button[title*="临时解除奖励箱"]').text()).toContain('不领奖励，开放选关')
-    expect(wrapper.text()).toContain('跳过当前奖励')
+    const toggle = wrapper.get('input[name="reward-chest-bypass"]')
+    expect(toggle.attributes('checked')).toBeUndefined()
+    expect((toggle.element as HTMLInputElement).checked).toBe(false)
 
-    await wrapper.get('button[title*="临时解除奖励箱"]').trigger('click')
+    await toggle.setValue(true)
 
-    expect(command).toHaveBeenCalledWith('cheat.skipRewardChests')
+    expect(save).toHaveBeenCalledWith(true)
   })
 
-  it('disables the bypass while automation is running', () => {
+  it('disables the reward chest switch while automation is running', () => {
     const store = useAppStore()
     store.snapshot = snapshot(true)
     store.connected = true
 
     const wrapper = mountWithTooltip(BattlePage)
 
-    expect(wrapper.get('button[title*="临时解除奖励箱"]').attributes('disabled')).toBeDefined()
-    expect(wrapper.get('button[title*="临时解除奖励箱"]').text()).toContain('不领奖励，开放选关')
+    expect(wrapper.get('input[name="reward-chest-bypass"]').attributes('disabled')).toBeDefined()
   })
 })

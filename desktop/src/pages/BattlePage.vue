@@ -23,6 +23,19 @@ const hotkeyStateLabel = computed(() => {
   if (hotkeysLive.value) return '游戏中已生效'
   return hotkeysEnabled.value ? '正在下发到游戏' : '未启用'
 })
+const rewardChestBypassEnabled = computed(() => store.settings?.rewardChestBypassEnabled === true)
+const rewardChestBypassLive = computed(() =>
+  store.cheatState?.rewardChestBypassEnabled === true
+  || store.snapshot?.status?.rewardChestBypassEnabled === true)
+const rewardChestBypassStateLabel = computed(() => {
+  if (!store.connected) return '等待连接'
+  if (!rewardChestBypassEnabled.value) return '未启用'
+  return rewardChestBypassLive.value ? '游戏中已生效' : '正在下发到游戏'
+})
+const rewardChestBypassStateClass = computed(() => {
+  if (!store.connected || !rewardChestBypassEnabled.value) return ''
+  return rewardChestBypassLive.value ? 'online' : 'warning'
+})
 function liveCheatActive(key: PersistentCheatOption): boolean {
   if (key === 'baseGodMode') return state.value.baseGodMode === true
   if (key === 'mapSkipEnabled') return state.value.mapSkipEnabled === true
@@ -53,6 +66,10 @@ async function togglePersistent(option: PersistentCheatOption, value: boolean, i
   if (!saved) input.checked = !value
   else if (store.connected) await store.refreshState(false)
 }
+async function toggleRewardChestBypass(value: boolean, input: CheckboxInput) {
+  const saved = await store.setRewardChestBypass(value)
+  if (!saved) input.checked = !value
+}
 </script>
 
 <template>
@@ -77,7 +94,15 @@ async function togglePersistent(option: PersistentCheatOption, value: boolean, i
         <button class="btn command-button" :disabled="store.writeLocked || !store.connected" @click="store.command('cheat.endWave')"><FastForward :size="20" /><span><strong>结束当前波次</strong><small>推进到本波结算</small></span></button>
         <button class="btn btn-error command-button danger-command" :disabled="store.writeLocked || !store.connected" @click="store.command('cheat.clearEnemies')"><Skull :size="20" /><span><strong>清除所有敌人</strong><small>立即清理当前场景</small></span></button>
         <button class="btn command-button" :disabled="store.writeLocked || !store.connected" @click="store.command('cheat.skipRewardPopup')"><Gift :size="20" /><span><strong>跳过当前奖励</strong><small>放弃奖励并解除弹窗阻断</small></span></button>
-        <button class="btn command-button reward-gate-command" :disabled="store.writeLocked || !store.connected" title="临时解除奖励箱对选关的锁定 30 秒；奖励不会自动领取" @click="store.command('cheat.skipRewardChests')"><Map :size="20" /><span><strong>不领奖励，开放选关</strong><small>临时解除奖励箱锁定，奖励不会领取</small></span></button>
+        <label class="action-toggle reward-gate-toggle" title="每关的奖励箱都不再阻止选关；奖励不会自动领取">
+          <Map :size="19" />
+          <span><strong>不领奖励也能选关</strong><small>奖励箱不再锁住选关，奖励不会领取</small></span>
+          <input class="checkbox checkbox-success" name="reward-chest-bypass" type="checkbox" :checked="rewardChestBypassEnabled" :disabled="store.writeLocked" @change="toggleRewardChestBypass(($event.target as HTMLInputElement).checked, $event.target as HTMLInputElement)" />
+        </label>
+        <div class="hotkey-state">
+          <span class="status-badge" :class="rewardChestBypassStateClass">{{ rewardChestBypassStateLabel }}</span>
+          <small>设置会持久保存，连接游戏后自动恢复。</small>
+        </div>
       </div>
     </section>
     <section class="card battle-section mechanical-section" :class="{ mutationLocked: store.writeLocked }">

@@ -25,6 +25,7 @@ export interface ManagerSettings {
   sidebarCollapsed: boolean
   skinId?: SkinId
   gameHotkeysEnabled?: boolean
+  rewardChestBypassEnabled?: boolean
   catalogPoolMode?: CatalogPoolMode
   persistentCheats?: PersistentCheatOption[]
   gitHubOwner: string
@@ -115,6 +116,7 @@ export interface AutoPlayerStatus {
   enemyBuffsVisible: boolean
   baseGodModeEnabled: boolean
   mapSkipEnabled: boolean
+  rewardChestBypassEnabled: boolean
   lastMessage: string
   currentFps: number
   onePercentLowFps: number

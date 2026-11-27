@@ -1011,6 +1011,7 @@ internal sealed class AutoPlayController
                 EnemyBuffsVisible = _enemyBuffsVisible,
                 BaseGodModeEnabled = _baseGodModeEnabled,
                 MapSkipEnabled = MapSkipPatch.Enabled,
+                RewardChestBypassEnabled = RewardChestBypassPatch.IsActive,
                 RunIntegrity = _cheatUsed ? "cheat-modified" : "clean",
                 CheatAvailabilityReason = _cheatAvailabilityReason,
                 Timeline = _timeline.ToArray()
