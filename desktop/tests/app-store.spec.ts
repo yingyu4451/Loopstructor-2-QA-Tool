@@ -40,6 +40,18 @@ describe('desktop application store', () => {
     expect(useUiStore().activeToast?.kind).toBe('warning')
   })
 
+  it('blocks the reward chest bypass while automation is active', async () => {
+    const cheatCommand = vi.fn()
+    window.loopstructorDesktop = { cheatCommand } as unknown as DesktopApi
+    const store = useAppStore()
+    store.applySnapshot(snapshot(true))
+
+    const result = await store.command('cheat.skipRewardChests')
+
+    expect(result).toBeUndefined()
+    expect(cheatCommand).not.toHaveBeenCalled()
+  })
+
   it('persists route changes through the typed preload API', async () => {
     const saveSettings = vi.fn(async (settings) => settings)
     window.loopstructorDesktop = { saveSettings } as unknown as DesktopApi

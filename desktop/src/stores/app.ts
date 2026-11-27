@@ -9,7 +9,7 @@ const mutationCommands = new Set([
   'cheat.grantDisposable', 'cheat.clearConsumables',
   'cheat.grantCatapultPoint', 'cheat.removeCatapultPoint', 'cheat.clearBackpackCatapultPoints',
   'cheat.removeFieldCatapultPoint', 'cheat.clearFieldCatapultPoints', 'cheat.setFieldCatapultDeleteMode',
-  'cheat.setBaseGodMode', 'cheat.endWave', 'cheat.triggerRunEvent', 'cheat.clearEnemies', 'cheat.skipRewardPopup',
+  'cheat.setBaseGodMode', 'cheat.endWave', 'cheat.triggerRunEvent', 'cheat.clearEnemies', 'cheat.skipRewardPopup', 'cheat.skipRewardChests',
   'cheat.modifyVehicle', 'cheat.setVehicleEnchantment', 'cheat.modifyEnemy', 'cheat.grantRelic',
   'cheat.grantAllRelics', 'cheat.removeRelic', 'cheat.removeAllRelics', 'cheat.spawnEnemy',
   'cheat.setMapSkipEnabled', 'cheat.setSpawnPointCapture', 'cheat.removeSpawnPoint', 'cheat.clearSpawnPoints',

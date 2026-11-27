@@ -15,6 +15,7 @@
   <ItemGroup>
     <Compile Include="..\Loopstructor.AutoPlayer.Plugin\CheatRuntimeBridge.cs" Link="Runtime\CheatRuntimeBridge.cs" />
     <Compile Include="..\Loopstructor.AutoPlayer.Plugin\ForcedRunEventPatch.cs" Link="Runtime\ForcedRunEventPatch.cs" />
+    <Compile Include="..\Loopstructor.AutoPlayer.Plugin\RewardChestBypassPatch.cs" Link="Runtime\RewardChestBypassPatch.cs" />
     <Compile Include="..\Loopstructor.AutoPlayer.Plugin\VehicleSwapDiagnostics.cs" Link="Runtime\VehicleSwapDiagnostics.cs" />
     <Compile Include="..\Loopstructor.AutoPlayer.Plugin\GameHotkeyReader.cs" Link="Runtime\GameHotkeyReader.cs" />
     <Compile Include="..\Loopstructor.AutoPlayer.Plugin\MapSkipPatch.cs" Link="Runtime\MapSkipPatch.cs" />

@@ -77,6 +77,7 @@ async function togglePersistent(option: PersistentCheatOption, value: boolean, i
         <button class="btn command-button" :disabled="store.writeLocked || !store.connected" @click="store.command('cheat.endWave')"><FastForward :size="20" /><span><strong>结束当前波次</strong><small>推进到本波结算</small></span></button>
         <button class="btn btn-error command-button danger-command" :disabled="store.writeLocked || !store.connected" @click="store.command('cheat.clearEnemies')"><Skull :size="20" /><span><strong>清除所有敌人</strong><small>立即清理当前场景</small></span></button>
         <button class="btn command-button" :disabled="store.writeLocked || !store.connected" @click="store.command('cheat.skipRewardPopup')"><Gift :size="20" /><span><strong>跳过当前奖励</strong><small>放弃奖励并解除弹窗阻断</small></span></button>
+        <button class="btn command-button reward-gate-command" :disabled="store.writeLocked || !store.connected" title="临时解除奖励箱对选关的锁定 30 秒；奖励不会自动领取" @click="store.command('cheat.skipRewardChests')"><Map :size="20" /><span><strong>不领奖励，开放选关</strong><small>临时解除奖励箱锁定，奖励不会领取</small></span></button>
       </div>
     </section>
     <section class="card battle-section mechanical-section" :class="{ mutationLocked: store.writeLocked }">

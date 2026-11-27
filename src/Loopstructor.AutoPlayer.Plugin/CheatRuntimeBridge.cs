@@ -416,6 +416,11 @@ internal sealed class CheatRuntimeBridge
         _waveProgressControllerType = Require("MetroTD.RoomSystem.WaveProgressController");
         // 灰市升级的组件替换会把真实异常吞掉；启动时就挂只读诊断补丁，失败不影响其它功能。
         VehicleSwapDiagnostics.EnsureInstalled();
+        // 选关门禁的 SetRewardChoiceBlocked 在 UI 刷新时每帧调用；启动时就挂补丁，避免首次点击后才补丁。
+        if (!RewardChestBypassPatch.TryInstall(out string rewardChestBypassError))
+        {
+            _warningLogger?.Invoke("奖励箱选关补丁未安装：" + rewardChestBypassError);
+        }
         _agentCreatorType = Require("MetroTD.AISystem.AgentCreator");
         _enemyConfigType = Require("MetroTD.AISystem.SO_EnemyCfg");
         _aiInformationDataSoType = Require("MetroTD.AISystem.AIInformationDataSO");
@@ -2439,6 +2444,23 @@ internal sealed class CheatRuntimeBridge
             data);
     }
 
+    public CheatExecutionResult SkipRewardChests()
+    {
+        EnsureAvailable();
+        if (!RewardChestBypassPatch.TryActivate(out string message))
+        {
+            return CheatExecutionResult.Fail(message, "REWARD_CHEST_BYPASS_UNAVAILABLE");
+        }
+
+        return CheatExecutionResult.Changed(
+            message,
+            new JObject
+            {
+                ["seconds"] = RewardChestBypassPatch.ActivationSeconds,
+                ["rewardChestsRemainUnclaimed"] = true
+            });
+    }
+
     public JObject QueryVehicles()
     {
         EnsureAvailable();
@@ -3532,6 +3554,7 @@ internal sealed class CheatRuntimeBridge
 
     public void ResetTransientFeatures()
     {
+        RewardChestBypassPatch.Reset();
         EnemyIdsVisible = false;
         EnemyBuffsVisible = false;
         InvalidateEnemyOverlayCache();

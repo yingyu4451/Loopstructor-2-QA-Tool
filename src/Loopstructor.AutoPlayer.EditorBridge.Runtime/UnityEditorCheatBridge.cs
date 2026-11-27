@@ -190,6 +190,7 @@ internal sealed class EditorCheatRuntime : IDisposable
                 CheatCommands.TriggerRunEvent => m_bridge.TriggerRunEvent(arguments),
                 CheatCommands.ClearEnemies => m_bridge.ClearEnemies(),
                 CheatCommands.SkipRewardPopup => m_bridge.SkipRewardPopup(),
+                CheatCommands.SkipRewardChests => m_bridge.SkipRewardChests(),
                 CheatCommands.QueryVehicles => CheatExecutionResult.Ok("已读取当前战车。", m_bridge.QueryVehicles()),
                 CheatCommands.QueryRunEvents => m_bridge.QueryRunEvents(),
                 CheatCommands.ModifyVehicle => m_bridge.ModifyVehicle(arguments),

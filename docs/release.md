@@ -59,7 +59,7 @@
 ## 本地打包
 
 ```powershell
-./scripts/package.ps1 -Version 0.6.122
+./scripts/package.ps1 -Version 0.6.123
 ```
 
 参数：`-Version`（缺省取 `Directory.Build.props` 的 `VersionPrefix`；发布时必须显式传入与源码一致的版本）、`-SkipBuild`（复用已有构建产物）、`-SevenZipPath`（7-Zip 路径，缺省自动探测）。
@@ -69,8 +69,8 @@
 输出到 `artifacts\release\`：
 
 ```text
-Loopstructor-2-QA-Tool-0.6.122-win-x64.zip
-Loopstructor-2-QA-Tool-0.6.122-win-x64.zip.sha256
+Loopstructor-2-QA-Tool-0.6.123-win-x64.zip
+Loopstructor-2-QA-Tool-0.6.123-win-x64.zip.sha256
 autoplayer-update-manifest.json
 ```
 
@@ -85,15 +85,15 @@ autoplayer-update-manifest.json
 ```json
 {
   "schemaVersion": 3,
-  "version": "0.6.122",
+  "version": "0.6.123",
   "runtimeIdentifier": "win-x64",
-  "assetName": "Loopstructor-2-QA-Tool-0.6.122-win-x64.zip",
+  "assetName": "Loopstructor-2-QA-Tool-0.6.123-win-x64.zip",
   "sha256": "<整包 SHA-256>",
   "size": 123456789,
   "deltaAssets": [
     {
-      "fromVersion": "0.6.121",
-      "assetName": "Loopstructor-2-QA-Tool-0.6.121-to-0.6.122-win-x64.delta.zip",
+      "fromVersion": "0.6.122",
+      "assetName": "Loopstructor-2-QA-Tool-0.6.122-to-0.6.123-win-x64.delta.zip",
       "sha256": "<增量包 SHA-256>",
       "size": 1234567
     }
@@ -165,8 +165,8 @@ autoplayer-update-manifest.json
 - 创建标签：
 
 ```powershell
-git tag v0.6.122
-git push origin v0.6.122
+git tag v0.6.123
+git push origin v0.6.123
 ```
 
 ## 升级 BepInEx
@@ -197,6 +197,12 @@ git push origin v0.6.122
 - 本机无 AppID 3841840 授权，`SteamAPI_Init` 失败并打印日志，不影响隔离 QA 启动与游玩。
 
 ## 版本记录
+
+### 0.6.123
+
+- 「战斗」页新增「不领奖励，开放选关」：完成关卡后场上有未领取奖励箱时，点击后 30 秒内可直接打开地图/选择下一关。该操作只临时解除选关门禁，不领取、不清空奖励箱；30 秒后门禁自动恢复。
+- 插件与 Editor Bridge 新增 `cheat.skipRewardChests`：通过 Harmony prefix 在 `RoomMapChoosePanel` / `MultiFunBtn.SetRewardChoiceBlocked` 写入前临时改为 `false`，不领取、不清空奖励；属于写入类命令，自动游玩期间不可用，关闭作弊模式时自动复位。
+- 测试：.NET 741、desktop vitest 55、node:test 10；Release 构建 0 警告。
 
 ### 0.6.122
 

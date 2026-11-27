@@ -139,8 +139,8 @@ public sealed class ProtocolTests
     [Fact]
     public void CheatCommands_ExposeOnlyNamespacedFixedOperations()
     {
-        Assert.Equal(39, CheatCommands.All.Count);
-        Assert.Equal(28, CheatCommands.Mutations.Count);
+        Assert.Equal(40, CheatCommands.All.Count);
+        Assert.Equal(29, CheatCommands.Mutations.Count);
         Assert.Equal(8, CheatCommands.AutoPlayObservationCommands.Count);
         Assert.All(CheatCommands.All, command => Assert.StartsWith("cheat.", command, StringComparison.Ordinal));
         Assert.DoesNotContain(CheatCommands.All, command => command.Contains("reflect", StringComparison.OrdinalIgnoreCase));
@@ -178,6 +178,8 @@ public sealed class ProtocolTests
         Assert.True(CheatCommands.IsMutationCommand(CheatCommands.RemoveAllRelics));
         Assert.True(CheatCommands.IsMutationCommand(CheatCommands.SetFieldCatapultDeleteMode));
         Assert.True(CheatCommands.IsMutationCommand(CheatCommands.SkipRewardPopup));
+        Assert.True(CheatCommands.IsMutationCommand(CheatCommands.SkipRewardChests));
+        Assert.Contains(CheatCommands.SkipRewardChests, CheatCommands.All);
         Assert.True(CheatCommands.IsMutationCommand(CheatCommands.GrantVehicle.ToUpperInvariant()));
         Assert.False(CheatCommands.IsMutationCommand(CheatCommands.QueryEnemies));
         Assert.False(CheatCommands.IsMutationCommand(CheatCommands.SetEnabled));

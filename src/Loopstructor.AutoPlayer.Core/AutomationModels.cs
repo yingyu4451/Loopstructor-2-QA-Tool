@@ -398,6 +398,7 @@ public static class CheatCommands
     public const string EndWave = "cheat.endWave";
     public const string ClearEnemies = "cheat.clearEnemies";
     public const string SkipRewardPopup = "cheat.skipRewardPopup";
+    public const string SkipRewardChests = "cheat.skipRewardChests";
     public const string QueryVehicles = "cheat.queryVehicles";
     public const string ModifyVehicle = "cheat.modifyVehicle";
     public const string SetVehicleEnchantment = "cheat.setVehicleEnchantment";
@@ -440,6 +441,7 @@ public static class CheatCommands
         TriggerRunEvent,
         ClearEnemies,
         SkipRewardPopup,
+        SkipRewardChests,
         QueryVehicles,
         ModifyVehicle,
         SetVehicleEnchantment,
@@ -479,6 +481,7 @@ public static class CheatCommands
         TriggerRunEvent,
         ClearEnemies,
         SkipRewardPopup,
+        SkipRewardChests,
         ModifyVehicle,
         SetVehicleEnchantment,
         ModifyEnemy,

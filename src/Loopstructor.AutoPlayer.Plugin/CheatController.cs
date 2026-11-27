@@ -228,6 +228,7 @@ internal sealed class CheatController : IDisposable
             "cheat.triggerrunevent" => _runtime.TriggerRunEvent(arguments),
             "cheat.clearenemies" => _runtime.ClearEnemies(),
             "cheat.skiprewardpopup" => _runtime.SkipRewardPopup(),
+            "cheat.skiprewardchests" => _runtime.SkipRewardChests(),
             "cheat.queryvehicles" => CheatExecutionResult.Ok("已读取当前战车。", _runtime.QueryVehicles()),
             "cheat.queryrunevents" => _runtime.QueryRunEvents(),
             "cheat.modifyvehicle" => _runtime.ModifyVehicle(arguments),
